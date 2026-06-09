@@ -1,0 +1,4 @@
+<resources>
+    <!-- Base platform theme; the UI itself is themed by Jetpack Compose (NurseryTheme). -->
+    <style name="Theme.Nursery" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

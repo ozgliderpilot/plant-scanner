@@ -1,0 +1,42 @@
+package com.nursery.core
+
+/**
+ * The cached plant list, indexed for scan lookup by accession number (which is also the barcode
+ * value). A scan that misses becomes a "sell as unknown" line (decision #7) rather than being lost.
+ */
+class PlantBook(plants: List<Plant>) {
+
+    private val byAccession: Map<String, Plant> = plants.associateBy { it.accession }
+
+    val size: Int = plants.size
+
+    /** Look up a scanned or typed accession number. */
+    fun findByScan(code: String): Plant? = byAccession[code]
+
+    /** Build a line for a found plant. */
+    fun toLine(plant: Plant, pots: Int, unitPriceCents: Long, discountPct: Int): LineItem =
+        LineItem(
+            accession = plant.accession,
+            name = plant.name,
+            pots = pots,
+            unitPriceCents = unitPriceCents,
+            discountPct = discountPct,
+        )
+
+    companion object {
+        const val UNKNOWN_NAME = "unknown"
+
+        /** Build a "sell as unknown" line: keep the scanned code as the accession, name = "unknown". */
+        fun toUnknownLine(code: String, pots: Int, unitPriceCents: Long, discountPct: Int): LineItem =
+            LineItem(
+                accession = code,
+                name = UNKNOWN_NAME,
+                pots = pots,
+                unitPriceCents = unitPriceCents,
+                discountPct = discountPct,
+            )
+
+        /** A line is "unknown" when its plant was not in the list at sale time. */
+        fun isUnknown(line: LineItem): Boolean = line.name == UNKNOWN_NAME
+    }
+}

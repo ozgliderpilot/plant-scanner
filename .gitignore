@@ -1,0 +1,40 @@
+# Gradle
+.gradle/
+build/
+bin/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Superpowers local working dir (brainstorm scratch, server pids)
+.superpowers/
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local SDK / machine config — never commit
+local.properties
+
+# Kotlin
+.kotlin/
+
+# Build artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Signing material — never commit
+*.jks
+*.keystore
+
+# Node (backend tooling)
+node_modules/
+
+# Logs & OS cruft
+*.log
+.DS_Store
+Thumbs.db

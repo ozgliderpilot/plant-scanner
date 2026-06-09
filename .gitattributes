@@ -1,0 +1,11 @@
+# Normalize line endings.
+* text=auto
+
+# Scripts that must keep specific endings.
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Treat the wrapper jar as binary.
+*.jar binary
