@@ -28,6 +28,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.collect
 import com.nursery.scanner.scanner.ScannerView
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.BigButtonStyle
@@ -60,9 +61,10 @@ fun ScanScreen(
     var showType by remember { mutableStateOf(false) }
     var typed by remember { mutableStateOf("") }
 
-    // When a plant (or unknown) is resolved into a draft, move to the line-item screen.
-    LaunchedEffect(ui.draft) {
-        if (ui.draft != null) onResolved()
+    // Move to the line-item screen on each scan-resolved event (a one-shot, so re-entering Scan with
+    // a left-over draft from a cart-line edit can't bounce the user forward again).
+    LaunchedEffect(Unit) {
+        vm.resolved.collect { onResolved() }
     }
 
     Column(modifier = modifier.fillMaxSize()) {

@@ -1,15 +1,15 @@
-# Release build keeps minify off (internal sideloaded app), but these rules make it safe to turn on.
+# Release build keeps minify off (internal sideloaded app); these rules make it safe to turn on.
 
-# kotlinx.serialization
+# kotlinx.serialization — generic keeps that cover EVERY @Serializable class, wherever it lives
+# (the DTOs in data.remote today, plus anything added later), not just one package.
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.**
--keepclassmembers class com.nursery.scanner.data.remote.** {
-    *** Companion;
-}
--keep class com.nursery.scanner.data.remote.**$$serializer { *; }
--keepclasseswithmembers class com.nursery.scanner.data.remote.** {
+-if @kotlinx.serialization.Serializable class **
+-keepclassmembers class <1> {
+    static <1>$Companion Companion;
     kotlinx.serialization.KSerializer serializer(...);
 }
+-keep,includedescriptorclasses class **$$serializer { *; }
 
 # Retrofit / OkHttp
 -dontwarn okhttp3.**

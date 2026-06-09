@@ -5,7 +5,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val DTF = DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", Locale.getDefault())
-
+// Built per call (not cached at class-load) so a mid-session device locale change is honoured.
 fun formatDateTime(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
-    DTF.format(Instant.ofEpochMilli(epochMs).atZone(zone))
+    DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", Locale.getDefault())
+        .format(Instant.ofEpochMilli(epochMs).atZone(zone))

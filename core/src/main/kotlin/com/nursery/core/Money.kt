@@ -16,8 +16,10 @@ object Money {
         require(unitPriceCents >= 0) { "unitPriceCents must be >= 0, was $unitPriceCents" }
         require(discountPct in 0..100) { "discountPct must be 0..100, was $discountPct" }
 
-        val gross = pots.toLong() * unitPriceCents              // exact, in cents
-        val remainingNumerator = gross * (100 - discountPct)    // cents × percent-points
+        // multiplyExact throws ArithmeticException on overflow rather than silently wrapping to a
+        // negative/garbage total (the UI validates magnitudes first, so this is purely defensive).
+        val gross = Math.multiplyExact(pots.toLong(), unitPriceCents)        // exact, in cents
+        val remainingNumerator = Math.multiplyExact(gross, (100 - discountPct).toLong()) // cents × percent-points
         // Round half-up when dividing by 100 (all values non-negative).
         return (remainingNumerator + 50) / 100
     }

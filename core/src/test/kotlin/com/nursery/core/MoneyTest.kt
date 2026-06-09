@@ -36,6 +36,16 @@ class MoneyTest {
         assertFailsWith<IllegalArgumentException> { Money.lineTotalCents(1, -100, 0) }
     }
 
+    @Test fun `overflowing inputs throw rather than silently wrapping`() {
+        // gross * (100 - discountPct) would overflow Long and wrap to a negative/garbage total.
+        assertFailsWith<ArithmeticException> {
+            Money.lineTotalCents(pots = 1, unitPriceCents = Long.MAX_VALUE, discountPct = 0)
+        }
+        assertFailsWith<ArithmeticException> {
+            Money.lineTotalCents(pots = Int.MAX_VALUE, unitPriceCents = Long.MAX_VALUE / 2, discountPct = 0)
+        }
+    }
+
     @Test fun `receipt total sums lines`() {
         val lines = listOf(
             LineItem(accession = "A", name = "x", pots = 2, unitPriceCents = 500, discountPct = 0),  // 1000

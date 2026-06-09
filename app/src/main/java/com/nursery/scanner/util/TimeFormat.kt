@@ -3,7 +3,8 @@ package com.nursery.scanner.util
 /** Coarse "x ago" label for the status chip. */
 fun relativeTime(epochMs: Long?, now: Long): String {
     if (epochMs == null) return "never"
-    val d = now - epochMs
+    // Clamp: a backward clock jump (now < epochMs) must not surface as "-3m ago".
+    val d = (now - epochMs).coerceAtLeast(0)
     return when {
         d < 60_000 -> "just now"
         d < 3_600_000 -> "${d / 60_000}m ago"

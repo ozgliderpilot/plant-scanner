@@ -10,10 +10,13 @@ import com.nursery.core.Receipt
 import com.nursery.scanner.data.repo.PlantRepository
 import com.nursery.scanner.data.repo.ReceiptRepository
 import com.nursery.scanner.data.settings.SettingsRepository
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -70,6 +73,15 @@ class SellViewModel(
     private val _ui = MutableStateFlow(SellUiState())
     val ui: StateFlow<SellUiState> = _ui.asStateFlow()
 
+    // One-shot "a scan resolved into a draft" events. Navigation is driven by these, NOT by the
+    // persistent `draft` state, so returning to the Scan screen with a left-over draft (e.g. after
+    // editing a cart line) can't bounce the user forward into the line-item form again.
+    private val _resolved = Channel<Unit>(Channel.CONFLATED)
+    val resolved: Flow<Unit> = _resolved.receiveAsFlow()
+
+    // Guards against a double-tap on "Finish & save" creating two receipts for one sale.
+    private var isSaving = false
+
     init {
         viewModelScope.launch { plantRepo.plantBook.collect { book = it } }
     }
@@ -81,6 +93,7 @@ class SellViewModel(
         val plant = book.findByScan(trimmed)
         if (plant != null) {
             _ui.update { it.copy(draft = LineDraft.fromPlant(plant), notFoundCode = null) }
+            _resolved.trySend(Unit)
         } else {
             _ui.update { it.copy(notFoundCode = trimmed) }
         }
@@ -90,6 +103,7 @@ class SellViewModel(
     fun sellAsUnknown() {
         val code = _ui.value.notFoundCode ?: return
         _ui.update { it.copy(draft = LineDraft.unknown(code), notFoundCode = null) }
+        _resolved.trySend(Unit)
     }
 
     fun clearNotFound() = _ui.update { it.copy(notFoundCode = null) }
@@ -140,16 +154,22 @@ class SellViewModel(
 
     /** ③ -> ④ Save the receipt locally as SAVED (pending export). */
     fun finishAndSave() {
-        if (_ui.value.lines.isEmpty()) return
+        if (_ui.value.lines.isEmpty() || _ui.value.saved != null || isSaving) return
+        isSaving = true
         viewModelScope.launch {
-            val config = settings.config.first()
-            val receipt = receiptRepo.saveReceipt(_ui.value.lines, config)
-            _ui.update { it.copy(saved = receipt) }
+            try {
+                val config = settings.config.first()
+                val receipt = receiptRepo.saveReceipt(_ui.value.lines, config)
+                _ui.update { it.copy(saved = receipt) }
+            } finally {
+                isSaving = false
+            }
         }
     }
 
     /** Start a fresh receipt (after Done / New sale). */
     fun reset() {
+        isSaving = false
         _ui.value = SellUiState()
     }
 }

@@ -8,9 +8,17 @@ import kotlin.test.assertTrue
 
 class ReceiptNumberingTest {
 
-    @Test fun `formats prefix and sequence`() {
-        assertEquals("07-241", ReceiptNumbering("07").format(241))
-        assertEquals("00-1", ReceiptNumbering("00").format(1))
+    @Test fun `formats prefix, epoch seconds and daily sequence`() {
+        assertEquals("07-1718000000-1", ReceiptNumbering("07").format(epochSeconds = 1_718_000_000L, seq = 1))
+        assertEquals("00-1718000000-12", ReceiptNumbering("00").format(epochSeconds = 1_718_000_000L, seq = 12))
+    }
+
+    @Test fun `format rejects a negative epoch`() {
+        assertFailsWith<IllegalArgumentException> { ReceiptNumbering("07").format(epochSeconds = -1L, seq = 1) }
+    }
+
+    @Test fun `format rejects a negative sequence`() {
+        assertFailsWith<IllegalArgumentException> { ReceiptNumbering("07").format(epochSeconds = 1L, seq = -1) }
     }
 
     @Test fun `valid prefixes are exactly two digits`() {
@@ -27,7 +35,15 @@ class ReceiptNumberingTest {
         assertFailsWith<IllegalArgumentException> { ReceiptNumbering("7") }
     }
 
-    @Test fun `next increments`() {
-        assertEquals(241, ReceiptNumbering("07").next(240))
+    @Test fun `daily sequence starts at 1 on the very first receipt`() {
+        assertEquals(1, ReceiptNumbering.nextDailySeq(lastDayEpochDay = null, lastSeq = 0, todayEpochDay = 19_888L))
+    }
+
+    @Test fun `daily sequence increments within the same day`() {
+        assertEquals(6, ReceiptNumbering.nextDailySeq(lastDayEpochDay = 19_888L, lastSeq = 5, todayEpochDay = 19_888L))
+    }
+
+    @Test fun `daily sequence resets to 1 on a new day`() {
+        assertEquals(1, ReceiptNumbering.nextDailySeq(lastDayEpochDay = 19_888L, lastSeq = 42, todayEpochDay = 19_889L))
     }
 }

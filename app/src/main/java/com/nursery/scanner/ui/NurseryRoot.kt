@@ -153,15 +153,17 @@ private fun NurseryNavHost(
                     vm = vm,
                     pendingCount = syncState.pendingCount,
                     onNewSale = {
-                        vm.reset()
+                        // Navigate first, THEN reset: nulling `saved` while Confirm is still composed
+                        // would otherwise let its empty-state guard fire onDone and bounce to Home.
                         navController.navigate(Routes.SELL_SCAN) {
                             popUpTo(Routes.SELL_GRAPH) { inclusive = false }
                             launchSingleTop = true
                         }
+                        vm.reset()
                     },
                     onDone = {
-                        vm.reset()
                         navController.popBackStack(Routes.ACTIONS, inclusive = false)
+                        vm.reset()
                     },
                 )
             }

@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.ZoneId
 
 /** Drives the status chip. */
@@ -50,6 +52,10 @@ class SyncRepository(
 ) {
     private val transient = MutableStateFlow(TransientState())
 
+    // Serializes every cloud operation so the auto-export ticker and the manual "Export now"/"Update
+    // plant list" can never run concurrently (which would double-push receipts and corrupt `transient`).
+    private val cloudMutex = Mutex()
+
     val state: StateFlow<SyncState> = combine(
         receiptDao.observePendingCount(ReceiptStatus.SAVED.name),
         settings.lastSyncedMs,
@@ -66,19 +72,19 @@ class SyncRepository(
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), SyncState())
 
     /** Push pending (SAVED) receipts. Used by both the silent ticker and the manual button. */
-    suspend fun exportPending(): SyncResult {
+    suspend fun exportPending(): SyncResult = cloudMutex.withLock {
         val config = settings.config.first()
-        if (!config.isComplete) return SyncResult.NotConfigured
+        if (!config.isComplete) return@withLock SyncResult.NotConfigured
 
         val pending = receiptDao.receiptsByStatus(ReceiptStatus.SAVED.name).map { it.toCore() }
-        if (pending.isEmpty()) return SyncResult.Done(0)
+        if (pending.isEmpty()) return@withLock SyncResult.Done(0)
 
         transient.update { it.copy(busy = true, error = null) }
         val rows = Export.buildRows(pending, zone).map { Export.rowAsStrings(it) }
         val result = sheets.appendSales(config, Export.HEADER, rows)
         transient.update { it.copy(busy = false) }
 
-        return result.fold(
+        result.fold(
             onSuccess = {
                 receiptDao.markExported(pending.map { r -> r.localId }, ReceiptStatus.EXPORTED.name)
                 settings.setLastSynced(System.currentTimeMillis())
@@ -91,13 +97,13 @@ class SyncRepository(
         )
     }
 
-    suspend fun updatePlantList(): SyncResult {
+    suspend fun updatePlantList(): SyncResult = cloudMutex.withLock {
         val config = settings.config.first()
-        if (!config.isComplete) return SyncResult.NotConfigured
+        if (!config.isComplete) return@withLock SyncResult.NotConfigured
         transient.update { it.copy(busy = true, error = null) }
         val result = plants.updateFromCloud(config)
         transient.update { it.copy(busy = false) }
-        return result.fold(
+        result.fold(
             onSuccess = { SyncResult.Done(it) },
             onFailure = { e ->
                 transient.update { it.copy(error = e.message) }

@@ -12,12 +12,15 @@ import com.nursery.scanner.data.local.toEntity
 import com.nursery.scanner.data.settings.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.Instant
+import java.time.ZoneId
 
 /** Local sales history. Receipts are written here first (offline-first) then exported later. */
 class ReceiptRepository(
     private val receiptDao: ReceiptDao,
     private val settings: SettingsRepository,
     private val now: () -> Long = System::currentTimeMillis,
+    private val zone: ZoneId = ZoneId.systemDefault(),
 ) {
     val receipts: Flow<List<Receipt>> =
         receiptDao.observeReceipts().map { list -> list.map { it.toCore() } }
@@ -27,9 +30,10 @@ class ReceiptRepository(
      * Returns the persisted receipt.
      */
     suspend fun saveReceipt(lines: List<LineItem>, config: DeviceConfig): Receipt {
-        val seq = settings.nextReceiptSeq()
-        val receiptNo = ReceiptNumbering(config.devicePrefix).format(seq)
         val createdAt = now()
+        val todayEpochDay = Instant.ofEpochMilli(createdAt).atZone(zone).toLocalDate().toEpochDay()
+        val seq = settings.nextReceiptSeq(todayEpochDay)
+        val receiptNo = ReceiptNumbering(config.devicePrefix).format(createdAt / 1000, seq)
         val header = ReceiptEntity(
             receiptNo = receiptNo,
             createdAtEpochMs = createdAt,

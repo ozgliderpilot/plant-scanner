@@ -30,6 +30,7 @@ class SettingsRepository(context: Context) {
         val SECRET = stringPreferencesKey("shared_secret")
         val INTERVAL = intPreferencesKey("auto_export_seconds")
         val SEQ = intPreferencesKey("receipt_seq")
+        val SEQ_DAY = longPreferencesKey("receipt_seq_day")
         val LAST_SYNCED = longPreferencesKey("last_synced_ms")
     }
 
@@ -56,12 +57,21 @@ class SettingsRepository(context: Context) {
         }
     }
 
-    /** Atomically increment and return the next local receipt sequence. */
-    suspend fun nextReceiptSeq(): Int {
+    /**
+     * Atomically allocate the next per-device receipt sequence, resetting to 1 each new day
+     * ([todayEpochDay] is the receipt's local-zone epoch-day). Both the sequence and the day it
+     * belongs to are written in the same edit so concurrent saves can't race.
+     */
+    suspend fun nextReceiptSeq(todayEpochDay: Long): Int {
         var next = 1
         store.edit { p ->
-            next = (p[Keys.SEQ] ?: 0) + 1
+            next = ReceiptNumbering.nextDailySeq(
+                lastDayEpochDay = p[Keys.SEQ_DAY],
+                lastSeq = p[Keys.SEQ] ?: 0,
+                todayEpochDay = todayEpochDay,
+            )
             p[Keys.SEQ] = next
+            p[Keys.SEQ_DAY] = todayEpochDay
         }
         return next
     }
