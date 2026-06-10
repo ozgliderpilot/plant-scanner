@@ -15,6 +15,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -37,6 +38,12 @@ fun SyncScreen(vm: SyncViewModel, onSettings: () -> Unit, modifier: Modifier = M
     val now = System.currentTimeMillis()
 
     val canTalk = state.online && !state.isBusy && config.isComplete
+
+    // The manual-action result is one-shot: drop it when we leave the screen so navigating
+    // away and back doesn't resurrect a stale "Exported (N)" card.
+    DisposableEffect(Unit) {
+        onDispose { vm.clearMessage() }
+    }
 
     Column(
         modifier = modifier

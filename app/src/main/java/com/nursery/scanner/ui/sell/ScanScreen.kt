@@ -2,6 +2,7 @@ package com.nursery.scanner.ui.sell
 
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -24,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat
@@ -48,6 +51,7 @@ fun ScanScreen(
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     var hasCamera by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
@@ -61,11 +65,24 @@ fun ScanScreen(
     var showType by remember { mutableStateOf(false) }
     var typed by remember { mutableStateOf("") }
 
+    // Shared by the keypad's search key and the "Find" button: look the code up, then drop focus so
+    // the keypad closes (otherwise the magnifying glass does nothing and the pad lingers).
+    val submitTyped = {
+        if (typed.isNotBlank()) {
+            vm.onCode(typed)
+            typed = ""
+            focusManager.clearFocus()
+        }
+    }
+
     // Move to the line-item screen on each scan-resolved event (a one-shot, so re-entering Scan with
     // a left-over draft from a cart-line edit can't bounce the user forward again).
     LaunchedEffect(Unit) {
         vm.resolved.collect { onResolved() }
     }
+
+    // Route system back through the same exit as the header arrow (onClose decides Home vs. the cart).
+    BackHandler { onClose() }
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(title = "Scan plant", onBack = onClose)
@@ -91,6 +108,8 @@ fun ScanScreen(
                         .fillMaxWidth()
                         .weight(1f)
                         .padding(bottom = Dimens.Gap),
+                    // Pause emission while the not-found card is up; "Retry" clears it and re-arms.
+                    scanning = ui.notFoundCode == null,
                     onBarcode = { code -> vm.onCode(code) },
                 )
             }
@@ -122,11 +141,12 @@ fun ScanScreen(
                     label = { Text("Accession number") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { submitTyped() }),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 BigButton(
                     text = "Find",
-                    onClick = { vm.onCode(typed); typed = "" },
+                    onClick = submitTyped,
                     enabled = typed.isNotBlank(),
                 )
             }

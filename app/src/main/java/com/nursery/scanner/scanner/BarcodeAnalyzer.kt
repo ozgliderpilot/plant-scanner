@@ -10,8 +10,9 @@ import com.google.mlkit.vision.common.InputImage
 
 /**
  * ML Kit analyzer restricted to Code 128 (the nursery label symbology). Restricting formats speeds
- * detection and avoids false reads from stray 2D codes. Emits the first decoded value exactly once
- * (debounced via [handled]) so one scan == one line item.
+ * detection and avoids false reads from stray 2D codes. Emits one decoded value per scan session:
+ * after a hit it [disarm]s itself (so one scan == one line item) and stays quiet until the host
+ * [arm]s it again — e.g. when the user taps "Retry" on a not-found code.
  */
 class BarcodeAnalyzer(private val onBarcode: (String) -> Unit) : ImageAnalysis.Analyzer {
 
@@ -21,13 +22,19 @@ class BarcodeAnalyzer(private val onBarcode: (String) -> Unit) : ImageAnalysis.A
             .build(),
     )
 
+    // Gates emission: true while waiting for a scan, flipped false on a hit (and while a result is
+    // shown). Re-armed by the host to scan again, which is what makes "Retry" work.
     @Volatile
-    private var handled = false
+    private var armed = true
+
+    fun arm() { armed = true }
+
+    fun disarm() { armed = false }
 
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(imageProxy: ImageProxy) {
         val mediaImage = imageProxy.image
-        if (mediaImage == null || handled) {
+        if (mediaImage == null || !armed) {
             imageProxy.close()
             return
         }
@@ -35,8 +42,8 @@ class BarcodeAnalyzer(private val onBarcode: (String) -> Unit) : ImageAnalysis.A
         scanner.process(input)
             .addOnSuccessListener { barcodes ->
                 val code = barcodes.firstOrNull()?.rawValue
-                if (!code.isNullOrBlank() && !handled) {
-                    handled = true
+                if (!code.isNullOrBlank() && armed) {
+                    armed = false
                     onBarcode(code)
                 }
             }

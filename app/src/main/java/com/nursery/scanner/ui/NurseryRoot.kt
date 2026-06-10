@@ -116,7 +116,18 @@ private fun NurseryNavHost(
                 ScanScreen(
                     vm = vm,
                     onResolved = { navController.navigate(Routes.SELL_LINE) },
-                    onClose = { navController.popBackStack(Routes.ACTIONS, inclusive = false) },
+                    // Backing out of Scan with a started receipt returns to the cart (nothing is
+                    // dropped); only an empty receipt exits to Home.
+                    onClose = {
+                        if (vm.ui.value.lines.isEmpty()) {
+                            navController.popBackStack(Routes.ACTIONS, inclusive = false)
+                        } else {
+                            navController.navigate(Routes.SELL_CART) {
+                                popUpTo(Routes.SELL_SCAN) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    },
                 )
             }
             composable(Routes.SELL_LINE) { entry ->
