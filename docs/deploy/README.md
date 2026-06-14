@@ -8,6 +8,8 @@ Three parts, deploy in this order:
    APK to each device. (Once per app version.)
 3. **[connect.md](connect.md)** — in each device's **Settings**, enter the URL, the access code, and a
    unique 2-digit prefix; pull the plant list; do a test sale. (Once per device.)
+4. **[access.md](access.md)** — on the nursery PC, set up the Access → Sheets plant sync (import the
+   VBA module, set the URL/secret env vars, wire the Form Timer). (Once, on the nursery PC.)
 
 ## End-to-end checklist
 
@@ -19,6 +21,8 @@ Three parts, deploy in this order:
 - [ ] App built (`:app:assembleDebug`) and installed on each device.
 - [ ] Each device: prefix + URL + access code entered; **Update plant list** succeeds.
 - [ ] Test sale appears in the **`Sales`** tab.
+- [ ] Nursery PC: VBA module imported, `GFRBG_SYNC_URL` / `GFRBG_SYNC_SECRET` set, Form Timer wired;
+      **Sync now** writes the `Plants` tab and stamps the **`SyncStatus`** tab.
 
 ## Running the automated tests
 

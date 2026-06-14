@@ -14,11 +14,12 @@ volunteers: big buttons/text, high contrast, no flicker, tap-not-gesture.
 **All business logic that is easy to get wrong lives in `core/` — a pure Kotlin/JVM module with no
 Android types — and is unit-tested there.** The Android `app/` module is thin, declarative glue.
 
-This split exists because this build machine has **no Android SDK**, so `app/` cannot be assembled or
-tested here — only `core/` and `backend/` can. **When you add or change logic (money math, receipt
-numbering, sync selection, export shaping, validation, search/filter), put it in `core/` and cover it
-with a `core/` test.** Do not bury that logic in a ViewModel or Composable where it can't be verified
-in this environment.
+This split exists so the easy-to-break logic gets **fast, isolated JVM unit tests** in `core/`. The
+Android `app/` module *can* be assembled on this machine (see Build & test — the Android SDK and the
+Android Studio JBR are installed), but it is Compose/Room/UI glue with no unit tests runnable here (no
+emulator), so logic buried in a ViewModel or Composable can't be verified the way `core/` can. **When
+you add or change logic (money math, receipt numbering, sync selection, export shaping, validation,
+search/filter), put it in `core/` and cover it with a `core/` test.**
 
 ```
 core/      Pure Kotlin/JVM — money, receipt numbering, plant lookup, sync selection, export rows,
@@ -42,8 +43,11 @@ cd core && gradle test --tests "com.nursery.core.MoneyTest"     # single test cl
 node --test backend/test/logic.test.js
 node --test --test-name-pattern "isAuthorized" backend/test/logic.test.js   # single test
 
-# app/ Android — REQUIRES Android Studio / Android SDK + JDK 17 (cannot run on this machine)
-./gradlew :app:assembleDebug     # -> app/build/outputs/apk/debug/app-debug.apk
+# app/ Android — assembles on THIS machine. The SDK is wired via local.properties
+# (sdk.dir=C:\Users\vital\AppData\Local\Android\Sdk). Build with the Android Studio JBR (JDK 21);
+# the machine's default JAVA_HOME is a non-LTS/EOL JDK 19, so point JAVA_HOME at the JBR:
+JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:assembleDebug
+#   -> app/build/outputs/apk/debug/app-debug.apk
 ```
 
 `core/` and `app/` target JVM 17 bytecode. `core/` is its own standalone Gradle build (it has its own
@@ -88,11 +92,19 @@ drives the Android app and pulls `core/` in as an included build.
 - **`core/bin/` and `app/build/` are generated** — `core/bin/main/...` contains copies of the `.kt`
   sources that show up in searches. The real sources are under `core/src/`. Edit `core/src/`, never
   `core/bin/`.
-- Changes to `app/` can't be compiled or tested in this environment (no Android SDK). Validate logic
-  via `core/` tests and the app by running it per `docs/deploy/connect.md`.
+- `app/` **assembles** here (`:app:assembleDebug` with the Android Studio JBR — see Build & test), but
+  there's no emulator, so app-level/instrumented tests don't run. Validate business logic via `core/`
+  tests, confirm the app compiles with `assembleDebug`, and exercise it on a device per
+  `docs/deploy/connect.md`.
+- **The Android toolchain is on KSP2** (Kotlin 2.2.10 + KSP `2.2.10-2.0.2`). KSP2 needs **Room ≥ 2.7**
+  (`room-compiler` 2.6.x throws `unexpected jvm signature V`), and the KSP version's `<kotlin>` prefix
+  must match `kotlin` in `libs.versions.toml`. Keep those three in lockstep when bumping any of them.
 
 ## Docs
 
 - `docs/superpowers/specs/2026-06-09-plant-scanner-screen-flows-design.md` — approved design spec.
+- `docs/superpowers/specs/2026-06-15-access-google-sheets-plant-sync-design.md` — Access → Sheets plant
+  sync design (full-mirror `replacePlants`, raw 43-col Batches+Species view, env-var-gated VBA push).
 - `docs/tech-stack.md` — technology decisions and rationale (why Room, why not WorkManager, etc.).
-- `docs/deploy/` — deployment in order: `backend.md` → `android.md` → `connect.md`.
+- `docs/deploy/` — deployment in order: `backend.md` → `android.md` → `connect.md` → `access.md`
+  (the nursery-PC Access → Sheets sync).
