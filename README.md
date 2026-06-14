@@ -15,7 +15,9 @@ volunteers (big buttons, big text, high contrast, no flicker, tap-not-gesture).
 - **Auto-export** — pending receipts push to Google Sheets every ~1 minute when online, silently. A
   manual **Export now** and **Update plant list** are one tap each.
 - **Receipts** — local sales history, grouped by receipt.
-- Receipt numbers are `PP-NNN` with a per-device 2-digit prefix, so multiple devices never collide.
+- Receipt numbers are `PP-<epochSeconds>-<seq>` (e.g. `07-1718000000-1`): a per-device 2-digit prefix
+  `PP`, the creation time in epoch seconds, and a sequence that resets daily — so multiple devices
+  never collide and numbers survive a reinstall.
 
 ## Architecture (three independently-buildable parts)
 

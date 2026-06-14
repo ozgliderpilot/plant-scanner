@@ -76,9 +76,11 @@ Field notes:
 
 - **`accession`** is the scanned/typed code. The Code 128 label **encodes the accession**, so there
   is no separate barcode field; a not-found scan keeps its accession with `name = "unknown"` (#7, #12).
-- **`receiptNo`** = `PP-NNN` — the device's configured **2-digit prefix** (`PP`, from DataStore) +
-  the next local sequence (`NNN`). Prefixes keep numbers unique across devices in the shared Sheet;
-  no central coordination.
+- **`receiptNo`** = `PP-<epochSeconds>-<seq>` (e.g. `07-1718000000-1`) — the device's configured
+  **2-digit prefix** (`PP`, from DataStore), the creation time in epoch seconds, and a per-device
+  sequence that resets daily. The prefix keeps numbers unique across devices in the shared Sheet, and
+  the epoch-seconds segment keeps a reset sequence from colliding after a reinstall; no central
+  coordination.
 - **`unitPrice`** lives only on the line item and is **keyed at sale** — the plant sheet has no price
   column, so `PlantEntity` carries none.
 - **`discountPct`** is a **percentage** (0–100); `lineTotal = pots × unitPrice × (1 − discountPct/100)`.
@@ -136,7 +138,8 @@ Pending sales push automatically on a timer (default **60s**, configurable via D
   the accession number** (no separate barcode field).
 - **Unit price:** no price column in the sheet → keyed at sale, on the line item only.
 - **Source of truth:** Google Sheets (the upstream MS Access → Sheets pipeline is out of scope).
-- **Receipt #:** per-device `PP-NNN`, purely local; 2-digit prefix from config.
+- **Receipt #:** per-device `PP-<epochSeconds>-<seq>`, purely local; 2-digit prefix from config,
+  sequence resets daily.
 - **Multiple devices:** assumed yes → collisions avoided by the prefix; no sync-merge logic.
 
 *No open questions remain — pending only a sanity-check scan of a real printed label.*
