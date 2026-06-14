@@ -2,6 +2,7 @@ package com.nursery.scanner.di
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.nursery.scanner.ui.plants.PlantListViewModel
 import com.nursery.scanner.ui.receipts.ReceiptsViewModel
 import com.nursery.scanner.ui.sell.SellViewModel
 import com.nursery.scanner.ui.settings.SettingsViewModel
@@ -18,6 +19,8 @@ class NurseryViewModelFactory(private val c: AppContainer) : ViewModelProvider.F
                 ReceiptsViewModel(c.receiptRepository)
             modelClass.isAssignableFrom(SyncViewModel::class.java) ->
                 SyncViewModel(c.syncRepository, c.settingsRepository)
+            modelClass.isAssignableFrom(PlantListViewModel::class.java) ->
+                PlantListViewModel(c.plantRepository)
             modelClass.isAssignableFrom(SettingsViewModel::class.java) ->
                 SettingsViewModel(c.settingsRepository)
             else -> throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")

@@ -11,6 +11,7 @@ object Routes {
     const val RECEIPTS = "receipts"
     const val SYNC = "sync"
     const val SETTINGS = "settings"
+    const val PLANTS = "plants"
 
     // Sell flow lives in a nested graph so one SellViewModel is shared across its screens.
     const val SELL_GRAPH = "sell"

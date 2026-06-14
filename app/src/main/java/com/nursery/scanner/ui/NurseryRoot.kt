@@ -23,6 +23,8 @@ import com.nursery.scanner.ui.components.NurseryTopBar
 import com.nursery.scanner.ui.home.HomeScreen
 import com.nursery.scanner.ui.nav.Routes
 import com.nursery.scanner.ui.nav.TabRoutes
+import com.nursery.scanner.ui.plants.PlantListScreen
+import com.nursery.scanner.ui.plants.PlantListViewModel
 import com.nursery.scanner.ui.receipts.ReceiptDetailScreen
 import com.nursery.scanner.ui.receipts.ReceiptsScreen
 import com.nursery.scanner.ui.receipts.ReceiptsViewModel
@@ -101,7 +103,16 @@ private fun NurseryNavHost(
 
         composable(Routes.SYNC) {
             val vm: SyncViewModel = viewModel(factory = container.viewModelFactory)
-            SyncScreen(vm, onSettings = { navController.navigate(Routes.SETTINGS) })
+            SyncScreen(
+                vm,
+                onSettings = { navController.navigate(Routes.SETTINGS) },
+                onViewPlants = { navController.navigate(Routes.PLANTS) },
+            )
+        }
+
+        composable(Routes.PLANTS) {
+            val vm: PlantListViewModel = viewModel(factory = container.viewModelFactory)
+            PlantListScreen(vm, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.SETTINGS) {

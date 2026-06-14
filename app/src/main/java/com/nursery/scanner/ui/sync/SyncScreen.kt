@@ -30,7 +30,12 @@ import com.nursery.scanner.util.relativeTime
  * (spec #9): Update plant list, and Export now. Both disabled offline ("needs Wi-Fi").
  */
 @Composable
-fun SyncScreen(vm: SyncViewModel, onSettings: () -> Unit, modifier: Modifier = Modifier) {
+fun SyncScreen(
+    vm: SyncViewModel,
+    onSettings: () -> Unit,
+    onViewPlants: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     val plantCount by vm.plantCount.collectAsStateWithLifecycle()
     val config by vm.config.collectAsStateWithLifecycle()
@@ -66,6 +71,11 @@ fun SyncScreen(vm: SyncViewModel, onSettings: () -> Unit, modifier: Modifier = M
             Column(Modifier.padding(Dimens.Gap), verticalArrangement = Arrangement.spacedBy(Dimens.GapSmall)) {
                 Text("Plant list", style = MaterialTheme.typography.titleMedium)
                 Text("$plantCount plants cached", style = MaterialTheme.typography.bodyLarge)
+                BigButton(
+                    text = "View plant list",
+                    onClick = onViewPlants,
+                    style = BigButtonStyle.Secondary,
+                )
                 BigButton(
                     text = "Update plant list",
                     onClick = { vm.updatePlantList() },
