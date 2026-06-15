@@ -18,7 +18,10 @@ accession — and auto-creates it (`qryPlantsExport`) on first run.
 > pane and full menus needed for the steps below.
 
 1. **The query is created automatically.** `modPlantSync` builds `qryPlantsExport` on its first run if
-   it's missing (from its embedded `PLANTS_SQL`), so there's no manual query step.
+   it's missing (from its embedded `PLANTS_SQL`), so there's no manual query step. It also **rewrites
+   the query's SQL from `PLANTS_SQL` on every run** — `PLANTS_SQL` is the single source of truth for
+   the export columns, so don't hand-edit `qryPlantsExport`; any manual change is overwritten on the
+   next sync.
 
 2. **Import the module.** VBA editor (Alt+F11) → File → Import File… → select
    `backend/access/modPlantSync.bas`.
