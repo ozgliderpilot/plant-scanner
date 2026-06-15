@@ -31,6 +31,9 @@ local.properties
 *.jks
 *.keystore
 
+# Access database data exports (real nursery data — never commit)
+*.mdb
+
 # Node (backend tooling)
 node_modules/
 
