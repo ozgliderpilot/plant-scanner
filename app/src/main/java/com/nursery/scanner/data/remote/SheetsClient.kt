@@ -50,7 +50,15 @@ class SheetsClient(
             val resp = json.decodeFromString<GetPlantsResponse>(postRaw(config.endpointUrl, requestBody))
             if (!resp.ok) error(resp.error ?: "Server rejected the request")
             resp.plants.map {
-                Plant(accession = it.accession, name = it.name, group = it.group, light = it.light)
+                Plant(
+                    accession = it.accession,
+                    name = it.name,
+                    group = it.group,
+                    light = it.light,
+                    potsInNursery = it.potsInNursery,
+                    tubesInNursery = it.tubesInNursery,
+                    miscInNursery = it.miscInNursery,
+                )
             }
         }
     }

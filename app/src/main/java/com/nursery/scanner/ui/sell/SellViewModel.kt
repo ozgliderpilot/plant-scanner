@@ -7,6 +7,7 @@ import com.nursery.core.Money
 import com.nursery.core.Plant
 import com.nursery.core.PlantBook
 import com.nursery.core.Receipt
+import com.nursery.core.SaleUnit
 import com.nursery.scanner.data.repo.PlantRepository
 import com.nursery.scanner.data.repo.ReceiptRepository
 import com.nursery.scanner.data.settings.SettingsRepository
@@ -30,20 +31,29 @@ data class LineDraft(
     val group: String?,
     val light: String?,
     val isUnknown: Boolean,
-    val pots: Int,
+    val qty: Int,
     val unitPriceCents: Long,
     val discountPct: Int,
+    val unit: SaleUnit,
+    val potsInNursery: Int,
+    val tubesInNursery: Int,
+    val miscInNursery: Int,
     val editIndex: Int?,
 ) {
     companion object {
         fun fromPlant(p: Plant) = LineDraft(
             accession = p.accession, name = p.name, group = p.group, light = p.light,
-            isUnknown = false, pots = 1, unitPriceCents = 0, discountPct = 0, editIndex = null,
+            isUnknown = false, qty = 1, unitPriceCents = 0, discountPct = 0,
+            unit = SaleUnit.defaultFor(p.potsInNursery, p.tubesInNursery, p.miscInNursery),
+            potsInNursery = p.potsInNursery, tubesInNursery = p.tubesInNursery, miscInNursery = p.miscInNursery,
+            editIndex = null,
         )
 
         fun unknown(code: String) = LineDraft(
             accession = code, name = PlantBook.UNKNOWN_NAME, group = null, light = null,
-            isUnknown = true, pots = 1, unitPriceCents = 0, discountPct = 0, editIndex = null,
+            isUnknown = true, qty = 1, unitPriceCents = 0, discountPct = 0,
+            unit = SaleUnit.POTS, potsInNursery = 0, tubesInNursery = 0, miscInNursery = 0,
+            editIndex = null,
         )
     }
 }
@@ -111,14 +121,15 @@ class SellViewModel(
     fun discardDraft() = _ui.update { it.copy(draft = null) }
 
     /** ② Commit the line-item form (add new, or replace when editing). */
-    fun commitDraft(pots: Int, unitPriceCents: Long, discountPct: Int) {
+    fun commitDraft(qty: Int, unitPriceCents: Long, discountPct: Int, unit: SaleUnit) {
         val d = _ui.value.draft ?: return
         val line = LineItem(
             accession = d.accession,
             name = d.name,
-            pots = pots,
+            qty = qty,
             unitPriceCents = unitPriceCents,
             discountPct = discountPct,
+            unit = unit,
         )
         val lines = _ui.value.lines.toMutableList()
         if (d.editIndex != null && d.editIndex in lines.indices) lines[d.editIndex] = line else lines.add(line)
@@ -137,9 +148,13 @@ class SellViewModel(
                     group = plant?.group,
                     light = plant?.light,
                     isUnknown = PlantBook.isUnknown(line),
-                    pots = line.pots,
+                    qty = line.qty,
                     unitPriceCents = line.unitPriceCents,
                     discountPct = line.discountPct,
+                    unit = line.unit,
+                    potsInNursery = plant?.potsInNursery ?: 0,
+                    tubesInNursery = plant?.tubesInNursery ?: 0,
+                    miscInNursery = plant?.miscInNursery ?: 0,
                     editIndex = index,
                 ),
             )

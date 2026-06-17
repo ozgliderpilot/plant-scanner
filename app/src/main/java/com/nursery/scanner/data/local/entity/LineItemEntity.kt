@@ -26,4 +26,5 @@ data class LineItemEntity(
     val pots: Int,
     val unitPriceCents: Long,
     val discountPct: Int,
+    val unit: String = "POTS",
 )

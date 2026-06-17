@@ -13,4 +13,7 @@ data class PlantEntity(
     // "group" is reserved in SQLite; store under a safe column name.
     @ColumnInfo(name = "plant_group") val group: String?,
     val light: String?,
+    val potsInNursery: Int = 0,
+    val tubesInNursery: Int = 0,
+    val miscInNursery: Int = 0,
 )

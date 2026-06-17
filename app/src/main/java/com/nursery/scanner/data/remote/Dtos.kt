@@ -10,6 +10,9 @@ data class PlantDto(
     val name: String,
     val group: String? = null,
     val light: String? = null,
+    val potsInNursery: Int = 0,
+    val tubesInNursery: Int = 0,
+    val miscInNursery: Int = 0,
 )
 
 @Serializable
