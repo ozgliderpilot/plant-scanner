@@ -89,7 +89,6 @@ fun LineItemScreen(
             PlantCard(
                 name = draft.name,
                 group = draft.group,
-                light = draft.light,
                 accession = draft.accession,
                 isUnknown = draft.isUnknown,
             )

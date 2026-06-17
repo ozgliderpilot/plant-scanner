@@ -58,6 +58,7 @@ class SheetsClient(
                     potsInNursery = it.potsInNursery,
                     tubesInNursery = it.tubesInNursery,
                     miscInNursery = it.miscInNursery,
+                    stockInNursery = it.stockInNursery,
                 )
             }
         }

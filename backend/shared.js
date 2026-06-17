@@ -59,6 +59,7 @@ function parsePlants(values) {
   var iPots = col('potsinnursery');
   var iTubes = col('tubesinnursery');
   var iMisc = col('miscinnursery');
+  var iStock = col('stockinnursery');
 
   function get(row, idx) { return idx >= 0 ? String(row[idx]).trim() : ''; }
   function num(row, idx) {
@@ -89,7 +90,8 @@ function parsePlants(values) {
       light: iLight >= 0 ? emptyToNull(row[iLight]) : null,
       potsInNursery: num(row, iPots),
       tubesInNursery: num(row, iTubes),
-      miscInNursery: num(row, iMisc)
+      miscInNursery: num(row, iMisc),
+      stockInNursery: num(row, iStock)
     });
   }
   return out;

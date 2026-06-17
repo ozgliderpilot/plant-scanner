@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.nursery.core.Plant
+import com.nursery.core.PlantStock
 import com.nursery.scanner.ui.components.ScreenHeader
 import com.nursery.scanner.ui.theme.Dimens
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,12 +68,12 @@ private fun PlantRow(plant: Plant) {
         Column(Modifier.padding(Dimens.Gap)) {
             Text(plant.name, style = MaterialTheme.typography.titleMedium)
             Text("Accession: ${plant.accession}", style = MaterialTheme.typography.bodyMedium)
-            val tags = listOfNotNull(
-                plant.group?.takeIf { it.isNotBlank() },
-                plant.light?.takeIf { it.isNotBlank() },
-            )
-            if (tags.isNotEmpty()) {
-                Text(tags.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
+            plant.group?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium)
+            }
+            // Per-accession counts: non-zero only, fixed order T · P · M · St (empty -> omitted).
+            PlantStock.summary(plant).takeIf { it.isNotEmpty() }?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
