@@ -28,6 +28,7 @@ test('parsePlants maps by header name and skips blank accessions', () => {
   assert.strictEqual(plants.length, 2);
   assert.deepStrictEqual(plants[0], {
     accession: '2021-0345', name: 'Banksia', group: 'Proteaceae', light: 'Full sun',
+    potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0,
   });
   // blank optional cells become null
   assert.strictEqual(plants[1].group, 'Fabaceae');
@@ -148,6 +149,7 @@ test('parsePlants reads the raw Batches+Species view and composes name', () => {
   assert.strictEqual(plants.length, 2);
   assert.deepStrictEqual(plants[0], {
     accession: '31011', name: 'Acacia pycnantha', group: 'Tree', light: 'Full sun',
+    potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0,
   });
   // cultivar folded into the name
   assert.strictEqual(plants[1].name, "Banksia integrifolia 'Roller Coaster'");
@@ -161,7 +163,10 @@ test('parsePlants name falls back to Common Name, and legacy headers still work'
   );
   // old-style sheet (accession/name/group/light) keeps parsing
   const legacy = parsePlants([['accession', 'name', 'group', 'light'], ['2021-1', 'Wattle', 'Tree', 'Sun']]);
-  assert.deepStrictEqual(legacy[0], { accession: '2021-1', name: 'Wattle', group: 'Tree', light: 'Sun' });
+  assert.deepStrictEqual(legacy[0], {
+    accession: '2021-1', name: 'Wattle', group: 'Tree', light: 'Sun',
+    potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0,
+  });
 });
 
 test('planPlantReplace keeps accessions that collide with Object prototype keys', () => {
@@ -182,4 +187,26 @@ test('accessionColIndex matches the app and raw-Access header names, else -1', (
   assert.strictEqual(accessionColIndex(['Genus', 'Ac Number', 'Pots']), 1); // raw Access, case-insensitive
   assert.strictEqual(accessionColIndex(['name', 'group', 'light']), -1);
   assert.strictEqual(accessionColIndex([]), -1);
+});
+
+test('parsePlants reads the per-accession stock counts (Nz -> 0)', () => {
+  const values = [
+    ['Ac Number', 'Genus', 'Species', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery'],
+    ['31011', 'Acacia', 'pycnantha', 5, 2, 0],
+    ['8250', 'Banksia', 'integrifolia', '', '', ''], // blanks -> 0
+  ];
+  const plants = parsePlants(values);
+  assert.strictEqual(plants[0].potsInNursery, 5);
+  assert.strictEqual(plants[0].tubesInNursery, 2);
+  assert.strictEqual(plants[0].miscInNursery, 0);
+  assert.strictEqual(plants[1].potsInNursery, 0);
+  assert.strictEqual(plants[1].tubesInNursery, 0);
+  assert.strictEqual(plants[1].miscInNursery, 0);
+});
+
+test('parsePlants defaults stock counts to 0 when the columns are absent', () => {
+  const plants = parsePlants([['Ac Number', 'Genus'], ['9', 'Grevillea']]);
+  assert.strictEqual(plants[0].potsInNursery, 0);
+  assert.strictEqual(plants[0].tubesInNursery, 0);
+  assert.strictEqual(plants[0].miscInNursery, 0);
 });
