@@ -23,6 +23,11 @@ class SaleUnitTest {
         assertEquals(SaleUnit.POTS, SaleUnit.defaultFor(pots = 0, tubes = 0, misc = 0))
     }
 
+    @Test fun `negative counts are treated as not in stock`() {
+        assertEquals(SaleUnit.POTS, SaleUnit.defaultFor(pots = -1, tubes = 0, misc = 0))
+        assertEquals(SaleUnit.TUBES, SaleUnit.defaultFor(pots = -5, tubes = 3, misc = 0))
+    }
+
     @Test fun `labels are the sheet and dropdown strings`() {
         assertEquals("Pots", SaleUnit.POTS.label)
         assertEquals("Tubes", SaleUnit.TUBES.label)

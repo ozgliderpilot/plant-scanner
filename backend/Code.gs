@@ -131,7 +131,7 @@ function handleAppendSales_(body) {
       var startRow = sheet.getLastRow() + 1;
       // Force identifier columns to plain text so Sheets can't coerce them on write (e.g. a receipt
       // like "07-1" -> a date serial), which would change the stored value and break the dedup
-      // round-trip. Numeric columns (prices, pots) are left to coerce to numbers as intended.
+      // round-trip. Numeric columns (prices, qty) are left to coerce to numbers as intended.
       forceTextColumn_(sheet, startRow, result.rows.length, receiptCol);
       forceTextColumn_(sheet, startRow, result.rows.length, body.header.indexOf('accession'));
       sheet.getRange(startRow, 1, result.rows.length, body.header.length).setValues(result.rows);

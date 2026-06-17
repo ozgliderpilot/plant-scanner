@@ -59,7 +59,7 @@ drives the Android app and pulls `core/` in as an included build.
 - **The receipt `status` column IS the sync queue.** `OPEN` (cart) → `SAVED` (pending export) →
   `EXPORTED`. `Sync.pending()` returns only `SAVED`; export flips them to `EXPORTED` **only on
   success**. This is the whole "nothing lost / no double-counting" guarantee — preserve it.
-- **All money is integer cents** (`Money.kt`); never floats. `lineTotal = pots × unitPrice ×
+- **All money is integer cents** (`Money.kt`); never floats. `lineTotal = qty × unitPrice ×
   (1 − discountPct/100)`, net rounded half-up. `discountPct` is a percentage 0..100.
 - **accession == barcode.** The Code 128 label encodes the accession number itself; there is no
   separate barcode field, and the plant sheet has **no price column** — unit price is keyed at sale on

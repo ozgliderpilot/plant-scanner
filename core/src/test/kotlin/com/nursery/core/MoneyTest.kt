@@ -7,26 +7,26 @@ import kotlin.test.assertFailsWith
 class MoneyTest {
 
     @Test fun `plain multiply, no discount`() {
-        assertEquals(1000, Money.lineTotalCents(pots = 2, unitPriceCents = 500, discountPct = 0))
+        assertEquals(1000, Money.lineTotalCents(qty = 2, unitPriceCents = 500, discountPct = 0))
     }
 
     @Test fun `ten percent off ten dollars is nine dollars`() {
-        assertEquals(900, Money.lineTotalCents(pots = 1, unitPriceCents = 1000, discountPct = 10))
+        assertEquals(900, Money.lineTotalCents(qty = 1, unitPriceCents = 1000, discountPct = 10))
     }
 
     @Test fun `net is rounded half up`() {
         // gross 999c, 10% off -> 899.1 -> 899
-        assertEquals(899, Money.lineTotalCents(pots = 3, unitPriceCents = 333, discountPct = 10))
+        assertEquals(899, Money.lineTotalCents(qty = 3, unitPriceCents = 333, discountPct = 10))
         // gross 5c, 50% off -> 2.5 -> 3 (half up)
-        assertEquals(3, Money.lineTotalCents(pots = 1, unitPriceCents = 5, discountPct = 50))
+        assertEquals(3, Money.lineTotalCents(qty = 1, unitPriceCents = 5, discountPct = 50))
     }
 
     @Test fun `hundred percent discount is zero`() {
-        assertEquals(0, Money.lineTotalCents(pots = 5, unitPriceCents = 1000, discountPct = 100))
+        assertEquals(0, Money.lineTotalCents(qty = 5, unitPriceCents = 1000, discountPct = 100))
     }
 
-    @Test fun `zero pots is zero`() {
-        assertEquals(0, Money.lineTotalCents(pots = 0, unitPriceCents = 1000, discountPct = 0))
+    @Test fun `zero qty is zero`() {
+        assertEquals(0, Money.lineTotalCents(qty = 0, unitPriceCents = 1000, discountPct = 0))
     }
 
     @Test fun `rejects out of range inputs`() {
@@ -39,10 +39,10 @@ class MoneyTest {
     @Test fun `overflowing inputs throw rather than silently wrapping`() {
         // gross * (100 - discountPct) would overflow Long and wrap to a negative/garbage total.
         assertFailsWith<ArithmeticException> {
-            Money.lineTotalCents(pots = 1, unitPriceCents = Long.MAX_VALUE, discountPct = 0)
+            Money.lineTotalCents(qty = 1, unitPriceCents = Long.MAX_VALUE, discountPct = 0)
         }
         assertFailsWith<ArithmeticException> {
-            Money.lineTotalCents(pots = Int.MAX_VALUE, unitPriceCents = Long.MAX_VALUE / 2, discountPct = 0)
+            Money.lineTotalCents(qty = Int.MAX_VALUE, unitPriceCents = Long.MAX_VALUE / 2, discountPct = 0)
         }
     }
 

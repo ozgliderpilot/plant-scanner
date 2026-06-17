@@ -5,20 +5,20 @@ import kotlin.math.abs
 /**
  * All monetary math in integer cents to avoid floating-point drift.
  *
- * Line total = pots × unitPrice × (1 − discountPct/100), with the *net* rounded half-up to the
+ * Line total = qty × unitPrice × (1 − discountPct/100), with the *net* rounded half-up to the
  * nearest cent (spec sale-flow formula). Everything is non-negative.
  */
 object Money {
 
     /** @throws IllegalArgumentException on out-of-range inputs (defensive — UI validates first). */
-    fun lineTotalCents(pots: Int, unitPriceCents: Long, discountPct: Int): Long {
-        require(pots >= 0) { "pots must be >= 0, was $pots" }
+    fun lineTotalCents(qty: Int, unitPriceCents: Long, discountPct: Int): Long {
+        require(qty >= 0) { "qty must be >= 0, was $qty" }
         require(unitPriceCents >= 0) { "unitPriceCents must be >= 0, was $unitPriceCents" }
         require(discountPct in 0..100) { "discountPct must be 0..100, was $discountPct" }
 
         // multiplyExact throws ArithmeticException on overflow rather than silently wrapping to a
         // negative/garbage total (the UI validates magnitudes first, so this is purely defensive).
-        val gross = Math.multiplyExact(pots.toLong(), unitPriceCents)        // exact, in cents
+        val gross = Math.multiplyExact(qty.toLong(), unitPriceCents)        // exact, in cents
         val remainingNumerator = Math.multiplyExact(gross, (100 - discountPct).toLong()) // cents × percent-points
         // Round half-up when dividing by 100 (all values non-negative).
         return (remainingNumerator + 50) / 100
