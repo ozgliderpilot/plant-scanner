@@ -4,10 +4,13 @@ package com.nursery.core
  * The kind of unit a plant accession is sold in. [label] is shown in the line-item dropdown and is
  * the exact string written to the Sales sheet's "unit" column.
  */
-enum class SaleUnit(val label: String) {
-    POTS("Pots"),
-    TUBES("Tubes"),
-    MISC("Misc");
+enum class SaleUnit(val label: String, val singular: String) {
+    POTS("pots", "pot"),
+    TUBES("tubes", "tube"),
+    MISC("misc", "misc");
+
+    /** Label for a "<qty> <unit>" summary: singular at exactly 1 (e.g. "1 pot" / "2 pots"). */
+    fun labelFor(qty: Int): String = if (qty == 1) singular else label
 
     companion object {
         /**

@@ -56,7 +56,7 @@ fun ReceiptDetailScreen(
                         Text(line.name, style = MaterialTheme.typography.titleMedium)
                         val disc = if (line.discountPct > 0) "  −${line.discountPct}%" else ""
                         Text(
-                            "${line.qty} ${line.unit.label} × ${Money.formatAud(line.unitPriceCents)}$disc",
+                            "${line.qty} ${line.unit.labelFor(line.qty)} × ${Money.formatAud(line.unitPriceCents)}$disc",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Text("Accession: ${line.accession}", style = MaterialTheme.typography.bodyMedium)

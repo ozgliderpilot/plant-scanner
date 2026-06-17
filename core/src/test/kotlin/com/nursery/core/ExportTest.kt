@@ -31,12 +31,12 @@ class ExportTest {
     @Test fun `row strings follow header order`() {
         val rows = Export.buildRows(listOf(receipt), ZoneOffset.UTC)
         assertEquals(
-            listOf("07-241", "2026-06-09", "2021-0345", "Banksia", "2", "Tubes", "10.00", "10", "18.00"),
+            listOf("07-241", "2026-06-09", "2021-0345", "Banksia", "2", "tubes", "10.00", "10", "18.00"),
             Export.rowAsStrings(rows[0]),
         )
         // unknown line: the scanned code lives in the accession column, name = "unknown", unit defaults to Pots
         assertEquals(
-            listOf("07-241", "2026-06-09", "9999999999999", "unknown", "1", "Pots", "5.00", "0", "5.00"),
+            listOf("07-241", "2026-06-09", "9999999999999", "unknown", "1", "pots", "5.00", "0", "5.00"),
             Export.rowAsStrings(rows[1]),
         )
     }

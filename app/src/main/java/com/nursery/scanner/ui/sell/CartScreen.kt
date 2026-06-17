@@ -130,7 +130,7 @@ private fun LineRow(line: LineItem, onEdit: () -> Unit, onRemove: () -> Unit) {
                 Text(line.name, style = MaterialTheme.typography.titleMedium)
                 val discountLabel = if (line.discountPct > 0) "  −${line.discountPct}%" else ""
                 Text(
-                    "${line.qty} ${line.unit.label} × ${Money.formatAud(line.unitPriceCents)}$discountLabel",
+                    "${line.qty} ${line.unit.labelFor(line.qty)} × ${Money.formatAud(line.unitPriceCents)}$discountLabel",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }

@@ -29,8 +29,19 @@ class SaleUnitTest {
     }
 
     @Test fun `labels are the sheet and dropdown strings`() {
-        assertEquals("Pots", SaleUnit.POTS.label)
-        assertEquals("Tubes", SaleUnit.TUBES.label)
-        assertEquals("Misc", SaleUnit.MISC.label)
+        assertEquals("pots", SaleUnit.POTS.label)
+        assertEquals("tubes", SaleUnit.TUBES.label)
+        assertEquals("misc", SaleUnit.MISC.label)
+    }
+
+    @Test fun `labelFor is singular at one and plural otherwise`() {
+        assertEquals("pot", SaleUnit.POTS.labelFor(1))
+        assertEquals("pots", SaleUnit.POTS.labelFor(0))
+        assertEquals("pots", SaleUnit.POTS.labelFor(2))
+        assertEquals("tube", SaleUnit.TUBES.labelFor(1))
+        assertEquals("tubes", SaleUnit.TUBES.labelFor(3))
+        // misc is invariable
+        assertEquals("misc", SaleUnit.MISC.labelFor(1))
+        assertEquals("misc", SaleUnit.MISC.labelFor(5))
     }
 }

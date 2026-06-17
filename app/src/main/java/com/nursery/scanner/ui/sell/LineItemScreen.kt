@@ -45,8 +45,8 @@ import com.nursery.scanner.util.centsToEditable
 import com.nursery.scanner.util.parseDollarsToCents
 
 /**
- * ② Line item: plant card auto-filled; unit dropdown (Pots/Tubes/Misc), Quantity stepper, Unit
- * price, Discount %. Live line total = qty × price × (1 − discount%) (spec). Unit price is always
+ * ② Line item: plant card auto-filled; Quantity stepper with a unit dropdown (pots/tubes/misc) to
+ * its right, Unit price, Discount %. Live line total = qty × price × (1 − discount%) (spec). Unit price is always
  * keyed — no pre-fill (#6).
  */
 @Composable
@@ -94,9 +94,7 @@ fun LineItemScreen(
                 isUnknown = draft.isUnknown,
             )
 
-            UnitDropdown(selected = unit, onSelect = { unit = it })
-
-            // Quantity stepper
+            // Quantity stepper with the unit dropdown to its right
             Text("Quantity", style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.Gap)) {
                 FilledTonalIconButton(onClick = { if (qty > 1) qty-- }, modifier = Modifier.size(64.dp)) {
@@ -106,6 +104,7 @@ fun LineItemScreen(
                 FilledTonalIconButton(onClick = { qty++ }, modifier = Modifier.size(64.dp)) {
                     Icon(Icons.Filled.Add, contentDescription = "One more")
                 }
+                UnitDropdown(selected = unit, onSelect = { unit = it }, modifier = Modifier.weight(1f))
             }
 
             OutlinedTextField(
@@ -147,14 +146,17 @@ fun LineItemScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun UnitDropdown(selected: SaleUnit, onSelect: (SaleUnit) -> Unit) {
+private fun UnitDropdown(selected: SaleUnit, onSelect: (SaleUnit) -> Unit, modifier: Modifier = Modifier) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier,
+    ) {
         OutlinedTextField(
             value = selected.label,
             onValueChange = {},
             readOnly = true,
-            label = { Text("Unit") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             textStyle = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
