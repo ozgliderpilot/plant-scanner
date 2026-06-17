@@ -38,10 +38,10 @@ selection.
 - **Quantity stepper label:** changes from "Pots" to a generic **"Quantity"**; the dropdown alone
   conveys the unit kind.
 - **Sales column:** a new **`unit`** column placed immediately **after the quantity column**.
-- **Quantity column renamed `pots` → `qty`.** With a unit dropdown, the count is a quantity of
-  *pots/tubes/misc*, so "pots" is misleading. Renamed across the core domain model and the export
-  header. The Room `line_items` column stays physically named `pots` (renamed only at the mapper) — see
-  Migration.
+- **Quantity renamed `pots` → `qty`** everywhere — core domain model, export header, and the Room
+  `line_items` column. With a unit dropdown the count is a quantity of *pots/tubes/misc*, so "pots" is
+  misleading. The Room column rename is a one-time pre-production change handled by dropping the local DB
+  manually (see Database).
 - **Live Sales sheet already updated by the user** to include the `unit` column in the right place; no
   backend self-healing of the header is needed.
 
@@ -96,12 +96,12 @@ LineItemScreen dropdown (Pots/Tubes/Misc) → SellViewModel.commitDraft(unit)
 
 - **`PlantDto`** (`data/remote/Dtos.kt`): add `potsInNursery`, `tubesInNursery`, `miscInNursery: Int = 0`.
 - **`PlantEntity`**: add the three `Int` columns (default 0).
-- **`LineItemEntity`**: add `unit: String` (default `"POTS"`). The quantity column **stays
-  `pots`** physically; do not rename it (see Migration).
-- **`Mappers.kt`** — the naming seam:
+- **`LineItemEntity`**: rename the quantity column `pots` → `qty` and add `unit: String` (default
+  `"POTS"`).
+- **`Mappers.kt`**:
   - `PlantEntity ↔ Plant` carry the three counts.
-  - `LineItemEntity.toCore()` → `LineItem(qty = pots, unit = SaleUnit.valueOf(unit), …)`.
-  - `LineItem.toEntity()` → `LineItemEntity(pots = qty, unit = unit.name, …)`.
+  - `LineItemEntity.toCore()` → `LineItem(qty = qty, unit = SaleUnit.valueOf(unit) guarded → POTS, …)`.
+  - `LineItem.toEntity()` → `LineItemEntity(qty = qty, unit = unit.name, …)`.
 - **`LineDraft`** (`SellViewModel.kt`): add the three counts + `unit: SaleUnit`.
   `fromPlant` sets `unit = SaleUnit.defaultFor(p.potsInNursery, p.tubesInNursery, p.miscInNursery)`;
   `unknown` sets counts 0 and `unit = SaleUnit.POTS`.
@@ -113,22 +113,20 @@ LineItemScreen dropdown (Pots/Tubes/Misc) → SellViewModel.commitDraft(unit)
 - **`CartScreen` / `ReceiptDetailScreen`**: update `line.pots` → `line.qty`. (Optional: show the unit
   next to the quantity, e.g. "3 Tubes × $4.00" — nice-to-have, decide in the plan.)
 
-### Migration (Room `version = 1` → `2`)
+### Database (no migration — one-time pre-production drop)
 
-Purely **additive**, so no data loss (pending/SAVED receipts and the plant cache survive):
+`NurseryDatabase` stays at `@Database(version = 2, exportSchema = false)` with **no `Migration`
+objects** and, deliberately, **no `fallbackToDestructiveMigration`** — once in production the local DB
+must never be silently wiped, so any future schema change will require a real `Migration`.
 
-```sql
-ALTER TABLE plants     ADD COLUMN potsInNursery  INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE plants     ADD COLUMN tubesInNursery INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE plants     ADD COLUMN miscInNursery  INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE line_items ADD COLUMN unit TEXT NOT NULL DEFAULT 'POTS';
-```
+This release's schema delta (plant stock counts, `line_items.unit`, and the `pots`→`qty` column rename)
+is applied as a **one-time pre-production reset**: drop the local DB manually (uninstall the app or clear
+its data) before running the new build, so Room creates the v2 schema fresh. Nothing of value is lost —
+the plant cache re-pulls on "Update plant list" and receipts are not live yet. This also sidesteps SQLite
+`RENAME COLUMN`, which minSdk 26's bundled SQLite lacks.
 
-- Bump `@Database(version = 2)` in `NurseryDatabase.kt`; define `MIGRATION_1_2` and wire it via
-  `.addMigrations(MIGRATION_1_2)` on the `Room.databaseBuilder` in `di/AppContainer.kt`.
-- **No SQLite `RENAME COLUMN`**: minSdk is 26 and the bundled SQLite on API 26–29 predates 3.25, so
-  the `pots → qty` rename is done in Kotlin/at the mapper, **not** in the DB. The physical column stays
-  `pots`; only the Room entity property and the mapper translate it.
+Going to production: keep `fallbackToDestructiveMigration` off and add a real `Migration` (and ideally
+`exportSchema = true`, to enable migration tests) for every subsequent schema change.
 
 ## Backend
 

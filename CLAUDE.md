@@ -87,8 +87,12 @@ drives the Android app and pulls `core/` in as an included build.
 - **Navigation** (`ui/NurseryRoot.kt`, `ui/nav/Destinations.kt`): three bottom tabs (Actions /
   Receipts / Sync). The Sell flow is a **nested nav graph** so one `SellViewModel` is shared across
   Scan → LineItem → Cart → Confirm. Full-screen sub-flows hide the top/bottom bars (`TabRoutes`).
-- **Room** is at `version = 2` (`NurseryDatabase.MIGRATION_1_2`: additive — plant stock counts +
-  `line_items.unit`). The plant list is replaced wholesale on "Update plant list".
+- **Room** is at `version = 2`, `exportSchema = false`, and deliberately has **no
+  `fallbackToDestructiveMigration`** — heading to production, the local DB must never be silently wiped,
+  so future schema changes require a real `Migration`. This release's `pots`→`qty` rename (+ stock
+  counts + `line_items.unit`) is a one-time **pre-production** reset: drop the local DB manually
+  (uninstall / clear app data) before running. The plant list is replaced wholesale on "Update plant
+  list".
 
 ## Gotchas
 

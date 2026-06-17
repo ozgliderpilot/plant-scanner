@@ -30,7 +30,7 @@ fun LineItemEntity.toCore(): LineItem =
     LineItem(
         accession = accession,
         name = name,
-        qty = pots,
+        qty = qty,
         unitPriceCents = unitPriceCents,
         discountPct = discountPct,
         unit = runCatching { SaleUnit.valueOf(unit) }.getOrDefault(SaleUnit.POTS),
@@ -41,7 +41,7 @@ fun LineItem.toEntity(receiptId: Long): LineItemEntity =
         receiptId = receiptId,
         accession = accession,
         name = name,
-        pots = qty,
+        qty = qty,
         unitPriceCents = unitPriceCents,
         discountPct = discountPct,
         unit = unit.name,

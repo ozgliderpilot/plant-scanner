@@ -23,7 +23,7 @@ class AppContainer(context: Context) {
         context.applicationContext,
         NurseryDatabase::class.java,
         NurseryDatabase.NAME,
-    ).addMigrations(NurseryDatabase.MIGRATION_1_2).build()
+    ).build()
 
     private val sheets = SheetsClient()
     private val connectivity = ConnectivityObserver(context.applicationContext)
