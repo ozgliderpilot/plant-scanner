@@ -25,7 +25,7 @@ object Money {
     }
 
     fun receiptTotalCents(lines: List<LineItem>): Long =
-        lines.sumOf { lineTotalCents(it.pots, it.unitPriceCents, it.discountPct) }
+        lines.sumOf { lineTotalCents(it.qty, it.unitPriceCents, it.discountPct) }
 
     /** "$12.30" — for display. */
     fun formatAud(cents: Long): String {

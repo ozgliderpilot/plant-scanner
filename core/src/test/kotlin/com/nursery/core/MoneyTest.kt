@@ -48,8 +48,8 @@ class MoneyTest {
 
     @Test fun `receipt total sums lines`() {
         val lines = listOf(
-            LineItem(accession = "A", name = "x", pots = 2, unitPriceCents = 500, discountPct = 0),  // 1000
-            LineItem(accession = "B", name = "y", pots = 1, unitPriceCents = 1000, discountPct = 10), // 900
+            LineItem(accession = "A", name = "x", qty = 2, unitPriceCents = 500, discountPct = 0),  // 1000
+            LineItem(accession = "B", name = "y", qty = 1, unitPriceCents = 1000, discountPct = 10), // 900
         )
         assertEquals(1900, Money.receiptTotalCents(lines))
     }

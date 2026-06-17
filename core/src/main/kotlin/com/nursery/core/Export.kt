@@ -9,7 +9,8 @@ data class ExportRow(
     val isoDate: String,
     val accession: String,
     val name: String,
-    val pots: Int,
+    val qty: Int,
+    val unit: SaleUnit,
     val unitPriceCents: Long,
     val discountPct: Int,
     val lineTotalCents: Long,
@@ -24,7 +25,7 @@ object Export {
     /** Column order written to the Sheet — keep stable; the Apps Script relies on it. */
     val HEADER: List<String> = listOf(
         "receipt", "date", "accession", "name",
-        "pots", "unit_price", "discount_pct", "line_total",
+        "qty", "unit", "unit_price", "discount_pct", "line_total",
     )
 
     fun buildRows(receipts: List<Receipt>, zone: ZoneId): List<ExportRow> =
@@ -36,10 +37,11 @@ object Export {
                     isoDate = date,
                     accession = line.accession,
                     name = line.name,
-                    pots = line.pots,
+                    qty = line.qty,
+                    unit = line.unit,
                     unitPriceCents = line.unitPriceCents,
                     discountPct = line.discountPct,
-                    lineTotalCents = Money.lineTotalCents(line.pots, line.unitPriceCents, line.discountPct),
+                    lineTotalCents = Money.lineTotalCents(line.qty, line.unitPriceCents, line.discountPct),
                 )
             }
         }
@@ -50,7 +52,8 @@ object Export {
         row.isoDate,
         row.accession,
         row.name,
-        row.pots.toString(),
+        row.qty.toString(),
+        row.unit.label,
         Money.formatPlain(row.unitPriceCents),
         row.discountPct.toString(),
         Money.formatPlain(row.lineTotalCents),
