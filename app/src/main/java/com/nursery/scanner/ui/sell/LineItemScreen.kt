@@ -104,7 +104,7 @@ fun LineItemScreen(
                 FilledTonalIconButton(onClick = { qty++ }, modifier = Modifier.size(64.dp)) {
                     Icon(Icons.Filled.Add, contentDescription = "One more")
                 }
-                UnitDropdown(selected = unit, onSelect = { unit = it }, modifier = Modifier.weight(1f))
+                UnitDropdown(selected = unit, qty = qty, onSelect = { unit = it }, modifier = Modifier.weight(1f))
             }
 
             OutlinedTextField(
@@ -146,7 +146,7 @@ fun LineItemScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun UnitDropdown(selected: SaleUnit, onSelect: (SaleUnit) -> Unit, modifier: Modifier = Modifier) {
+private fun UnitDropdown(selected: SaleUnit, qty: Int, onSelect: (SaleUnit) -> Unit, modifier: Modifier = Modifier) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -154,7 +154,7 @@ private fun UnitDropdown(selected: SaleUnit, onSelect: (SaleUnit) -> Unit, modif
         modifier = modifier,
     ) {
         OutlinedTextField(
-            value = selected.label,
+            value = selected.labelFor(qty),
             onValueChange = {},
             readOnly = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -166,7 +166,7 @@ private fun UnitDropdown(selected: SaleUnit, onSelect: (SaleUnit) -> Unit, modif
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             SaleUnit.entries.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option.label, style = MaterialTheme.typography.bodyLarge) },
+                    text = { Text(option.labelFor(qty), style = MaterialTheme.typography.bodyLarge) },
                     onClick = { onSelect(option); expanded = false },
                 )
             }
