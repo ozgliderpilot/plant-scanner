@@ -76,3 +76,8 @@ You still set `SHARED_SECRET` and deploy the Web App from the editor (steps 3–
 - `POST {secret, action:"appendSales", header:[...], rows:[[...]]}` → `{ok, appended, skipped}`
   - Appends to `Sales`; **skips any row whose receipt # already exists** (no double counting), so a
     re-sent batch is harmless.
+
+> **2026-06-17:** `shared.js`/`shared.gs` `parsePlants` now also returns `potsInNursery` /
+> `tubesInNursery` / `miscInNursery`. Redeploy the web app, then on each device tap **"Update plant
+> list"** once so the cache repulls with the stock counts (they drive the Pots/Tubes/Misc default on
+> the line-item screen). The `Sales` sheet now has a `unit` column after `qty`.

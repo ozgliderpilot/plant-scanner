@@ -70,6 +70,9 @@ drives the Android app and pulls `core/` in as an included build.
   2-digit prefix from settings (namespaces devices in the shared Sheet), `seq` resets daily. Note the
   prose in older docs says `PP-NNN`; the code is the source of truth.
 - **Export column order** (`Export.HEADER`) is relied on by the Apps Script backend — keep it stable.
+  Columns: `receipt, date, accession, name, qty, unit, unit_price, discount_pct, line_total`. `qty` is
+  the count of `unit`s (Pots/Tubes/Misc); `unit` is the sale-unit chosen on the line-item screen,
+  defaulted from the plant's `*InNursery` counts via `SaleUnit.defaultFor`.
 
 ## app/ structure notes
 
@@ -84,8 +87,8 @@ drives the Android app and pulls `core/` in as an included build.
 - **Navigation** (`ui/NurseryRoot.kt`, `ui/nav/Destinations.kt`): three bottom tabs (Actions /
   Receipts / Sync). The Sell flow is a **nested nav graph** so one `SellViewModel` is shared across
   Scan → LineItem → Cart → Confirm. Full-screen sub-flows hide the top/bottom bars (`TabRoutes`).
-- **Room** is single-version (`version = 1`, no migrations yet). The plant list is replaced wholesale
-  on "Update plant list".
+- **Room** is at `version = 2` (`NurseryDatabase.MIGRATION_1_2`: additive — plant stock counts +
+  `line_items.unit`). The plant list is replaced wholesale on "Update plant list".
 
 ## Gotchas
 
