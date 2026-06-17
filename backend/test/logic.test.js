@@ -194,6 +194,7 @@ test('parsePlants reads the per-accession stock counts (Nz -> 0)', () => {
     ['Ac Number', 'Genus', 'Species', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery'],
     ['31011', 'Acacia', 'pycnantha', 5, 2, 0],
     ['8250', 'Banksia', 'integrifolia', '', '', ''], // blanks -> 0
+    ['9000', 'Grevillea', 'robusta', '3', '0', '1'], // string numerics (GAS getValues) -> numbers
   ];
   const plants = parsePlants(values);
   assert.strictEqual(plants[0].potsInNursery, 5);
@@ -202,6 +203,9 @@ test('parsePlants reads the per-accession stock counts (Nz -> 0)', () => {
   assert.strictEqual(plants[1].potsInNursery, 0);
   assert.strictEqual(plants[1].tubesInNursery, 0);
   assert.strictEqual(plants[1].miscInNursery, 0);
+  assert.strictEqual(plants[2].potsInNursery, 3);
+  assert.strictEqual(plants[2].tubesInNursery, 0);
+  assert.strictEqual(plants[2].miscInNursery, 1);
 });
 
 test('parsePlants defaults stock counts to 0 when the columns are absent', () => {
