@@ -45,8 +45,9 @@ import com.nursery.scanner.util.centsToEditable
 import com.nursery.scanner.util.parseDollarsToCents
 
 /**
- * ② Line item: plant card auto-filled; keyed Pots, Unit price, Discount %. Live line total =
- * pots × price × (1 − discount%) (spec). Unit price is always keyed — no pre-fill (#6).
+ * ② Line item: plant card auto-filled; unit dropdown (Pots/Tubes/Misc), Quantity stepper, Unit
+ * price, Discount %. Live line total = qty × price × (1 − discount%) (spec). Unit price is always
+ * keyed — no pre-fill (#6).
  */
 @Composable
 fun LineItemScreen(
