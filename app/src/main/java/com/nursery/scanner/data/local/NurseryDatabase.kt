@@ -10,7 +10,7 @@ import com.nursery.scanner.data.local.entity.ReceiptEntity
 
 @Database(
     entities = [PlantEntity::class, ReceiptEntity::class, LineItemEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class NurseryDatabase : RoomDatabase() {

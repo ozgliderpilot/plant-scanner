@@ -120,7 +120,7 @@ fun CartScreen(
 
 @Composable
 private fun LineRow(line: LineItem, onEdit: () -> Unit, onRemove: () -> Unit) {
-    val total = Money.lineTotalCents(line.pots, line.unitPriceCents, line.discountPct)
+    val total = Money.lineTotalCents(line.qty, line.unitPriceCents, line.discountPct)
     Card(shape = RoundedCornerShape(Dimens.CardCorner), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(Dimens.Gap)) {
             // Tapping the body edits the line (explicit tap target, not a gesture).
@@ -130,7 +130,7 @@ private fun LineRow(line: LineItem, onEdit: () -> Unit, onRemove: () -> Unit) {
                 Text(line.name, style = MaterialTheme.typography.titleMedium)
                 val discountLabel = if (line.discountPct > 0) "  −${line.discountPct}%" else ""
                 Text(
-                    "${line.pots} × ${Money.formatAud(line.unitPriceCents)}$discountLabel",
+                    "${line.qty} ${line.unit.labelFor(line.qty)} × ${Money.formatAud(line.unitPriceCents)}$discountLabel",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }

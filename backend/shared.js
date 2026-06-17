@@ -56,8 +56,18 @@ function parsePlants(values) {
       iCultivar = col('cultivar'), iCommon = col('common name');
   var iGroup = col('group', 'plant type');
   var iLight = col('light', 'sun/shade');
+  var iPots = col('potsinnursery');
+  var iTubes = col('tubesinnursery');
+  var iMisc = col('miscinnursery');
 
   function get(row, idx) { return idx >= 0 ? String(row[idx]).trim() : ''; }
+  function num(row, idx) {
+    if (idx < 0) return 0;
+    var v = row[idx];
+    if (v === '' || v === null || v === undefined) return 0;
+    var n = Number(v);
+    return isNaN(n) ? 0 : n;
+  }
   function nameOf(row) {
     var legacy = get(row, iName);
     if (legacy) return legacy;
@@ -76,7 +86,10 @@ function parsePlants(values) {
       accession: accession,
       name: nameOf(row),
       group: iGroup >= 0 ? emptyToNull(row[iGroup]) : null,
-      light: iLight >= 0 ? emptyToNull(row[iLight]) : null
+      light: iLight >= 0 ? emptyToNull(row[iLight]) : null,
+      potsInNursery: num(row, iPots),
+      tubesInNursery: num(row, iTubes),
+      miscInNursery: num(row, iMisc)
     });
   }
   return out;

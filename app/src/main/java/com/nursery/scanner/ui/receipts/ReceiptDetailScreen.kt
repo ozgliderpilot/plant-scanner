@@ -50,13 +50,13 @@ fun ReceiptDetailScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = Dimens.GapSmall))
 
             r.lines.forEach { line ->
-                val total = Money.lineTotalCents(line.pots, line.unitPriceCents, line.discountPct)
+                val total = Money.lineTotalCents(line.qty, line.unitPriceCents, line.discountPct)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.weight(1f)) {
                         Text(line.name, style = MaterialTheme.typography.titleMedium)
                         val disc = if (line.discountPct > 0) "  −${line.discountPct}%" else ""
                         Text(
-                            "${line.pots} × ${Money.formatAud(line.unitPriceCents)}$disc",
+                            "${line.qty} ${line.unit.labelFor(line.qty)} × ${Money.formatAud(line.unitPriceCents)}$disc",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Text("Accession: ${line.accession}", style = MaterialTheme.typography.bodyMedium)

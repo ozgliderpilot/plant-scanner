@@ -23,7 +23,8 @@ data class LineItemEntity(
     val receiptId: Long,
     val accession: String,
     val name: String,
-    val pots: Int,
+    val qty: Int,
     val unitPriceCents: Long,
     val discountPct: Int,
+    val unit: String = "POTS",
 )

@@ -15,8 +15,8 @@ class ExportTest {
         createdAtEpochMs = createdAt,
         status = ReceiptStatus.SAVED,
         lines = listOf(
-            LineItem(accession = "2021-0345", name = "Banksia", pots = 2, unitPriceCents = 1000, discountPct = 10), // 1800
-            LineItem(accession = "9999999999999", name = "unknown", pots = 1, unitPriceCents = 500, discountPct = 0), // 500
+            LineItem(accession = "2021-0345", name = "Banksia", qty = 2, unitPriceCents = 1000, discountPct = 10, unit = SaleUnit.TUBES), // 1800
+            LineItem(accession = "9999999999999", name = "unknown", qty = 1, unitPriceCents = 500, discountPct = 0), // 500, unit defaults POTS
         ),
     )
 
@@ -31,12 +31,12 @@ class ExportTest {
     @Test fun `row strings follow header order`() {
         val rows = Export.buildRows(listOf(receipt), ZoneOffset.UTC)
         assertEquals(
-            listOf("07-241", "2026-06-09", "2021-0345", "Banksia", "2", "10.00", "10", "18.00"),
+            listOf("07-241", "2026-06-09", "2021-0345", "Banksia", "2", "tubes", "10.00", "10", "18.00"),
             Export.rowAsStrings(rows[0]),
         )
-        // unknown line: the scanned code lives in the accession column, name = "unknown"
+        // unknown line: the scanned code lives in the accession column, name = "unknown", unit defaults to Pots
         assertEquals(
-            listOf("07-241", "2026-06-09", "9999999999999", "unknown", "1", "5.00", "0", "5.00"),
+            listOf("07-241", "2026-06-09", "9999999999999", "unknown", "1", "pots", "5.00", "0", "5.00"),
             Export.rowAsStrings(rows[1]),
         )
     }

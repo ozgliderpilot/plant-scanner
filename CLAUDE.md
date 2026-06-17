@@ -59,7 +59,7 @@ drives the Android app and pulls `core/` in as an included build.
 - **The receipt `status` column IS the sync queue.** `OPEN` (cart) → `SAVED` (pending export) →
   `EXPORTED`. `Sync.pending()` returns only `SAVED`; export flips them to `EXPORTED` **only on
   success**. This is the whole "nothing lost / no double-counting" guarantee — preserve it.
-- **All money is integer cents** (`Money.kt`); never floats. `lineTotal = pots × unitPrice ×
+- **All money is integer cents** (`Money.kt`); never floats. `lineTotal = qty × unitPrice ×
   (1 − discountPct/100)`, net rounded half-up. `discountPct` is a percentage 0..100.
 - **accession == barcode.** The Code 128 label encodes the accession number itself; there is no
   separate barcode field, and the plant sheet has **no price column** — unit price is keyed at sale on
@@ -70,6 +70,9 @@ drives the Android app and pulls `core/` in as an included build.
   2-digit prefix from settings (namespaces devices in the shared Sheet), `seq` resets daily. Note the
   prose in older docs says `PP-NNN`; the code is the source of truth.
 - **Export column order** (`Export.HEADER`) is relied on by the Apps Script backend — keep it stable.
+  Columns: `receipt, date, accession, name, qty, unit, unit_price, discount_pct, line_total`. `qty` is
+  the count of `unit`s (Pots/Tubes/Misc); `unit` is the sale-unit chosen on the line-item screen,
+  defaulted from the plant's `*InNursery` counts via `SaleUnit.defaultFor`.
 
 ## app/ structure notes
 
@@ -84,8 +87,12 @@ drives the Android app and pulls `core/` in as an included build.
 - **Navigation** (`ui/NurseryRoot.kt`, `ui/nav/Destinations.kt`): three bottom tabs (Actions /
   Receipts / Sync). The Sell flow is a **nested nav graph** so one `SellViewModel` is shared across
   Scan → LineItem → Cart → Confirm. Full-screen sub-flows hide the top/bottom bars (`TabRoutes`).
-- **Room** is single-version (`version = 1`, no migrations yet). The plant list is replaced wholesale
-  on "Update plant list".
+- **Room** is at `version = 2`, `exportSchema = false`, and deliberately has **no
+  `fallbackToDestructiveMigration`** — heading to production, the local DB must never be silently wiped,
+  so future schema changes require a real `Migration`. This release's `pots`→`qty` rename (+ stock
+  counts + `line_items.unit`) is a one-time **pre-production** reset: drop the local DB manually
+  (uninstall / clear app data) before running. The plant list is replaced wholesale on "Update plant
+  list".
 
 ## Gotchas
 

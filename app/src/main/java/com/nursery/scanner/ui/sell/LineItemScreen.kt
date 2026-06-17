@@ -13,9 +13,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nursery.core.Money
+import com.nursery.core.SaleUnit
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.PlantCard
 import com.nursery.scanner.ui.components.ScreenHeader
@@ -39,8 +45,9 @@ import com.nursery.scanner.util.centsToEditable
 import com.nursery.scanner.util.parseDollarsToCents
 
 /**
- * ② Line item: plant card auto-filled; keyed Pots, Unit price, Discount %. Live line total =
- * pots × price × (1 − discount%) (spec). Unit price is always keyed — no pre-fill (#6).
+ * ② Line item: plant card auto-filled; Quantity stepper with a unit dropdown (pots/tubes/misc) to
+ * its right, Unit price, Discount %. Live line total = qty × price × (1 − discount%) (spec). Unit price is always
+ * keyed — no pre-fill (#6).
  */
 @Composable
 fun LineItemScreen(
@@ -58,13 +65,14 @@ fun LineItemScreen(
         return
     }
 
-    var pots by remember(draft) { mutableIntStateOf(draft.pots.coerceAtLeast(1)) }
+    var qty by remember(draft) { mutableIntStateOf(draft.qty.coerceAtLeast(1)) }
+    var unit by remember(draft) { mutableStateOf(draft.unit) }
     var priceText by remember(draft) { mutableStateOf(centsToEditable(draft.unitPriceCents)) }
     var discountText by remember(draft) { mutableStateOf(if (draft.discountPct == 0) "" else draft.discountPct.toString()) }
 
     val unitPriceCents = parseDollarsToCents(priceText) ?: 0L
     val discountPct = (discountText.toIntOrNull() ?: 0).coerceIn(0, 100)
-    val lineTotal = Money.lineTotalCents(pots, unitPriceCents, discountPct)
+    val lineTotal = Money.lineTotalCents(qty, unitPriceCents, discountPct)
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(
@@ -86,16 +94,17 @@ fun LineItemScreen(
                 isUnknown = draft.isUnknown,
             )
 
-            // Pots stepper
-            Text("Pots", style = MaterialTheme.typography.titleMedium)
+            // Quantity stepper with the unit dropdown to its right
+            Text("Quantity", style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.Gap)) {
-                FilledTonalIconButton(onClick = { if (pots > 1) pots-- }, modifier = Modifier.size(64.dp)) {
-                    Icon(Icons.Filled.Remove, contentDescription = "One fewer pot")
+                FilledTonalIconButton(onClick = { if (qty > 1) qty-- }, modifier = Modifier.size(64.dp)) {
+                    Icon(Icons.Filled.Remove, contentDescription = "One fewer")
                 }
-                Text("$pots", style = MaterialTheme.typography.displaySmall)
-                FilledTonalIconButton(onClick = { pots++ }, modifier = Modifier.size(64.dp)) {
-                    Icon(Icons.Filled.Add, contentDescription = "One more pot")
+                Text("$qty", style = MaterialTheme.typography.displaySmall)
+                FilledTonalIconButton(onClick = { qty++ }, modifier = Modifier.size(64.dp)) {
+                    Icon(Icons.Filled.Add, contentDescription = "One more")
                 }
+                UnitDropdown(selected = unit, qty = qty, onSelect = { unit = it }, modifier = Modifier.weight(1f))
             }
 
             OutlinedTextField(
@@ -127,10 +136,40 @@ fun LineItemScreen(
             BigButton(
                 text = if (draft.editIndex != null) "Save changes" else "Add to receipt",
                 onClick = {
-                    vm.commitDraft(pots = pots, unitPriceCents = unitPriceCents, discountPct = discountPct)
+                    vm.commitDraft(qty = qty, unitPriceCents = unitPriceCents, discountPct = discountPct, unit = unit)
                     onAdded()
                 },
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UnitDropdown(selected: SaleUnit, qty: Int, onSelect: (SaleUnit) -> Unit, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier,
+    ) {
+        OutlinedTextField(
+            value = selected.labelFor(qty),
+            onValueChange = {},
+            readOnly = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            textStyle = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            SaleUnit.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.labelFor(qty), style = MaterialTheme.typography.bodyLarge) },
+                    onClick = { onSelect(option); expanded = false },
+                )
+            }
         }
     }
 }

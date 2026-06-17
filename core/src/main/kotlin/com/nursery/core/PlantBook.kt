@@ -14,26 +14,28 @@ class PlantBook(plants: List<Plant>) {
     fun findByScan(code: String): Plant? = byAccession[code]
 
     /** Build a line for a found plant. */
-    fun toLine(plant: Plant, pots: Int, unitPriceCents: Long, discountPct: Int): LineItem =
+    fun toLine(plant: Plant, qty: Int, unitPriceCents: Long, discountPct: Int, unit: SaleUnit = SaleUnit.POTS): LineItem =
         LineItem(
             accession = plant.accession,
             name = plant.name,
-            pots = pots,
+            qty = qty,
             unitPriceCents = unitPriceCents,
             discountPct = discountPct,
+            unit = unit,
         )
 
     companion object {
         const val UNKNOWN_NAME = "unknown"
 
         /** Build a "sell as unknown" line: keep the scanned code as the accession, name = "unknown". */
-        fun toUnknownLine(code: String, pots: Int, unitPriceCents: Long, discountPct: Int): LineItem =
+        fun toUnknownLine(code: String, qty: Int, unitPriceCents: Long, discountPct: Int, unit: SaleUnit = SaleUnit.POTS): LineItem =
             LineItem(
                 accession = code,
                 name = UNKNOWN_NAME,
-                pots = pots,
+                qty = qty,
                 unitPriceCents = unitPriceCents,
                 discountPct = discountPct,
+                unit = unit,
             )
 
         /** A line is "unknown" when its plant was not in the list at sale time. */

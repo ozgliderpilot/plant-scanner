@@ -4,6 +4,7 @@ import com.nursery.core.LineItem
 import com.nursery.core.Plant
 import com.nursery.core.Receipt
 import com.nursery.core.ReceiptStatus
+import com.nursery.core.SaleUnit
 import com.nursery.scanner.data.local.entity.LineItemEntity
 import com.nursery.scanner.data.local.entity.PlantEntity
 import com.nursery.scanner.data.local.entity.ReceiptEntity
@@ -12,10 +13,16 @@ import com.nursery.scanner.data.local.entity.ReceiptWithLines
 // ---- Plant ----
 
 fun PlantEntity.toCore(): Plant =
-    Plant(accession = accession, name = name, group = group, light = light)
+    Plant(
+        accession = accession, name = name, group = group, light = light,
+        potsInNursery = potsInNursery, tubesInNursery = tubesInNursery, miscInNursery = miscInNursery,
+    )
 
 fun Plant.toEntity(): PlantEntity =
-    PlantEntity(accession = accession, name = name, group = group, light = light)
+    PlantEntity(
+        accession = accession, name = name, group = group, light = light,
+        potsInNursery = potsInNursery, tubesInNursery = tubesInNursery, miscInNursery = miscInNursery,
+    )
 
 // ---- LineItem ----
 
@@ -23,9 +30,10 @@ fun LineItemEntity.toCore(): LineItem =
     LineItem(
         accession = accession,
         name = name,
-        pots = pots,
+        qty = qty,
         unitPriceCents = unitPriceCents,
         discountPct = discountPct,
+        unit = runCatching { SaleUnit.valueOf(unit) }.getOrDefault(SaleUnit.POTS),
     )
 
 fun LineItem.toEntity(receiptId: Long): LineItemEntity =
@@ -33,9 +41,10 @@ fun LineItem.toEntity(receiptId: Long): LineItemEntity =
         receiptId = receiptId,
         accession = accession,
         name = name,
-        pots = pots,
+        qty = qty,
         unitPriceCents = unitPriceCents,
         discountPct = discountPct,
+        unit = unit.name,
     )
 
 // ---- Receipt ----
