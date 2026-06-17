@@ -32,7 +32,8 @@ data class Plant(
 /**
  * One line on a receipt. [accession] is the scanned/typed value (== the barcode). When it matched a
  * plant, [name] is that plant's name; for a not-found "sell as unknown" line (decision #7) the same
- * scanned [accession] is kept and [name] is "unknown". [qty] is the count of [unit]s (Pots/Tubes/Misc).
+ * scanned [accession] is kept and [name] is "unknown" so it can be reconciled later. [qty] is the
+ * count of [unit]s (Pots/Tubes/Misc).
  * Unit price is always keyed at sale (decision #6); discount is a percentage 0..100 (decision #5).
  */
 data class LineItem(
