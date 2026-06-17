@@ -90,6 +90,7 @@ Public Sub SyncPlants(Optional ByVal force As Boolean = False, _
 
     If (Not force) And (hash = lastHash) Then
         ' Nothing changed since the last successful sync -> skip the cloud call.
+        If showErrors Then MsgBox "Already up to date - nothing to sync.", vbInformation, "Plant sync"
         GoTo Done
     End If
 
