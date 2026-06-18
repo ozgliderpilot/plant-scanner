@@ -28,7 +28,7 @@ test('parsePlants maps by header name and skips blank accessions', () => {
   assert.strictEqual(plants.length, 2);
   assert.deepStrictEqual(plants[0], {
     accession: '2021-0345', name: 'Banksia', group: 'Proteaceae', light: 'Full sun',
-    potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0,
+    potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0, stockInNursery: 0,
   });
   // blank optional cells become null
   assert.strictEqual(plants[1].group, 'Fabaceae');
@@ -149,7 +149,7 @@ test('parsePlants reads the raw Batches+Species view and composes name', () => {
   assert.strictEqual(plants.length, 2);
   assert.deepStrictEqual(plants[0], {
     accession: '31011', name: 'Acacia pycnantha', group: 'Tree', light: 'Full sun',
-    potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0,
+    potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0, stockInNursery: 2,
   });
   // cultivar folded into the name
   assert.strictEqual(plants[1].name, "Banksia integrifolia 'Roller Coaster'");
@@ -165,7 +165,7 @@ test('parsePlants name falls back to Common Name, and legacy headers still work'
   const legacy = parsePlants([['accession', 'name', 'group', 'light'], ['2021-1', 'Wattle', 'Tree', 'Sun']]);
   assert.deepStrictEqual(legacy[0], {
     accession: '2021-1', name: 'Wattle', group: 'Tree', light: 'Sun',
-    potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0,
+    potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0, stockInNursery: 0,
   });
 });
 
@@ -213,4 +213,20 @@ test('parsePlants defaults stock counts to 0 when the columns are absent', () =>
   assert.strictEqual(plants[0].potsInNursery, 0);
   assert.strictEqual(plants[0].tubesInNursery, 0);
   assert.strictEqual(plants[0].miscInNursery, 0);
+  assert.strictEqual(plants[0].stockInNursery, 0);
+});
+
+test('parsePlants reads StockInNursery (Nz -> 0)', () => {
+  const values = [
+    ['Ac Number', 'Genus', 'StockInNursery'],
+    ['31011', 'Acacia', 3],      // numeric
+    ['8250', 'Banksia', '4'],    // string numeric (GAS getValues)
+    ['9000', 'Grevillea', ''],   // blank -> 0
+    ['9001', 'Hakea', 'nope'],   // non-numeric -> 0
+  ];
+  const plants = parsePlants(values);
+  assert.strictEqual(plants[0].stockInNursery, 3);
+  assert.strictEqual(plants[1].stockInNursery, 4);
+  assert.strictEqual(plants[2].stockInNursery, 0);
+  assert.strictEqual(plants[3].stockInNursery, 0);
 });

@@ -13,6 +13,7 @@ data class PlantDto(
     val potsInNursery: Int = 0,
     val tubesInNursery: Int = 0,
     val miscInNursery: Int = 0,
+    val stockInNursery: Int = 0,
 )
 
 @Serializable
