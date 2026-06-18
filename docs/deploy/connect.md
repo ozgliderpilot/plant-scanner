@@ -3,6 +3,11 @@
 Do this once per device, after installing the app (`android.md`) and deploying the backend
 (`backend.md`).
 
+> **Running the test app too?** The **"Nursery TEST"** install is a separate app with its own
+> Settings — configure it independently here, pointing it at the **test** `/exec` URL + secret (see
+> [backend.md → Standing up a test deployment](backend.md)). Its local data is fully separate from
+> production.
+
 ## 1. Enter the settings
 
 In the app: **Sync** tab → **Settings**. Fill in:

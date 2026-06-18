@@ -46,8 +46,9 @@ cd core && gradle test
 # Backend logic (Node)
 node --test backend/test/logic.test.js
 
-# Android app (needs Android Studio / Android SDK + JDK 17)
-./gradlew :app:assembleDebug      # -> app/build/outputs/apk/debug/app-debug.apk
+# Android app (needs Android Studio / Android SDK + JDK 17). Two flavors: prod and qa ("test").
+./gradlew :app:assembleProdDebug  # -> app/build/outputs/apk/prod/debug/app-prod-debug.apk
+./gradlew :app:assembleProdRelease :app:assembleQaRelease   # installable prod + test packages
 ```
 
 ## Deploy

@@ -1,3 +1,3 @@
 <resources>
-    <string name="app_name">Nursery</string>
+    <!-- app_name is provided per build flavor (prod/test) via resValue in app/build.gradle.kts. -->
 </resources>

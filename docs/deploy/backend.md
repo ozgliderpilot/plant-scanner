@@ -57,6 +57,26 @@ curl -L -X POST "<YOUR_EXEC_URL>" \
 
 Expect `{"ok":true,"plants":[...],"count":N,...}`. A wrong secret returns `{"ok":false,"error":"Unauthorized"}`.
 
+## Standing up a test deployment (isolated from production)
+
+To exercise the **test** app flavor (`com.nursery.scanner.test`, label "Nursery TEST" — see
+[android.md](android.md)) without ever touching live data, give it its **own** Sheet + Apps Script
+deployment. Cloud isolation is purely operational — there is **nothing to change in code**:
+
+1. **Repeat steps 1–5 above** to create a *second* spreadsheet (e.g. **Nursery Sales — TEST**) with
+   its own `Plants` tab, its own pasted `Code.gs`/`shared.js`, its **own** `SHARED_SECRET` (use a
+   *different* secret from production), and its own Web App deployment. You get a **separate `/exec`
+   URL**.
+2. In the **test** app install only, open **Sync → Settings** and enter that test `/exec` URL + test
+   secret (and a distinct device prefix if you like). Leave the **production** install pointed at the
+   production URL/secret.
+3. Sales exported from the test app now land **only** in the test Sheet; the production Sheet is
+   untouched. Confirm by making a test sale and watching only the test Sheet's `Sales` tab grow.
+
+Because the endpoint URL + secret are **per-device runtime config** (entered in Settings, never baked
+into the build), one APK flavor can point at either backend — the test flavor exists only to keep the
+*local* DB separate and make the install unmistakable on the device.
+
 ## Alternative: clasp (command line)
 
 ```bash

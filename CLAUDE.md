@@ -45,9 +45,12 @@ node --test --test-name-pattern "isAuthorized" backend/test/logic.test.js   # si
 
 # app/ Android — assembles on THIS machine. The SDK is wired via local.properties
 # (sdk.dir=C:\Users\vital\AppData\Local\Android\Sdk). Build with the Android Studio JBR (JDK 21);
-# the machine's default JAVA_HOME is a non-LTS/EOL JDK 19, so point JAVA_HOME at the JBR:
-JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:assembleDebug
-#   -> app/build/outputs/apk/debug/app-debug.apk
+# the machine's default JAVA_HOME is a non-LTS/EOL JDK 19, so point JAVA_HOME at the JBR.
+# Two product flavors (prod / qa) × build types — variant tasks combine them:
+JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:assembleProdDebug
+#   -> app/build/outputs/apk/prod/debug/app-prod-debug.apk
+JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:assembleProdRelease :app:assembleQaRelease
+#   -> app/build/outputs/apk/{prod,qa}/release/app-{prod,qa}-release.apk  (signed, installable side by side)
 ```
 
 `core/` and `app/` target JVM 17 bytecode. `core/` is its own standalone Gradle build (it has its own
@@ -99,10 +102,15 @@ drives the Android app and pulls `core/` in as an included build.
 - **`core/bin/` and `app/build/` are generated** — `core/bin/main/...` contains copies of the `.kt`
   sources that show up in searches. The real sources are under `core/src/`. Edit `core/src/`, never
   `core/bin/`.
-- `app/` **assembles** here (`:app:assembleDebug` with the Android Studio JBR — see Build & test), but
-  there's no emulator, so app-level/instrumented tests don't run. Validate business logic via `core/`
-  tests, confirm the app compiles with `assembleDebug`, and exercise it on a device per
-  `docs/deploy/connect.md`.
+- `app/` **assembles** here (`:app:assembleProdDebug` with the Android Studio JBR — see Build & test),
+  but there's no emulator, so app-level/instrumented tests don't run. Validate business logic via
+  `core/` tests, confirm the app compiles with a `:app:assemble<Flavor><BuildType>` task, and exercise
+  it on a device per `docs/deploy/connect.md`.
+- **Two product flavors, `prod` and `qa`** (`app/build.gradle.kts`), let a real test install
+  (`com.nursery.scanner.test`, label "Nursery TEST", red icon) coexist with prod
+  (`com.nursery.scanner`, "Nursery") on one device — separate Room DB + DataStore, no shared data.
+  The flavor is **named `qa` not `test`**: AGP rejects flavor names starting with `test`. The backend
+  endpoint stays runtime Settings config; nothing is baked into the build. See `docs/deploy/android.md`.
 - **The Android toolchain is on KSP2** (Kotlin 2.2.10 + KSP `2.2.10-2.0.2`). KSP2 needs **Room ≥ 2.7**
   (`room-compiler` 2.6.x throws `unexpected jvm signature V`), and the KSP version's `<kotlin>` prefix
   must match `kotlin` in `libs.versions.toml`. Keep those three in lockstep when bumping any of them.

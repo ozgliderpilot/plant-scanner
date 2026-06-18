@@ -1,3 +1,4 @@
 <resources>
-    <color name="ic_launcher_background">#1B5E20</color>
+    <!-- ic_launcher_background is provided per build flavor (prod/test) via resValue in
+         app/build.gradle.kts so the test install gets a visually distinct launcher icon. -->
 </resources>
