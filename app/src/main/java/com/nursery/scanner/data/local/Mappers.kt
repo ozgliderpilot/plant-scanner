@@ -16,12 +16,14 @@ fun PlantEntity.toCore(): Plant =
     Plant(
         accession = accession, name = name, group = group, light = light,
         potsInNursery = potsInNursery, tubesInNursery = tubesInNursery, miscInNursery = miscInNursery,
+        stockInNursery = stockInNursery,
     )
 
 fun Plant.toEntity(): PlantEntity =
     PlantEntity(
         accession = accession, name = name, group = group, light = light,
         potsInNursery = potsInNursery, tubesInNursery = tubesInNursery, miscInNursery = miscInNursery,
+        stockInNursery = stockInNursery,
     )
 
 // ---- LineItem ----

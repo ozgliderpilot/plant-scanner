@@ -20,7 +20,6 @@ import com.nursery.scanner.ui.theme.Dimens
 fun PlantCard(
     name: String,
     group: String?,
-    light: String?,
     accession: String,
     isUnknown: Boolean,
     modifier: Modifier = Modifier,
@@ -45,9 +44,6 @@ fun PlantCard(
             } else {
                 group?.takeIf { it.isNotBlank() }?.let {
                     Text("Group: $it", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 6.dp))
-                }
-                light?.takeIf { it.isNotBlank() }?.let {
-                    Text("Light: $it", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 2.dp))
                 }
             }
         }
