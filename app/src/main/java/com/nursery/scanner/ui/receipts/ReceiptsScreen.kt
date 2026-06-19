@@ -69,25 +69,28 @@ private fun ReceiptCard(receipt: Receipt, onClick: () -> Unit) {
 }
 
 /**
- * Names-only summary of the plants on this receipt (first [ReceiptPlantSummary.MAX_NAMES] distinct
- * names + an `…and X more` overflow line). The first/overflow selection lives in core/; this only
- * renders it. An empty receipt renders nothing. Each name is capped to one line so card height
- * stays predictable regardless of name length.
+ * Plant summary for this receipt: first [ReceiptPlantSummary.MAX_NAMES] distinct plants, each as
+ * `name — P n · T n · M n` (non-zero sale-unit counts), plus an `…and X more` overflow line. The
+ * selection, de-duplication, and per-unit counting live in core/; this only renders the result. An
+ * empty receipt renders nothing. Each line is capped to one line so card height stays predictable.
  */
 @Composable
 private fun PlantSummary(receipt: Receipt) {
     val summary = ReceiptPlantSummary.of(receipt)
-    if (summary.names.isEmpty()) return
-    for (name in summary.names) {
+    if (summary.lines.isEmpty()) return
+    val indent = Modifier.padding(start = Dimens.Gap)
+    for (line in summary.lines) {
+        val text = if (line.counts.isEmpty()) line.name else "${line.name} — ${line.counts}"
         Text(
-            name,
+            text,
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = indent,
         )
     }
     if (summary.remaining > 0) {
-        Text("…and ${summary.remaining} more", style = MaterialTheme.typography.bodyMedium)
+        Text("…and ${summary.remaining} more", style = MaterialTheme.typography.bodyMedium, modifier = indent)
     }
 }
 
