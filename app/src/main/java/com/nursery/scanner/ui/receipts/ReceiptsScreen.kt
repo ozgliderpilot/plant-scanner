@@ -19,8 +19,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.text.style.TextOverflow
 import com.nursery.core.Money
 import com.nursery.core.Receipt
+import com.nursery.core.ReceiptPlantSummary
 import com.nursery.core.ReceiptStatus
 import com.nursery.scanner.ui.theme.Dimens
 import com.nursery.scanner.util.formatDateTime
@@ -59,9 +61,33 @@ private fun ReceiptCard(receipt: Receipt, onClick: () -> Unit) {
                 Text(receipt.receiptNo, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 Text(Money.formatAud(Money.receiptTotalCents(receipt.lines)), style = MaterialTheme.typography.titleMedium)
             }
+            PlantSummary(receipt)
             Text(formatDateTime(receipt.createdAtEpochMs), style = MaterialTheme.typography.bodyMedium)
             Text(statusLabel(receipt.status), style = MaterialTheme.typography.bodyMedium)
         }
+    }
+}
+
+/**
+ * Names-only summary of the plants on this receipt (first [ReceiptPlantSummary.MAX_NAMES] distinct
+ * names + an `…and X more` overflow line). The first/overflow selection lives in core/; this only
+ * renders it. An empty receipt renders nothing. Each name is capped to one line so card height
+ * stays predictable regardless of name length.
+ */
+@Composable
+private fun PlantSummary(receipt: Receipt) {
+    val summary = ReceiptPlantSummary.of(receipt)
+    if (summary.names.isEmpty()) return
+    for (name in summary.names) {
+        Text(
+            name,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+    if (summary.remaining > 0) {
+        Text("…and ${summary.remaining} more", style = MaterialTheme.typography.bodyMedium)
     }
 }
 
