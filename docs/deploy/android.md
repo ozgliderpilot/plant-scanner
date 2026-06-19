@@ -21,35 +21,60 @@ Gradle composite build — you do not build it separately.
 3. Plug in the device, enable **Developer options → USB debugging**, accept the RSA prompt.
 4. Pick the device in the toolbar and press **Run ▶**. Studio builds, installs, and launches it.
 
-## Option B — Command line (debug APK)
+## Product flavors: production vs test
+
+The app ships in **two flavors** so a **test** copy can be installed *next to* the production copy on
+the **same device** and run safely without touching live data:
+
+| Flavor | Variant task           | applicationId               | Launcher label  | Icon  |
+|--------|------------------------|-----------------------------|-----------------|-------|
+| `prod` | `assembleProdRelease`  | `com.nursery.scanner`       | **Nursery**     | green |
+| `qa`   | `assembleQaRelease`    | `com.nursery.scanner.test`  | **Nursery TEST**| red   |
+
+Because the two installs have **different `applicationId`s**, Android keeps their local storage (the
+Room database and DataStore settings) completely separate — receipts and the pending-export queue in
+the test app never touch production and vice versa. The flavor is named `qa` (not `test`) only because
+the Android Gradle plugin reserves flavor names starting with `test`; the package id, label, and icon
+all say "test" so volunteers can't confuse them.
+
+**The only difference between the two builds is package identity + label/icon.** Both are pointed at
+their backend the same way — through the app's **Settings** screen at runtime (`connect.md`). Nothing
+is baked in. To isolate the cloud side too, point the test install at a **separate test backend +
+Sheet** (see [backend.md → Standing up a test deployment](backend.md)).
+
+## Option B — Command line (release APKs)
 
 From the project root:
 
 ```bash
 # Windows
-gradlew.bat :app:assembleDebug
+gradlew.bat :app:assembleProdRelease :app:assembleQaRelease
 # macOS/Linux
-./gradlew :app:assembleDebug
+./gradlew :app:assembleProdRelease :app:assembleQaRelease
 ```
 
-The APK lands at:
+The APKs land at:
 
 ```
-app/build/outputs/apk/debug/app-debug.apk
+app/build/outputs/apk/prod/release/app-prod-release.apk   # production — "Nursery"
+app/build/outputs/apk/qa/release/app-qa-release.apk       # test       — "Nursery TEST"
 ```
 
-Install it on a connected device:
+Install **both** on one device (they coexist — neither replaces the other):
 
 ```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/prod/release/app-prod-release.apk
+adb install -r app/build/outputs/apk/qa/release/app-qa-release.apk
 ```
 
-…or copy `app-debug.apk` to the device (email/Drive/USB) and tap it. The device will ask to allow
+…or copy each `.apk` to the device (email/Drive/USB) and tap it. The device will ask to allow
 **"Install unknown apps"** for the app you opened it from — allow once.
 
-> A debug APK is unsigned-for-store but fine for sideloading. For a couple of trusted devices you do
-> **not** need a release keystore. (If you ever want one: `:app:assembleRelease` after configuring a
-> signing config — out of scope here.)
+> These release APKs are **signed with the auto-generated debug keystore** (configured in
+> `app/build.gradle.kts`) so they install for sideloading out of the box — no keystore secret to
+> manage — while still being proper non-debuggable **release** builds (not the developer `debug`
+> build). For Play Store / wider distribution, replace that `signingConfig` with a real release
+> keystore. A plain debug build is still available as `:app:assembleProdDebug` if you want it.
 
 ## First launch
 

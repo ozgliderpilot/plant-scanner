@@ -16,10 +16,11 @@ Android types — and is unit-tested there.** The Android `app/` module is thin,
 
 This split exists so the easy-to-break logic gets **fast, isolated JVM unit tests** in `core/`. The
 Android `app/` module *can* be assembled on this machine (see Build & test — the Android SDK and the
-Android Studio JBR are installed), but it is Compose/Room/UI glue with no unit tests runnable here (no
-emulator), so logic buried in a ViewModel or Composable can't be verified the way `core/` can. **When
-you add or change logic (money math, receipt numbering, sync selection, export shaping, validation,
-search/filter), put it in `core/` and cover it with a `core/` test.**
+Android Studio JBR are installed), but it is Compose/Room/UI glue with no JVM unit tests, so logic
+buried in a ViewModel or Composable can't be verified the **fast** way `core/` can — even though an
+`Xcover_Pro` emulator is now configured here for slower app-level/instrumented checks (see Build &
+test). **When you add or change logic (money math, receipt numbering, sync selection, export shaping,
+validation, search/filter), put it in `core/` and cover it with a `core/` test.**
 
 ```
 core/      Pure Kotlin/JVM — money, receipt numbering, plant lookup, sync selection, export rows,
@@ -45,9 +46,19 @@ node --test --test-name-pattern "isAuthorized" backend/test/logic.test.js   # si
 
 # app/ Android — assembles on THIS machine. The SDK is wired via local.properties
 # (sdk.dir=C:\Users\vital\AppData\Local\Android\Sdk). Build with the Android Studio JBR (JDK 21);
-# the machine's default JAVA_HOME is a non-LTS/EOL JDK 19, so point JAVA_HOME at the JBR:
-JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:assembleDebug
-#   -> app/build/outputs/apk/debug/app-debug.apk
+# the machine's default JAVA_HOME is a non-LTS/EOL JDK 19, so point JAVA_HOME at the JBR.
+# Two product flavors (prod / qa) × build types — variant tasks combine them:
+JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:assembleProdDebug
+#   -> app/build/outputs/apk/prod/debug/app-prod-debug.apk
+JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:assembleProdRelease :app:assembleQaRelease
+#   -> app/build/outputs/apk/{prod,qa}/release/app-{prod,qa}-release.apk  (signed, installable side by side)
+
+# Run on a device/emulator. An AVD named `Xcover_Pro` (approximates the nursery's Galaxy Xcover Pro
+# SM-G715FN) is configured here; a real SM-G715FN may also be attached over wireless adb. Either shows
+# up as a target. `gradle install*` / `adb` use platform-tools under the SDK above.
+"$HOME/AppData/Local/Android/Sdk/emulator/emulator" -avd Xcover_Pro &   # boot the emulator (omit if a device is attached)
+"$HOME/AppData/Local/Android/Sdk/platform-tools/adb" devices            # confirm a target is online
+JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:installQaDebug   # build + install the QA flavor onto it
 ```
 
 `core/` and `app/` target JVM 17 bytecode. `core/` is its own standalone Gradle build (it has its own
@@ -99,10 +110,23 @@ drives the Android app and pulls `core/` in as an included build.
 - **`core/bin/` and `app/build/` are generated** — `core/bin/main/...` contains copies of the `.kt`
   sources that show up in searches. The real sources are under `core/src/`. Edit `core/src/`, never
   `core/bin/`.
-- `app/` **assembles** here (`:app:assembleDebug` with the Android Studio JBR — see Build & test), but
-  there's no emulator, so app-level/instrumented tests don't run. Validate business logic via `core/`
-  tests, confirm the app compiles with `assembleDebug`, and exercise it on a device per
-  `docs/deploy/connect.md`.
+- `app/` **assembles** here (`:app:assembleProdDebug` with the Android Studio JBR — see Build & test),
+  and an `Xcover_Pro` emulator is now configured, so app-level/instrumented runs are possible — but
+  they're slow and there are still no instrumented tests in the repo. Validate business logic via
+  `core/` tests first, confirm the app compiles with a `:app:assemble<Flavor><BuildType>` task, and
+  exercise it on the emulator or a real device (`:app:installQaDebug` — verified installing onto a real
+  SM-G715FN over wireless adb) per `docs/deploy/connect.md`.
+- **Wireless adb drops when the adb daemon restarts.** A real SM-G715FN is paired over wireless
+  debugging (no USB), so the first adb/gradle call after the server was stopped starts a fresh daemon
+  and the device vanishes from `adb devices`. Recover with `adb mdns services` (it lists the device and
+  auto-reconnects); no re-pairing needed as long as the phone is on the same Wi-Fi with wireless
+  debugging on. When both the emulator and the phone are attached, pin the target with
+  `ANDROID_SERIAL=<serial>` (or `-s`) so `install*` isn't ambiguous.
+- **Two product flavors, `prod` and `qa`** (`app/build.gradle.kts`), let a real test install
+  (`com.nursery.scanner.test`, label "Nursery TEST", red icon) coexist with prod
+  (`com.nursery.scanner`, "Nursery") on one device — separate Room DB + DataStore, no shared data.
+  The flavor is **named `qa` not `test`**: AGP rejects flavor names starting with `test`. The backend
+  endpoint stays runtime Settings config; nothing is baked into the build. See `docs/deploy/android.md`.
 - **The Android toolchain is on KSP2** (Kotlin 2.2.10 + KSP `2.2.10-2.0.2`). KSP2 needs **Room ≥ 2.7**
   (`room-compiler` 2.6.x throws `unexpected jvm signature V`), and the KSP version's `<kotlin>` prefix
   must match `kotlin` in `libs.versions.toml`. Keep those three in lockstep when bumping any of them.

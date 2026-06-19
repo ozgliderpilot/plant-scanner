@@ -18,7 +18,9 @@ Three parts, deploy in this order:
 - [ ] Script Property **`SHARED_SECRET`** set.
 - [ ] Web App deployed (**Anyone** access); `/exec` URL copied.
 - [ ] `curl` smoke-test returns `{"ok":true,...}`.
-- [ ] App built (`:app:assembleDebug`) and installed on each device.
+- [ ] App built (`:app:assembleProdRelease`) and installed on each device.
+- [ ] *(test environment, optional)* Second Sheet + Apps Script deployed; **test** APK
+      (`:app:assembleQaRelease`, "Nursery TEST") installed beside prod and pointed at the test URL.
 - [ ] Each device: prefix + URL + access code entered; **Update plant list** succeeds.
 - [ ] Test sale appears in the **`Sales`** tab.
 - [ ] Nursery PC: VBA module imported, `GFRBG_SYNC_URL` / `GFRBG_SYNC_SECRET` set, Form Timer wired;
