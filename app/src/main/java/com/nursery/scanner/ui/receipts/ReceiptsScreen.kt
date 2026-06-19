@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.nursery.core.Money
 import com.nursery.core.Receipt
@@ -62,8 +63,19 @@ private fun ReceiptCard(receipt: Receipt, onClick: () -> Unit) {
                 Text(Money.formatAud(Money.receiptTotalCents(receipt.lines)), style = MaterialTheme.typography.titleMedium)
             }
             PlantSummary(receipt)
-            Text(formatDateTime(receipt.createdAtEpochMs), style = MaterialTheme.typography.bodyMedium)
-            Text(statusLabel(receipt.status), style = MaterialTheme.typography.bodyMedium)
+            // Date + status hug the right edge; the plant names stay on the left.
+            Text(
+                formatDateTime(receipt.createdAtEpochMs),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                statusLabel(receipt.status),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
