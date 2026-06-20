@@ -39,13 +39,14 @@ class ReceiptRepository(
             createdAtEpochMs = createdAt,
             status = ReceiptStatus.SAVED.name,
         )
-        val id = receiptDao.saveReceipt(header, lines.map { it.toEntity(0) })
+        val stamped = lines.mapIndexed { index, line -> line.copy(itemSeq = index + 1) }
+        val id = receiptDao.saveReceipt(header, stamped.map { it.toEntity(0) })
         return Receipt(
             localId = id,
             receiptNo = receiptNo,
             createdAtEpochMs = createdAt,
             status = ReceiptStatus.SAVED,
-            lines = lines,
+            lines = stamped,
         )
     }
 

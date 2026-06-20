@@ -36,6 +36,8 @@ data class Plant(
  * scanned [accession] is kept and [name] is "unknown" so it can be reconciled later. [qty] is the
  * count of [unit]s (Pots/Tubes/Misc).
  * Unit price is always keyed at sale (decision #6); discount is a percentage 0..100 (decision #5).
+ * [itemSeq] is the 1-based position of this line within its receipt, stamped at save; together with
+ * the receipt number it is the primary key of a Sales-sheet row. 0 means not-yet-stamped (cart stage).
  */
 data class LineItem(
     val accession: String,
@@ -44,6 +46,7 @@ data class LineItem(
     val unitPriceCents: Long,
     val discountPct: Int,
     val unit: SaleUnit = SaleUnit.POTS,
+    val itemSeq: Int = 0,
 )
 
 /** A receipt = one customer (decision #4); number is `PP-NNN` per device (decision #11). */

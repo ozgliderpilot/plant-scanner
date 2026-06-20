@@ -36,6 +36,7 @@ fun LineItemEntity.toCore(): LineItem =
         unitPriceCents = unitPriceCents,
         discountPct = discountPct,
         unit = runCatching { SaleUnit.valueOf(unit) }.getOrDefault(SaleUnit.POTS),
+        itemSeq = itemSeq,
     )
 
 fun LineItem.toEntity(receiptId: Long): LineItemEntity =
@@ -47,6 +48,7 @@ fun LineItem.toEntity(receiptId: Long): LineItemEntity =
         unitPriceCents = unitPriceCents,
         discountPct = discountPct,
         unit = unit.name,
+        itemSeq = itemSeq,
     )
 
 // ---- Receipt ----

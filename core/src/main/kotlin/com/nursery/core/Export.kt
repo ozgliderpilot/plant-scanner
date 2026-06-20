@@ -7,6 +7,7 @@ import java.time.ZoneId
 data class ExportRow(
     val receiptNo: String,
     val isoDate: String,
+    val itemSeq: Int,
     val accession: String,
     val name: String,
     val qty: Int,
@@ -24,7 +25,7 @@ object Export {
 
     /** Column order written to the Sheet — keep stable; the Apps Script relies on it. */
     val HEADER: List<String> = listOf(
-        "receipt", "date", "accession", "name",
+        "receipt", "date", "item_seq", "accession", "name",
         "qty", "unit", "unit_price", "discount_pct", "line_total",
     )
 
@@ -35,6 +36,7 @@ object Export {
                 ExportRow(
                     receiptNo = receipt.receiptNo,
                     isoDate = date,
+                    itemSeq = line.itemSeq,
                     accession = line.accession,
                     name = line.name,
                     qty = line.qty,
@@ -50,6 +52,7 @@ object Export {
     fun rowAsStrings(row: ExportRow): List<String> = listOf(
         row.receiptNo,
         row.isoDate,
+        row.itemSeq.toString(),
         row.accession,
         row.name,
         row.qty.toString(),

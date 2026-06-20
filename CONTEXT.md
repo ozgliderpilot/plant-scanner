@@ -21,3 +21,9 @@ The physical unit an accession is grown/sold in: **Tubes** (`T`), **Pots** (`P`)
 (`M`). Each accession carries a per-type count (`TubesInNursery`, `PotsInNursery`,
 `MiscInNursery`). At sale this becomes the line item's sale unit.
 _Avoid_: container, size, sale unit (in the catalogue context)
+
+**Item seq**:
+The 1-based position of a line item within its receipt. Together with the receipt number it forms
+the primary key of a Sales-sheet row — `(receipt, item_seq)` — since one receipt produces one row
+per line item and the receipt number alone repeats across them.
+_Avoid_: line id, row id (it is not globally unique on its own)
