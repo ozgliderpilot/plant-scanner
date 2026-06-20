@@ -81,9 +81,11 @@ drives the Android app and pulls `core/` in as an included build.
   2-digit prefix from settings (namespaces devices in the shared Sheet), `seq` resets daily. Note the
   prose in older docs says `PP-NNN`; the code is the source of truth.
 - **Export column order** (`Export.HEADER`) is relied on by the Apps Script backend — keep it stable.
-  Columns: `receipt, date, accession, name, qty, unit, unit_price, discount_pct, line_total`. `qty` is
-  the count of `unit`s (Pots/Tubes/Misc); `unit` is the sale-unit chosen on the line-item screen,
-  defaulted from the plant's `*InNursery` counts via `SaleUnit.defaultFor`.
+  Columns: `receipt, date, item_seq, accession, name, qty, unit, unit_price, discount_pct, line_total`.
+  `item_seq` is the 1-based line position within a receipt (stamped at save in `ReceiptRepository`);
+  `(receipt, item_seq)` is the Sales-row primary key. `qty` is the count of `unit`s (Pots/Tubes/Misc);
+  `unit` is the sale-unit chosen on the line-item screen, defaulted from the plant's `*InNursery` counts
+  via `SaleUnit.defaultFor`.
 
 ## app/ structure notes
 
@@ -98,12 +100,12 @@ drives the Android app and pulls `core/` in as an included build.
 - **Navigation** (`ui/NurseryRoot.kt`, `ui/nav/Destinations.kt`): three bottom tabs (Actions /
   Receipts / Sync). The Sell flow is a **nested nav graph** so one `SellViewModel` is shared across
   Scan → LineItem → Cart → Confirm. Full-screen sub-flows hide the top/bottom bars (`TabRoutes`).
-- **Room** is at `version = 2`, `exportSchema = false`, and deliberately has **no
+- **Room** is at `version = 4`, `exportSchema = false`, and deliberately has **no
   `fallbackToDestructiveMigration`** — heading to production, the local DB must never be silently wiped,
-  so future schema changes require a real `Migration`. This release's `pots`→`qty` rename (+ stock
-  counts + `line_items.unit`) is a one-time **pre-production** reset: drop the local DB manually
-  (uninstall / clear app data) before running. The plant list is replaced wholesale on "Update plant
-  list".
+  so future schema changes require a real `Migration`. The `pots`→`qty` rename (+ stock counts +
+  `line_items.unit`) and the `line_items.itemSeq` primary-key column are one-time **pre-production**
+  resets: drop the local DB manually (uninstall / clear app data) before running. The plant list is
+  replaced wholesale on "Update plant list".
 
 ## Gotchas
 
