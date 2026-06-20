@@ -76,7 +76,7 @@ fun LineItemScreen(
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(
-            title = "Enter price",
+            title = if (draft.editIndex != null) "Edit price" else "Enter price",
             onBack = { vm.discardDraft(); onBack() },
         )
         Column(
