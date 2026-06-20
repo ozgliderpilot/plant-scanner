@@ -1,13 +1,18 @@
 package com.nursery.scanner.ui.receipts
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,10 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Color
 import com.nursery.core.Money
 import com.nursery.core.Receipt
+import com.nursery.core.ReceiptList
 import com.nursery.core.ReceiptPlantSummary
-import com.nursery.core.ReceiptStatus
 import com.nursery.scanner.ui.theme.Dimens
 import com.nursery.scanner.util.formatDateTime
 
@@ -53,29 +59,35 @@ fun ReceiptsScreen(vm: ReceiptsViewModel, onOpen: (Long) -> Unit, modifier: Modi
 
 @Composable
 private fun ReceiptCard(receipt: Receipt, onClick: () -> Unit) {
+    // Status is conveyed by the "waterline" grouping + this left accent stripe instead of a text
+    // line: a coloured stripe marks a pending (not-yet-exported) receipt; exported cards are plain.
+    val pending = ReceiptList.isPending(receipt.status)
     Card(
         shape = RoundedCornerShape(Dimens.CardCorner),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     ) {
-        Column(Modifier.padding(Dimens.Gap)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(receipt.receiptNo, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Text(Money.formatAud(Money.receiptTotalCents(receipt.lines)), style = MaterialTheme.typography.titleMedium)
+        Row(Modifier.height(IntrinsicSize.Min)) {
+            // Reserve the stripe width on every card so the content lines up whether pending or not.
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .width(Dimens.StripeWidth)
+                    .background(if (pending) MaterialTheme.colorScheme.primary else Color.Transparent),
+            )
+            Column(Modifier.padding(Dimens.Gap)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(receipt.receiptNo, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Text(Money.formatAud(Money.receiptTotalCents(receipt.lines)), style = MaterialTheme.typography.titleMedium)
+                }
+                PlantSummary(receipt)
+                // Date hugs the right edge; the plant names stay on the left.
+                Text(
+                    formatDateTime(receipt.createdAtEpochMs),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
-            PlantSummary(receipt)
-            // Date + status hug the right edge; the plant names stay on the left.
-            Text(
-                formatDateTime(receipt.createdAtEpochMs),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                statusLabel(receipt.status),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
     }
 }
@@ -103,10 +115,4 @@ private fun PlantSummary(receipt: Receipt) {
     if (summary.remaining > 0) {
         Text("…and ${summary.remaining} more", style = MaterialTheme.typography.bodyMedium, modifier = indent)
     }
-}
-
-private fun statusLabel(status: ReceiptStatus): String = when (status) {
-    ReceiptStatus.OPEN -> "Draft"
-    ReceiptStatus.SAVED -> "Pending export"
-    ReceiptStatus.EXPORTED -> "Exported"
 }
