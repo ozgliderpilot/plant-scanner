@@ -11,4 +11,5 @@ object Dimens {
     val TouchMin = 56.dp
     val CardCorner = 16.dp
     val FieldHeight = 64.dp
+    val StripeWidth = 6.dp   // left accent marking a pending (not-yet-exported) receipt card
 }
