@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey, accessionColIndex } = require('../shared.js');
+const {
+  isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey,
+  accessionColIndex, selectPendingSales, resolveSalesMarks,
+} = require('../shared.js');
 
 test('isAuthorized accepts the right secret only', () => {
   assert.strictEqual(isAuthorized({ secret: 's3cr3t' }, 's3cr3t'), true);
@@ -229,4 +232,121 @@ test('parsePlants reads StockInNursery (Nz -> 0)', () => {
   assert.strictEqual(plants[1].stockInNursery, 4);
   assert.strictEqual(plants[2].stockInNursery, 0);
   assert.strictEqual(plants[3].stockInNursery, 0);
+});
+
+// ---- Reverse sync (Sales -> Access) selection & marking -------------------------------------------
+// The "Sales" tab carries the app's export columns plus the user-added sync_status column.
+const SALES_HEADER = [
+  'receipt', 'date', 'item_seq', 'accession', 'name', 'qty', 'unit',
+  'unit_price', 'discount_pct', 'line_total', 'sync_status',
+];
+
+test('selectPendingSales returns [] for an empty or header-only sheet', () => {
+  assert.deepStrictEqual(selectPendingSales(null), []);
+  assert.deepStrictEqual(selectPendingSales([]), []);
+  assert.deepStrictEqual(selectPendingSales([SALES_HEADER]), []);
+});
+
+test('selectPendingSales selects only Pending rows, shaped {receipt,item_seq,accession,qty,unit}', () => {
+  const values = [
+    SALES_HEADER,
+    ['PP-1700000000-1', '2026-06-23', 1, '31011', 'Acacia', 2, 'pots', 500, 0, 1000, 'Pending'],
+    ['PP-1700000000-2', '2026-06-23', 2, '8250', 'Banksia', 1, 'tubes', 300, 0, 300, 'Synced'],
+    ['PP-1700000000-3', '2026-06-23', 3, '9000', 'Grevillea', 5, 'misc', 100, 0, 500, 'NoMatch'],
+    ['PP-1700000000-4', '2026-06-23', 4, '16726', 'Hardenbergia', 3, 'pots', 200, 0, 600, 'Pending'],
+  ];
+  assert.deepStrictEqual(selectPendingSales(values), [
+    { receipt: 'PP-1700000000-1', item_seq: 1, accession: '31011', qty: 2, unit: 'pots' },
+    { receipt: 'PP-1700000000-4', item_seq: 4, accession: '16726', qty: 3, unit: 'pots' },
+  ]);
+});
+
+test('selectPendingSales matches sync_status case-insensitively after trimming', () => {
+  const values = [SALES_HEADER, ['PP-9-1', '2026-06-23', 1, '31011', 'A', 2, 'pots', 500, 0, 1000, '  pending ']];
+  assert.strictEqual(selectPendingSales(values).length, 1);
+});
+
+test('selectPendingSales parses item_seq/qty as numbers and keeps receipt/accession as strings', () => {
+  // GAS getValues can hand back the numeric cells as strings; identifier cells are stored as text.
+  const values = [SALES_HEADER, ['07-1', '2026-06-23', '3', '31011', 'Acacia', '2', 'pots', 500, 0, 1000, 'Pending']];
+  const s = selectPendingSales(values)[0];
+  assert.strictEqual(s.item_seq, 3);
+  assert.strictEqual(typeof s.item_seq, 'number');
+  assert.strictEqual(s.qty, 2);
+  assert.strictEqual(typeof s.qty, 'number');
+  assert.strictEqual(s.receipt, '07-1');
+  assert.strictEqual(typeof s.receipt, 'string');
+  assert.strictEqual(s.accession, '31011');
+  assert.strictEqual(typeof s.accession, 'string');
+});
+
+test('selectPendingSales tolerates reordered columns and a missing data column', () => {
+  const header = ['sync_status', 'item_seq', 'receipt', 'accession', 'qty']; // no unit column
+  const values = [header, ['Pending', 2, 'PP-5-2', '8250', 4]];
+  assert.deepStrictEqual(selectPendingSales(values), [
+    { receipt: 'PP-5-2', item_seq: 2, accession: '8250', qty: 4, unit: '' },
+  ]);
+});
+
+test('selectPendingSales returns [] when there is no sync_status column', () => {
+  const header = ['receipt', 'item_seq', 'accession', 'qty', 'unit'];
+  assert.deepStrictEqual(selectPendingSales([header, ['PP-5-1', 1, '31011', 2, 'pots']]), []);
+});
+
+test('resolveSalesMarks maps each (receipt,item_seq) key to its values row index and status', () => {
+  const values = [
+    SALES_HEADER,
+    ['PP-1-1', '2026-06-23', 1, '31011', 'Acacia', 2, 'pots', 500, 0, 1000, 'Pending'], // values row 1
+    ['PP-1-2', '2026-06-23', 2, '8250', 'Banksia', 1, 'pots', 300, 0, 300, 'Pending'],   // values row 2
+  ];
+  assert.deepStrictEqual(
+    resolveSalesMarks(values, [{ receipt: 'PP-1-2', item_seq: 2, status: 'Synced' }]),
+    [{ rowIndex: 2, status: 'Synced' }],
+  );
+});
+
+test('resolveSalesMarks ignores keys with no matching row (not an error)', () => {
+  const values = [SALES_HEADER, ['PP-1-1', '2026-06-23', 1, '31011', 'A', 2, 'pots', 500, 0, 1000, 'Pending']];
+  assert.deepStrictEqual(
+    resolveSalesMarks(values, [
+      { receipt: 'PP-1-1', item_seq: 1, status: 'Synced' },
+      { receipt: 'PP-NOPE', item_seq: 9, status: 'Synced' }, // absent -> ignored
+    ]),
+    [{ rowIndex: 1, status: 'Synced' }],
+  );
+});
+
+test('resolveSalesMarks handles multiple keys and mixed statuses in one batch', () => {
+  const values = [
+    SALES_HEADER,
+    ['PP-1-1', '2026-06-23', 1, '31011', 'A', 2, 'pots', 500, 0, 1000, 'Pending'],
+    ['PP-1-2', '2026-06-23', 2, '8250', 'B', 1, 'misc', 300, 0, 300, 'Pending'],
+    ['PP-1-3', '2026-06-23', 3, '9000', 'C', 1, 'pots', 100, 0, 100, 'Pending'],
+  ];
+  assert.deepStrictEqual(
+    resolveSalesMarks(values, [
+      { receipt: 'PP-1-1', item_seq: 1, status: 'Synced' },
+      { receipt: 'PP-1-2', item_seq: 2, status: 'NoMatch' },
+      { receipt: 'PP-1-3', item_seq: 3, status: 'Synced' },
+    ]),
+    [
+      { rowIndex: 1, status: 'Synced' },
+      { rowIndex: 2, status: 'NoMatch' },
+      { rowIndex: 3, status: 'Synced' },
+    ],
+  );
+});
+
+test('resolveSalesMarks matches a key despite receipt whitespace and item_seq type drift', () => {
+  const values = [SALES_HEADER, ['PP-1-1', '2026-06-23', 7, '31011', 'A', 2, 'pots', 500, 0, 1000, 'Pending']];
+  assert.deepStrictEqual(
+    resolveSalesMarks(values, [{ receipt: '  PP-1-1 ', item_seq: '7', status: 'Synced' }]),
+    [{ rowIndex: 1, status: 'Synced' }],
+  );
+});
+
+test('resolveSalesMarks on empty keys or empty sheet returns []', () => {
+  assert.deepStrictEqual(resolveSalesMarks([SALES_HEADER], [{ receipt: 'x', item_seq: 1, status: 'Synced' }]), []);
+  assert.deepStrictEqual(resolveSalesMarks([SALES_HEADER, ['PP-1-1', '', 1, '', '', 0, '', 0, 0, 0, 'Pending']], []), []);
+  assert.deepStrictEqual(resolveSalesMarks(null, null), []);
 });
