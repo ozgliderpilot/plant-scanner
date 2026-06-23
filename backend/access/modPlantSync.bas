@@ -299,8 +299,9 @@ Private Function ClampSub_(ByVal cur As Long, ByVal qty As Long) As Long
     End If
 End Function
 
-' Count Batches rows whose [Ac Number] equals `accession` compared TRIMMED + CASE-INSENSITIVELY, so
-' trivial formatting differences don't cause spurious misses (and >1 is treated as ambiguous upstream).
+' Count Batches rows whose [Ac Number] equals `accession` (>1 is treated as ambiguous upstream). The
+' compare is exact: [Ac Number] holds numeric-only values, so no trim/case folding is needed -- and an
+' exact compare on the bare column can use an index instead of scanning every row.
 Private Function CountBatchMatches_(ByRef db As DAO.Database, ByVal accession As String) As Long
     Dim rs As DAO.Recordset
     Set rs = OpenBatchByAccession_(db, accession, False)   ' snapshot
@@ -314,17 +315,18 @@ Private Function CountBatchMatches_(ByRef db As DAO.Database, ByVal accession As
     Set rs = Nothing
 End Function
 
-' Open the Batches rows matching `accession` (trimmed + case-insensitive). A parameterised query avoids
-' any quoting/escaping of the accession. SELECT Batches.* from a single table keeps the dynaset
-' updatable (the Trim/LCase only restricts WHICH rows, not which columns can be edited).
+' Open the Batches rows matching `accession` by an exact compare on [Ac Number]. That column holds
+' numeric-only values, so no trim/case folding is needed; the bare-column compare can use an index. The
+' accession arriving from selectPendingSales is already trimmed. A parameterised query avoids any
+' quoting/escaping of the accession. SELECT Batches.* from a single table keeps the dynaset updatable.
 Private Function OpenBatchByAccession_(ByRef db As DAO.Database, ByVal accession As String, _
                                        ByVal updatable As Boolean) As DAO.Recordset
     Dim qd As DAO.QueryDef
     Set qd = db.CreateQueryDef("", _
         "PARAMETERS pAcc Text ( 255 ); " & _
         "SELECT Batches.* FROM Batches " & _
-        "WHERE Trim(LCase(Nz(Batches.[Ac Number],'')))=[pAcc];")
-    qd.Parameters("pAcc").Value = LCase$(Trim$(accession))
+        "WHERE Batches.[Ac Number]=[pAcc];")
+    qd.Parameters("pAcc").Value = accession
     If updatable Then
         Set OpenBatchByAccession_ = qd.OpenRecordset(dbOpenDynaset)
     Else
