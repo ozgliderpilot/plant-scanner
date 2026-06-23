@@ -159,36 +159,66 @@ Public Sub SyncSelfTest()
     Debug.Print "firstRow:   " & Left$(rowsJson, 400)
 End Sub
 
-' Immediate-window self-test for the deduction arithmetic in THIS slice (pots clamp), mirroring the
-' SyncSelfTest precedent -- VBA has no JVM/JS harness, so the arithmetic is checked here. The misc->pots
-' overflow and tubes cases arrive with the dependent slices and will extend this sub then. Makes NO
-' network call and touches NO data. Run from the Immediate window:  modPlantSync.DeductSelfTest
+' Immediate-window self-test for the per-row deduction arithmetic (ComputeDeduction_) -- pots, tubes,
+' misc, and the misc->pots overflow corners -- mirroring the SyncSelfTest precedent. VBA has no JVM/JS
+' harness, so this is where the arithmetic is checked; it is deliberately NOT mirrored as a tested copy
+' in core/ or shared.js (a never-executed duplicate would only drift). Makes NO network call and touches
+' NO data. Run from the Immediate window:  modPlantSync.DeductSelfTest
 Public Sub DeductSelfTest()
-    Debug.Print "--- DeductSelfTest (pots) ---"
-    PrintClamp_ 10, 3, 7      ' normal decrement
-    PrintClamp_ 5, 5, 0       ' exactly to zero
-    PrintClamp_ 2, 9, 0       ' oversell clamps at zero
-    PrintClamp_ 0, 1, 0       ' already empty stays zero
+    Debug.Print "--- DeductSelfTest ---"
+    '            unit     qty    P   T   M  ->  wantP wantT wantM
+    PrintDeduct_ "pots",    3,  10,  5,  4,        7,    5,    4   ' pure pots: only P drops
+    PrintDeduct_ "pots",    9,   2,  5,  4,        0,    5,    4   ' pots oversell clamps at 0
+    PrintDeduct_ "tubes",   3,  10,  5,  4,       10,    2,    4   ' pure tubes: only T drops
+    PrintDeduct_ "tubes",   9,  10,  2,  4,       10,    0,    4   ' tubes oversell clamps at 0
+    PrintDeduct_ "misc",    3,  10,  5,  4,       10,    5,    1   ' pure misc, no overflow: only M drops
+    PrintDeduct_ "misc",    4,  10,  5,  4,       10,    5,    0   ' misc exactly to zero, no overflow
+    PrintDeduct_ "misc",    7,  10,  5,  4,        7,    5,    0   ' misc overflow (3) partly drawn from pots
+    PrintDeduct_ "misc",    9,   2,  5,  4,        0,    5,    0   ' misc overflow (5) exceeds pots -> pots 0
+    PrintOrderIndependence_     ' two rows of one accession: result must not depend on row order (AC)
 End Sub
 
-Private Sub PrintClamp_(ByVal cur As Long, ByVal qty As Long, ByVal want As Long)
-    Dim got As Long
-    got = ClampSub_(cur, qty)
-    Debug.Print "pots " & cur & " - " & qty & " = " & got & _
-                IIf(got = want, "  OK", "  FAIL (want " & want & ")")
+' Run one case through ComputeDeduction_ and print pass/fail against the expected P/T/M. P/T/M arrive
+' ByVal, so ComputeDeduction_ mutates these local copies, not the caller's.
+Private Sub PrintDeduct_(ByVal unit As String, ByVal qty As Long, _
+                         ByVal p As Long, ByVal t As Long, ByVal m As Long, _
+                         ByVal wantP As Long, ByVal wantT As Long, ByVal wantM As Long)
+    ComputeDeduction_ unit, qty, p, t, m
+    Debug.Print "  " & unit & " qty " & qty & " -> P=" & p & " T=" & t & " M=" & m & _
+                IIf(p = wantP And t = wantT And m = wantM, "  OK", _
+                    "  FAIL (want P=" & wantP & " T=" & wantT & " M=" & wantM & ")")
+End Sub
+
+' Order-independence acceptance check: two rows of the same accession applied one at a time against the
+' live counts must reach the same final counts regardless of row order (proved algebraically in the
+' design; pinned here on a concrete misc-overflow case so it can't silently regress).
+Private Sub PrintOrderIndependence_()
+    Dim pa As Long, ta As Long, ma As Long
+    Dim pb As Long, tb As Long, mb As Long
+    pa = 4: ta = 0: ma = 6                      ' two misc rows, qty 3 then 5 ...
+    ComputeDeduction_ "misc", 3, pa, ta, ma
+    ComputeDeduction_ "misc", 5, pa, ta, ma
+    pb = 4: tb = 0: mb = 6                       ' ... vs qty 5 then 3, same start
+    ComputeDeduction_ "misc", 5, pb, tb, mb
+    ComputeDeduction_ "misc", 3, pb, tb, mb
+    Debug.Print "  order-independence -> (" & pa & "," & ta & "," & ma & ") vs (" & _
+                pb & "," & tb & "," & mb & ")" & _
+                IIf(pa = pb And ta = tb And ma = mb, "  OK", "  FAIL")
 End Sub
 
 ' ============================================================================
 '  Sales-in (reverse sync): Pending Sales rows -> Access stock decrement
 ' ============================================================================
 
-' Pull every "Pending" Sales row from the Sheet and, for the rows THIS SLICE handles (unit = "pots"
-' matching exactly one Batches row), decrement PotsInNursery and record the sale in the local ledger --
-' the two in one DAO transaction so a crash can never leave one without the other. Already-ledgered rows
-' are re-flipped on the Sheet only (never re-deducted). Finally mark the applied rows "Synced".
+' Pull every "Pending" Sales row from the Sheet and, for the rows THIS SLICE handles (a pots/tubes/misc
+' sale matching exactly one Batches row), decrement the matching stock count(s) and record the sale in the
+' local ledger -- the two in one DAO transaction so a crash can never leave one without the other.
+' Already-ledgered rows are re-flipped on the Sheet only (never re-deducted). Finally mark the applied
+' rows "Synced".
 '
-' SCOPE (slice 1): only unit = "pots" matching EXACTLY ONE batch is acted on. Every other row -- tubes,
-' misc, no match, ambiguous (>1 batch), unknown unit -- is left "Pending" and untouched for later slices.
+' SCOPE (slice 2): pots, tubes and misc (with the misc->pots overflow) matching EXACTLY ONE batch are
+' acted on. Rows that don't resolve -- no match, ambiguous (>1 batch), or an unrecognized/blank unit --
+' are still left "Pending" and untouched; routing those to NoMatch is the next slice (#19).
 '
 ' Resilience: a failed POST or parse just Exits; nothing is half-applied and the next run retries. The
 ' caller (SyncPlants) swallows any error this raises so sales-in can never block the plant push.
@@ -222,17 +252,17 @@ Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
             ' Already applied locally. Re-flip the Sheet only (a prior markSalesSynced may have failed);
             ' the ledger is the authority, so we NEVER decrement again.
             marks.Add MarkJson_(receipt, itemSeq, ledStatus)
-        ElseIf unit = "pots" Then
-            ' This slice: a pots row that resolves to EXACTLY ONE batch is deducted; 0 or >1 matches are
-            ' left Pending & untouched (the NoMatch/ambiguous handling is a dependent slice).
+        ElseIf IsSellUnit_(unit) Then
+            ' This slice: a pots/tubes/misc row that resolves to EXACTLY ONE batch is deducted; 0 or >1
+            ' matches are left Pending & untouched (NoMatch/ambiguous routing is the next slice, #19).
             If CountBatchMatches_(db, accession) = 1 Then
-                If ApplyPotsDeduction_(db, receipt, itemSeq, accession, qty) Then
+                If ApplyDeduction_(db, receipt, itemSeq, accession, unit, qty) Then
                     marks.Add MarkJson_(receipt, itemSeq, "Synced")
                 End If
                 ' transaction failed -> not ledgered, left Pending, retried next run
             End If
         End If
-        ' non-pots rows: left Pending & untouched (later slices)
+        ' unrecognized/blank unit: left Pending & untouched (NoMatch routing is slice #19)
     Next i
 
     If marks.Count > 0 Then
@@ -249,16 +279,20 @@ Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
     End If
 End Sub
 
-' Decrement PotsInNursery for the single matching batch AND insert the ledger row, in ONE DAO
-' transaction on Workspaces(0) (which covers the linked Jet back-end). Returns True only if both
+' Decrement the sale unit's stock count(s) for the single matching batch AND insert the ledger row, in
+' ONE DAO transaction on Workspaces(0) (which covers the linked Jet back-end). Returns True only if both
 ' committed; on any error it rolls back and returns False, leaving the row un-applied for the next run.
-' Caller has already verified unit = "pots" and exactly one matching batch.
-Private Function ApplyPotsDeduction_(ByRef db As DAO.Database, _
-                                     ByVal receipt As String, ByVal itemSeq As Long, _
-                                     ByVal accession As String, ByVal qty As Long) As Boolean
+' Caller has already verified the unit is a sell unit and that exactly one batch matches. The arithmetic
+' (including the misc->pots overflow) lives in ComputeDeduction_; only PotsInNursery/TubesInNursery/
+' MiscInNursery are written -- StockInNursery and the *ForSale flags are never touched.
+Private Function ApplyDeduction_(ByRef db As DAO.Database, _
+                                 ByVal receipt As String, ByVal itemSeq As Long, _
+                                 ByVal accession As String, ByVal unit As String, _
+                                 ByVal qty As Long) As Boolean
     Dim ws As DAO.Workspace
     Dim rs As DAO.Recordset
     Dim inTrans As Boolean
+    Dim p As Long, t As Long, m As Long
 
     On Error GoTo Fail
     Set ws = DBEngine.Workspaces(0)
@@ -267,8 +301,16 @@ Private Function ApplyPotsDeduction_(ByRef db As DAO.Database, _
 
     Set rs = OpenBatchByAccession_(db, accession, True)    ' updatable dynaset
     If rs.EOF Then Err.Raise vbObjectError, , "batch vanished"   ' guard: caller checked count=1
+
+    p = Nz(rs![PotsInNursery], 0)
+    t = Nz(rs![TubesInNursery], 0)
+    m = Nz(rs![MiscInNursery], 0)
+    ComputeDeduction_ unit, qty, p, t, m       ' applies the unit's clamp(s) + the misc->pots overflow
+
     rs.Edit
-    rs![PotsInNursery] = ClampSub_(Nz(rs![PotsInNursery], 0), qty)
+    rs![PotsInNursery] = p
+    rs![TubesInNursery] = t
+    rs![MiscInNursery] = m
     rs.Update
     rs.Close
     Set rs = Nothing
@@ -277,7 +319,7 @@ Private Function ApplyPotsDeduction_(ByRef db As DAO.Database, _
 
     ws.CommitTrans
     inTrans = False
-    ApplyPotsDeduction_ = True
+    ApplyDeduction_ = True
     Exit Function
 Fail:
     If Not rs Is Nothing Then
@@ -286,7 +328,38 @@ Fail:
         On Error GoTo 0
     End If
     If inTrans Then ws.Rollback
-    ApplyPotsDeduction_ = False
+    ApplyDeduction_ = False
+End Function
+
+' The pure per-row deduction arithmetic from the design (no DB, no I/O), mutating P/T/M byref so the SAME
+' code backs both the live recordset update (ApplyDeduction_) and DeductSelfTest. For current counts
+' P, T, M and a sale of `qty` `unit`s:
+'     pots : P := max(0, P - qty)
+'     tubes: T := max(0, T - qty)
+'     misc : short := max(0, qty - M);  M := max(0, M - qty);  P := max(0, P - short)
+' Misc->pots overflow ONLY: tubes never overflow, pots never overflow, and a misc shortfall that pots
+' can't absorb is silently dropped (never negative, no cascade to tubes). An unknown unit moves nothing.
+' Row-by-row against live counts equals aggregating per accession (max(0, x-a-b) = max(0, max(0, x-a)-b)
+' for non-negative a, b), so applying a day's rows one at a time is order-independent.
+Private Sub ComputeDeduction_(ByVal unit As String, ByVal qty As Long, _
+                              ByRef p As Long, ByRef t As Long, ByRef m As Long)
+    Dim shortfall As Long
+    Select Case unit
+        Case "pots"
+            p = ClampSub_(p, qty)
+        Case "tubes"
+            t = ClampSub_(t, qty)
+        Case "misc"
+            shortfall = ClampSub_(qty, m)      ' max(0, qty - M): misc sold beyond MiscInNursery
+            m = ClampSub_(m, qty)              ' max(0, M - qty)
+            p = ClampSub_(p, shortfall)        ' max(0, P - short): overflow draws down pots, clamped at 0
+    End Select
+End Sub
+
+' True for the three sale-unit labels the app writes. Anything else (unknown/blank) is not acted on in
+' this slice -- such rows are left Pending and routed to NoMatch in slice #19.
+Private Function IsSellUnit_(ByVal unit As String) As Boolean
+    IsSellUnit_ = (unit = "pots" Or unit = "tubes" Or unit = "misc")
 End Function
 
 ' max(0, cur - qty): decrement clamped at zero. A negative qty (shouldn't happen) is treated as 0.
@@ -371,7 +444,7 @@ Private Function LedgerStatus_(ByRef db As DAO.Database, ByVal receipt As String
     Set rs = Nothing
 End Function
 
-' Insert one ledger row. Called only inside ApplyPotsDeduction_'s transaction, so it must raise (not
+' Insert one ledger row. Called only inside ApplyDeduction_'s transaction, so it must raise (not
 ' swallow) on error -- dbFailOnError -- letting the caller roll the whole row back together.
 Private Sub LedgerInsert_(ByRef db As DAO.Database, ByVal receipt As String, _
                           ByVal itemSeq As Long, ByVal status As String)
