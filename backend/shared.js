@@ -162,6 +162,104 @@ function findRowByKey(rows, key) {
   return -1;
 }
 
+/** Index of the named column in a "Sales" header row (trimmed, case-insensitive), or -1 if absent. */
+function salesColIndex(header, name) {
+  var lower = (header || []).map(function (h) { return String(h).trim().toLowerCase(); });
+  return lower.indexOf(name);
+}
+
+/**
+ * Composite (receipt, item_seq) primary key for a Sales row, normalised so the two ends of the reverse
+ * sync agree: receipt is a trimmed string, item_seq a canonical number (so 3, "3" and " 3 " collide).
+ * A NUL joiner keeps "1" + "23" from colliding with "12" + "3".
+ */
+function salesRowKey(receipt, itemSeq) {
+  var rcpt = String(receipt === undefined || receipt === null ? '' : receipt).trim();
+  var n = Number(itemSeq);
+  var seq = isNaN(n) ? String(itemSeq === undefined || itemSeq === null ? '' : itemSeq).trim() : String(n);
+  return rcpt + '\u0000' + seq;
+}
+
+/**
+ * Backing logic for the `pendingSales` action: select the reverse-sync work set from the raw "Sales"
+ * sheet values (row 0 = header). Returns every row whose `sync_status` is exactly "Pending" (trimmed,
+ * case-insensitive), shaped as the minimal object the Access sales-in phase consumes:
+ * `{receipt, item_seq, accession, qty, unit}`.
+ *
+ * Columns are resolved by header name, so reordered / extra columns are tolerated and a missing data
+ * column yields a default ('' for strings, 0 for numbers). A header-only or empty sheet, or one with no
+ * `sync_status` column, yields []. Identifier columns (receipt, accession) are kept as trimmed strings;
+ * `item_seq` and `qty` are parsed as numbers; the sale `unit` is a trimmed string.
+ */
+function selectPendingSales(values) {
+  if (!values || values.length < 2) return [];
+  var header = values[0];
+  var iStatus = salesColIndex(header, 'sync_status');
+  if (iStatus < 0) return [];
+  var iReceipt = salesColIndex(header, 'receipt');
+  var iSeq = salesColIndex(header, 'item_seq');
+  var iAcc = salesColIndex(header, 'accession');
+  var iQty = salesColIndex(header, 'qty');
+  var iUnit = salesColIndex(header, 'unit');
+
+  function str(row, idx) { return idx >= 0 ? String(row[idx]).trim() : ''; }
+  function num(row, idx) {
+    if (idx < 0) return 0;
+    var n = Number(row[idx]);
+    return isNaN(n) ? 0 : n;
+  }
+
+  var out = [];
+  for (var r = 1; r < values.length; r++) {
+    var row = values[r];
+    if (String(row[iStatus]).trim().toLowerCase() !== 'pending') continue;
+    out.push({
+      receipt: str(row, iReceipt),
+      item_seq: num(row, iSeq),
+      accession: str(row, iAcc),
+      qty: num(row, iQty),
+      unit: str(row, iUnit)
+    });
+  }
+  return out;
+}
+
+/**
+ * Backing logic for the `markSalesSynced` action: resolve a batch of mark requests against the raw
+ * "Sales" sheet values (row 0 = header). Each request is `{receipt, item_seq, status}`; this finds the
+ * data row whose `(receipt, item_seq)` primary key matches (see salesRowKey) and pairs it with the
+ * requested status. The action is status-agnostic — it carries whatever status each request supplies.
+ *
+ * Returns `[{ rowIndex, status }]` where `rowIndex` is the 0-based index into `values` (so the header is
+ * row 0 and the caller writes sheet row `rowIndex + 1`). A key with no matching row is silently ignored
+ * (not an error) — a row may have been removed between the pendingSales read and the mark call.
+ */
+function resolveSalesMarks(values, keys) {
+  if (!values || values.length < 2 || !keys || keys.length === 0) return [];
+  var header = values[0];
+  var iReceipt = salesColIndex(header, 'receipt');
+  var iSeq = salesColIndex(header, 'item_seq');
+  if (iReceipt < 0 || iSeq < 0) return [];
+
+  // Prototype-less index of data rows by composite key; receipt/item_seq are free text, so a key equal
+  // to a built-in prototype name ('__proto__', ...) must not appear "present" via inheritance.
+  var byKey = Object.create(null);
+  for (var r = 1; r < values.length; r++) {
+    var k = salesRowKey(values[r][iReceipt], values[r][iSeq]);
+    if (byKey[k] === undefined) byKey[k] = r; // first occurrence wins (the PK is unique)
+  }
+
+  var out = [];
+  (keys || []).forEach(function (req) {
+    var rowIndex = byKey[salesRowKey(req.receipt, req.item_seq)];
+    if (rowIndex !== undefined) out.push({ rowIndex: rowIndex, status: req.status });
+  });
+  return out;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey, accessionColIndex };
+  module.exports = {
+    isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey,
+    accessionColIndex, salesColIndex, salesRowKey, selectPendingSales, resolveSalesMarks
+  };
 }

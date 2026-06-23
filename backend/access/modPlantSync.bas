@@ -3,9 +3,14 @@ Option Compare Database
 Option Explicit
 
 ' ============================================================================
-'  modPlantSync  -  pushes the in-stock plant view (qryPlantsExport) to the
-'  Google Apps Script web app as action "replacePlants" (a full-mirror rewrite
-'  of the "Plants" sheet). Lives in the FRONT-END (GFRBG.mdb).
+'  modPlantSync  -  the nursery PC's two-way sync with the Google Apps Script
+'  web app. Lives in the FRONT-END (GFRBG.mdb). One SyncPlants run does, in order:
+'    1. Sales-in (reverse sync): pull "Pending" Sales rows out of the Sheet and
+'       decrement the matching Batches stock in Access, then mark them "Synced".
+'    2. Plant push ("replacePlants"): full-mirror rewrite of the "Plants" sheet
+'       from the in-stock plant view (qryPlantsExport).
+'  Sales-in runs FIRST so the same run's push already reflects the freshly
+'  decremented stock (a just-sold-out accession drops off the in-stock list now).
 '
 '  Wiring (see docs/deploy/access.md):
 '    * On an always-open form (e.g. the switchboard):
@@ -15,13 +20,23 @@ Option Explicit
 '
 '  Design (mirrors the Android app):
 '    * Re-entrancy guard (mPushing) so a slow POST can't overlap the next tick
-'      -- the Access analog of the app's cloudMutex serializing cloud ops.
+'      -- the Access analog of the app's cloudMutex serializing cloud ops. Both
+'      phases share the one guard so two runs can't deduct the same rows at once.
 '    * Timer path swallows all errors (no popups); the manual button can show
 '      them (showErrors:=True).
-'    * Cheap change-detection: hash the EXACT payload and skip the POST when it
-'      matches the last SUCCESSFUL push (stored via SaveSetting). The hash is
-'      updated ONLY on a confirmed ok response, so a failed push retries on the
-'      next tick -- the analog of the app flipping rows to EXPORTED on success.
+'    * Cheap change-detection (PLANT PUSH ONLY): hash the EXACT payload and skip
+'      the POST when it matches the last SUCCESSFUL push (stored via SaveSetting).
+'      The hash is updated ONLY on a confirmed ok response, so a failed push
+'      retries on the next tick. Sales-in is NOT hash-gated -- it runs every tick.
+'
+'  Idempotency for sales-in -- the "never double-deduct" mechanism:
+'    The decrement against the live Access DB is local and irreversible, so the
+'    Sheet's sync_status is a human-visible MIRROR, not the safety net. The local
+'    ledger tblAppliedSales(receipt, item_seq) is the authority on "already
+'    applied": the decrement and the ledger insert happen in ONE DAO transaction,
+'    so a Sheet-flip that fails after a successful deduct simply re-flips next run
+'    (the ledger blocks a second decrement). The ledger is auto-created on first
+'    run, mirroring how EnsureQueryDef_ auto-creates qryPlantsExport.
 ' ============================================================================
 
 ' ---- Configuration via Windows environment variables ----------------------
@@ -35,6 +50,11 @@ Option Explicit
 Private Const ENV_URL    As String = "GFRBG_SYNC_URL"
 Private Const ENV_SECRET As String = "GFRBG_SYNC_SECRET"
 Private Const QUERY_NAME As String = "qryPlantsExport"
+
+' Local idempotency ledger for the sales-in reverse sync. Auto-created on first run (EnsureLedger_),
+' PK (receipt, item_seq). A row here means "this sale has already been deducted from Access stock", so
+' it is never deducted again even if the Sheet flip to "Synced" failed last run.
+Private Const LEDGER_NAME As String = "tblAppliedSales"
 
 ' The export query is (re)created automatically on first run if missing (see EnsureQueryDef_), so the
 ' nursery PC needs no manual query setup. This SELECT is the single source of truth for the export
@@ -75,6 +95,16 @@ Public Sub SyncPlants(Optional ByVal force As Boolean = False, _
     mPushing = True
     On Error GoTo Done
 
+    ' ---- Phase 1: sales-in (reverse sync), BEFORE the plant push -----------------------------------
+    ' Pull "Pending" Sales rows from the Sheet and decrement Batches stock, then mark them "Synced".
+    ' Runs every tick (not hash-gated). It is self-healing -- a network/parse hiccup just retries next
+    ' run and the ledger blocks any double-deduct -- so we never let a sales-in failure abort the plant
+    ' push: swallow its errors here, then restore the push's handler.
+    On Error Resume Next
+    ApplyPendingSales_ url, secret
+    On Error GoTo Done
+
+    ' ---- Phase 2: plant push (full-mirror replacePlants) -------------------------------------------
     Dim headerJson As String, rowsJson As String, payload As String
     Dim hash As String, lastHash As String
     Dim rowCount As Long
@@ -128,6 +158,337 @@ Public Sub SyncSelfTest()
     Debug.Print "hash:       " & HashString(payload)
     Debug.Print "firstRow:   " & Left$(rowsJson, 400)
 End Sub
+
+' Immediate-window self-test for the deduction arithmetic in THIS slice (pots clamp), mirroring the
+' SyncSelfTest precedent -- VBA has no JVM/JS harness, so the arithmetic is checked here. The misc->pots
+' overflow and tubes cases arrive with the dependent slices and will extend this sub then. Makes NO
+' network call and touches NO data. Run from the Immediate window:  modPlantSync.DeductSelfTest
+Public Sub DeductSelfTest()
+    Debug.Print "--- DeductSelfTest (pots) ---"
+    PrintClamp_ 10, 3, 7      ' normal decrement
+    PrintClamp_ 5, 5, 0       ' exactly to zero
+    PrintClamp_ 2, 9, 0       ' oversell clamps at zero
+    PrintClamp_ 0, 1, 0       ' already empty stays zero
+End Sub
+
+Private Sub PrintClamp_(ByVal cur As Long, ByVal qty As Long, ByVal want As Long)
+    Dim got As Long
+    got = ClampSub_(cur, qty)
+    Debug.Print "pots " & cur & " - " & qty & " = " & got & _
+                IIf(got = want, "  OK", "  FAIL (want " & want & ")")
+End Sub
+
+' ============================================================================
+'  Sales-in (reverse sync): Pending Sales rows -> Access stock decrement
+' ============================================================================
+
+' Pull every "Pending" Sales row from the Sheet and, for the rows THIS SLICE handles (unit = "pots"
+' matching exactly one Batches row), decrement PotsInNursery and record the sale in the local ledger --
+' the two in one DAO transaction so a crash can never leave one without the other. Already-ledgered rows
+' are re-flipped on the Sheet only (never re-deducted). Finally mark the applied rows "Synced".
+'
+' SCOPE (slice 1): only unit = "pots" matching EXACTLY ONE batch is acted on. Every other row -- tubes,
+' misc, no match, ambiguous (>1 batch), unknown unit -- is left "Pending" and untouched for later slices.
+'
+' Resilience: a failed POST or parse just Exits; nothing is half-applied and the next run retries. The
+' caller (SyncPlants) swallows any error this raises so sales-in can never block the plant push.
+Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
+    Dim db As DAO.Database
+    Dim body As String, payload As String
+    Dim sales As Collection, marks As Collection, row As Variant
+    Dim i As Long
+    Dim receipt As String, accession As String, unit As String, ledStatus As String
+    Dim itemSeq As Long, qty As Long
+
+    Set db = CurrentDb
+    EnsureLedger_ db                       ' auto-create tblAppliedSales on first run
+
+    payload = "{""action"":""pendingSales"",""secret"":""" & JsonEscape(secret) & """}"
+    If Not PostJsonResponse(url, payload, body) Then Exit Sub   ' transient failure -> retry next run
+    Set sales = ParsePendingSales_(body)
+    If sales.Count = 0 Then Exit Sub
+
+    Set marks = New Collection
+    For i = 1 To sales.Count
+        row = sales.Item(i)
+        receipt = CStr(row(0))
+        itemSeq = row(1)
+        accession = CStr(row(2))
+        qty = row(3)
+        unit = LCase$(Trim$(CStr(row(4))))
+
+        ledStatus = LedgerStatus_(db, receipt, itemSeq)
+        If Len(ledStatus) > 0 Then
+            ' Already applied locally. Re-flip the Sheet only (a prior markSalesSynced may have failed);
+            ' the ledger is the authority, so we NEVER decrement again.
+            marks.Add MarkJson_(receipt, itemSeq, ledStatus)
+        ElseIf unit = "pots" Then
+            ' This slice: a pots row that resolves to EXACTLY ONE batch is deducted; 0 or >1 matches are
+            ' left Pending & untouched (the NoMatch/ambiguous handling is a dependent slice).
+            If CountBatchMatches_(db, accession) = 1 Then
+                If ApplyPotsDeduction_(db, receipt, itemSeq, accession, qty) Then
+                    marks.Add MarkJson_(receipt, itemSeq, "Synced")
+                End If
+                ' transaction failed -> not ledgered, left Pending, retried next run
+            End If
+        End If
+        ' non-pots rows: left Pending & untouched (later slices)
+    Next i
+
+    If marks.Count > 0 Then
+        Dim arr() As String
+        ReDim arr(0 To marks.Count - 1)
+        For i = 1 To marks.Count
+            arr(i - 1) = marks.Item(i)
+        Next i
+        payload = "{""action"":""markSalesSynced""," & _
+                  """secret"":""" & JsonEscape(secret) & """," & _
+                  """keys"":[" & Join(arr, ",") & "]}"
+        ' A failed flip is tolerated: the ledger already blocks re-deduction, so next run just re-flips.
+        PostJson url, payload
+    End If
+End Sub
+
+' Decrement PotsInNursery for the single matching batch AND insert the ledger row, in ONE DAO
+' transaction on Workspaces(0) (which covers the linked Jet back-end). Returns True only if both
+' committed; on any error it rolls back and returns False, leaving the row un-applied for the next run.
+' Caller has already verified unit = "pots" and exactly one matching batch.
+Private Function ApplyPotsDeduction_(ByRef db As DAO.Database, _
+                                     ByVal receipt As String, ByVal itemSeq As Long, _
+                                     ByVal accession As String, ByVal qty As Long) As Boolean
+    Dim ws As DAO.Workspace
+    Dim rs As DAO.Recordset
+    Dim inTrans As Boolean
+
+    On Error GoTo Fail
+    Set ws = DBEngine.Workspaces(0)
+    ws.BeginTrans
+    inTrans = True
+
+    Set rs = OpenBatchByAccession_(db, accession, True)    ' updatable dynaset
+    If rs.EOF Then Err.Raise vbObjectError, , "batch vanished"   ' guard: caller checked count=1
+    rs.Edit
+    rs![PotsInNursery] = ClampSub_(Nz(rs![PotsInNursery], 0), qty)
+    rs.Update
+    rs.Close
+    Set rs = Nothing
+
+    LedgerInsert_ db, receipt, itemSeq, "Synced"
+
+    ws.CommitTrans
+    inTrans = False
+    ApplyPotsDeduction_ = True
+    Exit Function
+Fail:
+    If Not rs Is Nothing Then
+        On Error Resume Next
+        rs.Close
+        On Error GoTo 0
+    End If
+    If inTrans Then ws.Rollback
+    ApplyPotsDeduction_ = False
+End Function
+
+' max(0, cur - qty): decrement clamped at zero. A negative qty (shouldn't happen) is treated as 0.
+Private Function ClampSub_(ByVal cur As Long, ByVal qty As Long) As Long
+    If qty < 0 Then qty = 0
+    If cur - qty < 0 Then
+        ClampSub_ = 0
+    Else
+        ClampSub_ = cur - qty
+    End If
+End Function
+
+' Count Batches rows whose [Ac Number] equals `accession` (>1 is treated as ambiguous upstream). The
+' compare is exact: [Ac Number] holds numeric-only values, so no trim/case folding is needed -- and an
+' exact compare on the bare column can use an index instead of scanning every row.
+Private Function CountBatchMatches_(ByRef db As DAO.Database, ByVal accession As String) As Long
+    Dim rs As DAO.Recordset
+    Set rs = OpenBatchByAccession_(db, accession, False)   ' snapshot
+    If rs.EOF Then
+        CountBatchMatches_ = 0
+    Else
+        rs.MoveLast
+        CountBatchMatches_ = rs.RecordCount
+    End If
+    rs.Close
+    Set rs = Nothing
+End Function
+
+' Open the Batches rows matching `accession` by an exact compare on [Ac Number]. That column holds
+' numeric-only values, so no trim/case folding is needed; the bare-column compare can use an index. The
+' accession arriving from selectPendingSales is already trimmed. A parameterised query avoids any
+' quoting/escaping of the accession. SELECT Batches.* from a single table keeps the dynaset updatable.
+Private Function OpenBatchByAccession_(ByRef db As DAO.Database, ByVal accession As String, _
+                                       ByVal updatable As Boolean) As DAO.Recordset
+    Dim qd As DAO.QueryDef
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pAcc Text ( 255 ); " & _
+        "SELECT Batches.* FROM Batches " & _
+        "WHERE Batches.[Ac Number]=[pAcc];")
+    qd.Parameters("pAcc").Value = accession
+    If updatable Then
+        Set OpenBatchByAccession_ = qd.OpenRecordset(dbOpenDynaset)
+    Else
+        Set OpenBatchByAccession_ = qd.OpenRecordset(dbOpenSnapshot)
+    End If
+End Function
+
+' Auto-create the ledger table on first run if missing -- mirrors EnsureQueryDef_, so the nursery PC
+' needs no manual table setup. PK (receipt, item_seq) makes a double-insert of the same sale impossible.
+Private Sub EnsureLedger_(ByRef db As DAO.Database)
+    Dim tdf As DAO.TableDef
+    On Error Resume Next
+    Set tdf = db.TableDefs(LEDGER_NAME)
+    On Error GoTo 0
+    If Not (tdf Is Nothing) Then Exit Sub
+    db.Execute _
+        "CREATE TABLE " & LEDGER_NAME & " (" & _
+        "[receipt] TEXT(255) NOT NULL, " & _
+        "[item_seq] LONG NOT NULL, " & _
+        "[status] TEXT(50), " & _
+        "[applied_at] DATETIME, " & _
+        "CONSTRAINT PrimaryKey PRIMARY KEY ([receipt], [item_seq]));", dbFailOnError
+End Sub
+
+' The ledger status recorded for (receipt, item_seq), or "" if the row is not in the ledger (i.e. not
+' yet applied). Used to skip re-deduction and to re-flip the Sheet to the status already applied.
+Private Function LedgerStatus_(ByRef db As DAO.Database, ByVal receipt As String, _
+                               ByVal itemSeq As Long) As String
+    Dim qd As DAO.QueryDef, rs As DAO.Recordset
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pR Text ( 255 ), pS Long; " & _
+        "SELECT [status] FROM " & LEDGER_NAME & " WHERE [receipt]=[pR] AND [item_seq]=[pS];")
+    qd.Parameters("pR").Value = receipt
+    qd.Parameters("pS").Value = itemSeq
+    Set rs = qd.OpenRecordset(dbOpenSnapshot)
+    If rs.EOF Then
+        LedgerStatus_ = ""
+    Else
+        LedgerStatus_ = Nz(rs!Status, "Synced")
+    End If
+    rs.Close
+    Set rs = Nothing
+End Function
+
+' Insert one ledger row. Called only inside ApplyPotsDeduction_'s transaction, so it must raise (not
+' swallow) on error -- dbFailOnError -- letting the caller roll the whole row back together.
+Private Sub LedgerInsert_(ByRef db As DAO.Database, ByVal receipt As String, _
+                          ByVal itemSeq As Long, ByVal status As String)
+    Dim qd As DAO.QueryDef
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pR Text ( 255 ), pS Long, pStatus Text ( 50 ), pAt DateTime; " & _
+        "INSERT INTO " & LEDGER_NAME & " ([receipt], [item_seq], [status], [applied_at]) " & _
+        "VALUES ([pR], [pS], [pStatus], [pAt]);")
+    qd.Parameters("pR").Value = receipt
+    qd.Parameters("pS").Value = itemSeq
+    qd.Parameters("pStatus").Value = status
+    qd.Parameters("pAt").Value = Now()
+    qd.Execute dbFailOnError
+End Sub
+
+' Build one {"receipt":..,"item_seq":..,"status":..} object for the markSalesSynced keys array.
+Private Function MarkJson_(ByVal receipt As String, ByVal itemSeq As Long, _
+                           ByVal status As String) As String
+    MarkJson_ = "{""receipt"":""" & JsonEscape(receipt) & """," & _
+                """item_seq"":" & itemSeq & "," & _
+                """status"":""" & JsonEscape(status) & """}"
+End Function
+
+' Parse the pendingSales response into a Collection of Variant arrays Array(receipt, item_seq,
+' accession, qty, unit). We control the response shape (Code.gs handlePendingSales_ -> selectPendingSales
+' in shared.js), so each element is a FLAT JSON object {"receipt":..,..,"unit":..} with no nested braces,
+' and the identifiers never contain '{' '}' or ']'. So: slice out the "sales":[ ... ] array text, then
+' match each {...} object and pull its fields by name (order-independent). Anything else -> empty.
+Private Function ParsePendingSales_(ByVal body As String) As Collection
+    Dim result As New Collection
+    Dim p As Long, q As Long, inner As String
+    Dim re As Object, matches As Object, obj As String, i As Long
+
+    p = InStr(1, body, """sales"":[")
+    If p = 0 Then GoTo Done
+    p = p + Len("""sales"":[")
+    q = InStr(p, body, "]")
+    If q = 0 Then GoTo Done
+    inner = Mid$(body, p, q - p)
+
+    Set re = CreateObject("VBScript.RegExp")
+    re.Global = True
+    re.Pattern = "\{[^{}]*\}"
+    Set matches = re.Execute(inner)
+    For i = 0 To matches.Count - 1
+        obj = matches.Item(i).Value
+        result.Add Array( _
+            JsonStr_(obj, "receipt"), _
+            CLng(Val(JsonNum_(obj, "item_seq"))), _
+            JsonStr_(obj, "accession"), _
+            CLng(Val(JsonNum_(obj, "qty"))), _
+            JsonStr_(obj, "unit"))
+    Next i
+Done:
+    Set ParsePendingSales_ = result
+End Function
+
+' Extract a JSON string field "key":"value" from one flat object, unescaping the value. "" if absent.
+Private Function JsonStr_(ByVal obj As String, ByVal key As String) As String
+    Dim re As Object, m As Object, q As String
+    q = Chr$(34)
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = q & key & q & "\s*:\s*" & q & "((?:[^" & q & "\\]|\\.)*)" & q
+    Set m = re.Execute(obj)
+    If m.Count = 0 Then
+        JsonStr_ = ""
+    Else
+        JsonStr_ = JsonUnescape_(m.Item(0).SubMatches(0))
+    End If
+End Function
+
+' Extract a JSON number field "key":value from one flat object, as its raw digits. "0" if absent.
+Private Function JsonNum_(ByVal obj As String, ByVal key As String) As String
+    Dim re As Object, m As Object, q As String
+    q = Chr$(34)
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = q & key & q & "\s*:\s*(-?[0-9]+(\.[0-9]+)?)"
+    Set m = re.Execute(obj)
+    If m.Count = 0 Then
+        JsonNum_ = "0"
+    Else
+        JsonNum_ = m.Item(0).SubMatches(0)
+    End If
+End Function
+
+' Reverse the JSON string escapes that JsonEscape (and JSON.stringify) can emit: \" \\ \/ \n \r \t \uXXXX.
+Private Function JsonUnescape_(ByVal s As String) As String
+    Dim out As String, i As Long, c As String, nxt As String
+    i = 1
+    Do While i <= Len(s)
+        c = Mid$(s, i, 1)
+        If c = "\" And i < Len(s) Then
+            nxt = Mid$(s, i + 1, 1)
+            Select Case nxt
+                Case """": out = out & """": i = i + 2
+                Case "\": out = out & "\": i = i + 2
+                Case "/": out = out & "/": i = i + 2
+                Case "n": out = out & vbLf: i = i + 2
+                Case "r": out = out & vbCr: i = i + 2
+                Case "t": out = out & vbTab: i = i + 2
+                Case "u"
+                    If i + 5 <= Len(s) Then
+                        out = out & ChrW$(CLng("&H" & Mid$(s, i + 2, 4)))
+                        i = i + 6
+                    Else
+                        out = out & c: i = i + 1
+                    End If
+                Case Else
+                    out = out & nxt: i = i + 2
+            End Select
+        Else
+            out = out & c
+            i = i + 1
+        End If
+    Loop
+    JsonUnescape_ = out
+End Function
 
 ' Create the export query if missing, and keep its SQL in sync with PLANTS_SQL on every run. PLANTS_SQL
 ' is the single source of truth for the export columns, so a redeploy that changes the columns must
@@ -244,11 +605,20 @@ Private Function JsonEscape(ByVal s As String) As String
     JsonEscape = out
 End Function
 
-' POST the payload. Returns True only on HTTP 200 with an {"ok":true} body.
-' Apps Script 302-redirects /exec to googleusercontent.com; ServerXMLHTTP 6.0
-' follows that automatically and returns the final JSON.
+' POST the payload. Returns True only on HTTP 200 with an {"ok":true} body. Thin wrapper around
+' PostJsonResponse for callers (the plant push, markSalesSynced) that only need success/failure.
 Private Function PostJson(ByVal url As String, ByVal payload As String) As Boolean
+    Dim body As String
+    PostJson = PostJsonResponse(url, payload, body)
+End Function
+
+' POST the payload, returning the response body byref (so sales-in can parse the pendingSales JSON).
+' Returns True only on HTTP 200 with an {"ok":true} body. Apps Script 302-redirects /exec to
+' googleusercontent.com; ServerXMLHTTP 6.0 follows that automatically and returns the final JSON.
+Private Function PostJsonResponse(ByVal url As String, ByVal payload As String, _
+                                  ByRef respBody As String) As Boolean
     Dim http As Object
+    respBody = ""
     On Error GoTo Fail
     Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
     http.setTimeouts T_RESOLVE, T_CONNECT, T_SEND, T_RECEIVE
@@ -258,14 +628,13 @@ Private Function PostJson(ByVal url As String, ByVal payload As String) As Boole
     If http.Status = 200 Then
         ' Success only when the body explicitly says ok:true AND does not say ok:false, so an error
         ' body that merely echoes the substring "ok":true (e.g. in a message) can't read as success.
-        Dim body As String
-        body = http.responseText
-        PostJson = (InStr(1, body, """ok"":true", vbTextCompare) > 0) And _
-                   (InStr(1, body, """ok"":false", vbTextCompare) = 0)
+        respBody = http.responseText
+        PostJsonResponse = (InStr(1, respBody, """ok"":true", vbTextCompare) > 0) And _
+                           (InStr(1, respBody, """ok"":false", vbTextCompare) = 0)
     End If
     Exit Function
 Fail:
-    PostJson = False
+    PostJsonResponse = False
 End Function
 
 ' Deterministic 31-bit polynomial hash of the payload, returned as hex.

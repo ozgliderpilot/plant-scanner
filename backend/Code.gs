@@ -1,9 +1,11 @@
 /**
- * Google Apps Script Web App for the Nursery app. Two POST actions, both authorised by a shared
+ * Google Apps Script Web App for the Nursery app. POST actions, all authorised by a shared
  * secret stored in Script Properties (key SHARED_SECRET):
- *   - getPlants     -> reads the "Plants" sheet, returns plant objects (the manual "Update plant list")
- *   - replacePlants -> full-mirror rewrite of the "Plants" sheet from Access (in-stock plants only)
- *   - appendSales   -> appends sales rows to the "Sales" sheet, deduped by receipt # (auto-export/push)
+ *   - getPlants       -> reads the "Plants" sheet, returns plant objects (the manual "Update plant list")
+ *   - replacePlants   -> full-mirror rewrite of the "Plants" sheet from Access (in-stock plants only)
+ *   - appendSales     -> appends sales rows to the "Sales" sheet, deduped by receipt # (auto-export/push)
+ *   - pendingSales    -> returns every "Sales" row whose sync_status is "Pending" (Access reverse sync)
+ *   - markSalesSynced -> sets sync_status by (receipt,item_seq) key (Access reverse sync, status-agnostic)
  *
  * Every action also stamps a "SyncStatus" sheet (one row per event) with the last time it ran, so the
  * Sheet shows when plants were last pushed from Access and last pulled to / pushed from the device.
@@ -22,6 +24,8 @@ function doPost(e) {
       case 'getPlants': return handleGetPlants_();
       case 'replacePlants': return handleReplacePlants_(body);
       case 'appendSales': return handleAppendSales_(body);
+      case 'pendingSales': return handlePendingSales_();
+      case 'markSalesSynced': return handleMarkSalesSynced_(body);
       default: return json_({ ok: false, error: 'Unknown action: ' + body.action });
     }
   } catch (err) {
@@ -139,6 +143,65 @@ function handleAppendSales_(body) {
     recordSync_('Sales from device', 'device → Sheet',
       'appended ' + result.rows.length + ', skipped ' + result.skipped);
     return json_({ ok: true, appended: result.rows.length, skipped: result.skipped });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Reverse sync, step 1 (Access pulls): return every "Sales" row whose sync_status is "Pending", shaped
+ * as {receipt, item_seq, accession, qty, unit}. Read under the document lock so the list can't be taken
+ * mid-write of an appendSales. Unpaged — a nursery day's volume is tiny. The error-prone selection lives
+ * in shared.js selectPendingSales (unit-tested); this handler is thin Sheet glue.
+ */
+function handlePendingSales_() {
+  var lock = LockService.getDocumentLock();
+  try {
+    lock.waitLock(30000);
+  } catch (e) {
+    return json_({ ok: false, error: 'Sheet busy, please retry' });
+  }
+  try {
+    var sheet = SpreadsheetApp.getActive().getSheetByName('Sales');
+    if (!sheet) return json_({ ok: false, error: 'No "Sales" sheet found' });
+    var values = sheet.getDataRange().getValues();
+    var sales = selectPendingSales(values);
+    recordSync_('Sales to Access', 'Sheet → Access', sales.length + ' pending');
+    return json_({ ok: true, sales: sales, count: sales.length });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Reverse sync, step 2 (Access acknowledges): set each addressed row's sync_status to the status it is
+ * handed. Body: { keys: [{receipt, item_seq, status}] }. Located by the (receipt, item_seq) primary key;
+ * keys absent from the sheet are ignored without error. Status-agnostic by design — Access decides the
+ * status ("Synced", or "NoMatch" in a later slice) and this just writes it. Written under the document
+ * lock. The key resolution lives in shared.js resolveSalesMarks (unit-tested).
+ */
+function handleMarkSalesSynced_(body) {
+  if (!body.keys) return json_({ ok: false, error: 'Missing keys' });
+
+  var lock = LockService.getDocumentLock();
+  try {
+    lock.waitLock(30000);
+  } catch (e) {
+    return json_({ ok: false, error: 'Sheet busy, please retry' });
+  }
+  try {
+    var sheet = SpreadsheetApp.getActive().getSheetByName('Sales');
+    if (!sheet) return json_({ ok: false, error: 'No "Sales" sheet found' });
+    var values = sheet.getDataRange().getValues();
+    var statusCol = salesColIndex(values[0], 'sync_status');
+    if (statusCol < 0) return json_({ ok: false, error: 'No sync_status column' });
+
+    var marks = resolveSalesMarks(values, body.keys);
+    marks.forEach(function (m) {
+      sheet.getRange(m.rowIndex + 1, statusCol + 1).setValue(m.status);
+    });
+    recordSync_('Sales to Access', 'Sheet → Access', 'marked ' + marks.length);
+    return json_({ ok: true, marked: marks.length });
   } finally {
     lock.releaseLock();
   }
