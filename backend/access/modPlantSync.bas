@@ -5,8 +5,9 @@ Option Explicit
 ' ============================================================================
 '  modPlantSync  -  the nursery PC's two-way sync with the Google Apps Script
 '  web app. Lives in the FRONT-END (GFRBG.mdb). One SyncPlants run does, in order:
-'    1. Sales-in (reverse sync): pull "Pending" Sales rows out of the Sheet and
-'       decrement the matching Batches stock in Access, then mark them "Synced".
+'    1. Sales-in (reverse sync): pull "Pending" Sales rows out of the Sheet,
+'       decrement the matching Batches stock in Access (or set a row aside as
+'       "NoMatch" when it can't be applied), then mark each row on the Sheet.
 '    2. Plant push ("replacePlants"): full-mirror rewrite of the "Plants" sheet
 '       from the in-stock plant view (qryPlantsExport).
 '  Sales-in runs FIRST so the same run's push already reflects the freshly
@@ -160,7 +161,8 @@ Public Sub SyncSelfTest()
 End Sub
 
 ' Immediate-window self-test for the per-row deduction arithmetic (ComputeDeduction_) -- pots, tubes,
-' misc, and the misc->pots overflow corners -- mirroring the SyncSelfTest precedent. VBA has no JVM/JS
+' misc, the misc->pots overflow corners, and an unrecognized unit (the NoMatch path, which moves no
+' stock) -- mirroring the SyncSelfTest precedent. VBA has no JVM/JS
 ' harness, so this is where the arithmetic is checked; it is deliberately NOT mirrored as a tested copy
 ' in core/ or shared.js (a never-executed duplicate would only drift). Makes NO network call and touches
 ' NO data. Run from the Immediate window:  modPlantSync.DeductSelfTest
@@ -175,6 +177,8 @@ Public Sub DeductSelfTest()
     PrintDeduct_ "misc",    4,  10,  5,  4,       10,    5,    0   ' misc exactly to zero, no overflow
     PrintDeduct_ "misc",    7,  10,  5,  4,        7,    5,    0   ' misc overflow (3) partly drawn from pots
     PrintDeduct_ "misc",    9,   2,  5,  4,        0,    5,    0   ' misc overflow (5) exceeds pots -> pots 0
+    PrintDeduct_ "",        5,  10,  5,  4,       10,    5,    4   ' blank unit -> NoMatch: nothing moves
+    PrintDeduct_ "unknown", 5,  10,  5,  4,       10,    5,    4   ' unrecognized unit -> NoMatch: nothing moves
     PrintOrderIndependence_     ' two rows of one accession: result must not depend on row order (AC)
 End Sub
 
@@ -210,18 +214,21 @@ End Sub
 '  Sales-in (reverse sync): Pending Sales rows -> Access stock decrement
 ' ============================================================================
 
-' Pull every "Pending" Sales row from the Sheet and, for the rows THIS SLICE handles (a pots/tubes/misc
-' sale matching exactly one Batches row), decrement the matching stock count(s) and record the sale in the
-' local ledger -- the two in one DAO transaction so a crash can never leave one without the other.
-' Already-ledgered rows are re-flipped on the Sheet only (never re-deducted). Finally mark the applied
-' rows "Synced".
+' Pull every "Pending" Sales row from the Sheet and route each one to a terminal state, recording the
+' outcome in the local ledger so it is never reconsidered:
+'   * a pots/tubes/misc sale matching EXACTLY ONE Batches row -> decrement the matching stock count(s)
+'     and ledger "Synced", the two in ONE DAO transaction so a crash can't leave one without the other;
+'   * a row that can't be acted on -- no batch match, an ambiguous (>1) match, or an unrecognized/blank
+'     unit -> ledger "NoMatch", moving NO stock (never guessed; surfaced for human reconciliation).
+' Already-ledgered rows are re-flipped on the Sheet only (never re-applied). Finally mark every pulled
+' row on the Sheet with the status the ledger now holds ("Synced" or "NoMatch").
 '
-' SCOPE (slice 2): pots, tubes and misc (with the misc->pots overflow) matching EXACTLY ONE batch are
-' acted on. Rows that don't resolve -- no match, ambiguous (>1 batch), or an unrecognized/blank unit --
-' are still left "Pending" and untouched; routing those to NoMatch is the next slice (#19).
+' StockInNursery and the *ForSale flags are never touched by any path -- only PotsInNursery/
+' TubesInNursery/MiscInNursery move, and only on the deduct path.
 '
-' Resilience: a failed POST or parse just Exits; nothing is half-applied and the next run retries. The
-' caller (SyncPlants) swallows any error this raises so sales-in can never block the plant push.
+' Resilience: a failed POST or parse just Exits; nothing is half-applied and the next run retries. A row
+' whose ledger write fails is simply left Pending and retried next run (one bad row never aborts the
+' batch). The caller (SyncPlants) swallows any error this raises so sales-in can never block the push.
 Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
     Dim db As DAO.Database
     Dim body As String, payload As String
@@ -249,20 +256,27 @@ Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
 
         ledStatus = LedgerStatus_(db, receipt, itemSeq)
         If Len(ledStatus) > 0 Then
-            ' Already applied locally. Re-flip the Sheet only (a prior markSalesSynced may have failed);
-            ' the ledger is the authority, so we NEVER decrement again.
+            ' Already applied locally (Synced or NoMatch). Re-flip the Sheet only (a prior
+            ' markSalesSynced may have failed); the ledger is the authority, so we NEVER re-apply.
             marks.Add MarkJson_(receipt, itemSeq, ledStatus)
-        ElseIf IsSellUnit_(unit) Then
-            ' This slice: a pots/tubes/misc row that resolves to EXACTLY ONE batch is deducted; 0 or >1
-            ' matches are left Pending & untouched (NoMatch/ambiguous routing is the next slice, #19).
-            If CountBatchMatches_(db, accession) = 1 Then
-                If ApplyDeduction_(db, receipt, itemSeq, accession, unit, qty) Then
-                    marks.Add MarkJson_(receipt, itemSeq, "Synced")
-                End If
-                ' transaction failed -> not ledgered, left Pending, retried next run
+        ElseIf Not IsSellUnit_(unit) Then
+            ' Unrecognized or blank unit -> NoMatch, no stock moved (never guessed).
+            If ApplyNoMatch_(db, receipt, itemSeq) Then
+                marks.Add MarkJson_(receipt, itemSeq, "NoMatch")
+            End If
+        ElseIf CountBatchMatches_(db, accession) = 1 Then
+            ' A recognized unit resolving to EXACTLY ONE batch is deducted and ledgered "Synced".
+            If ApplyDeduction_(db, receipt, itemSeq, accession, unit, qty) Then
+                marks.Add MarkJson_(receipt, itemSeq, "Synced")
+            End If
+            ' transaction failed -> not ledgered, left Pending, retried next run
+        Else
+            ' No batch match (unknown/typo/deleted batch) or an ambiguous (>1) match -> NoMatch, no
+            ' stock moved; ambiguity is surfaced for a human, not silently resolved.
+            If ApplyNoMatch_(db, receipt, itemSeq) Then
+                marks.Add MarkJson_(receipt, itemSeq, "NoMatch")
             End If
         End If
-        ' unrecognized/blank unit: left Pending & untouched (NoMatch routing is slice #19)
     Next i
 
     If marks.Count > 0 Then
@@ -331,6 +345,22 @@ Fail:
     ApplyDeduction_ = False
 End Function
 
+' Record an unactionable row -- no batch match, an ambiguous (>1) match, or an unrecognized/blank unit --
+' in the ledger as "NoMatch" so it is never reconsidered, moving NO stock. A single INSERT is atomic, so
+' (unlike ApplyDeduction_) it needs no surrounding transaction; nothing here writes Batches at all, so
+' StockInNursery and the *ForSale flags are untouched by construction. Returns True only if the ledger
+' insert committed; on any error it returns False, leaving the row Pending for the next run so one bad
+' row never aborts the batch.
+Private Function ApplyNoMatch_(ByRef db As DAO.Database, _
+                               ByVal receipt As String, ByVal itemSeq As Long) As Boolean
+    On Error GoTo Fail
+    LedgerInsert_ db, receipt, itemSeq, "NoMatch"
+    ApplyNoMatch_ = True
+    Exit Function
+Fail:
+    ApplyNoMatch_ = False
+End Function
+
 ' The pure per-row deduction arithmetic from the design (no DB, no I/O), mutating P/T/M byref so the SAME
 ' code backs both the live recordset update (ApplyDeduction_) and DeductSelfTest. For current counts
 ' P, T, M and a sale of `qty` `unit`s:
@@ -356,8 +386,8 @@ Private Sub ComputeDeduction_(ByVal unit As String, ByVal qty As Long, _
     End Select
 End Sub
 
-' True for the three sale-unit labels the app writes. Anything else (unknown/blank) is not acted on in
-' this slice -- such rows are left Pending and routed to NoMatch in slice #19.
+' True for the three sale-unit labels the app writes. Anything else (unknown/blank) is routed to NoMatch
+' by ApplyPendingSales_ -- never guessed -- so ambiguous data can't silently move stock.
 Private Function IsSellUnit_(ByVal unit As String) As Boolean
     IsSellUnit_ = (unit = "pots" Or unit = "tubes" Or unit = "misc")
 End Function
