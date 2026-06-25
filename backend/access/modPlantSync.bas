@@ -402,11 +402,17 @@ Private Function ClampSub_(ByVal cur As Long, ByVal qty As Long) As Long
     End If
 End Function
 
-' Count Batches rows whose [Ac Number] equals `accession` (>1 is treated as ambiguous upstream). The
-' compare is exact: [Ac Number] holds numeric-only values, so no trim/case folding is needed -- and an
-' exact compare on the bare column can use an index instead of scanning every row.
+' Count Batches rows whose [Ac Number] equals `accession` (>1 is treated as ambiguous upstream).
+' [Ac Number] is a NUMBER field, so a non-numeric accession (e.g. a "sell as unknown" line, or a typo)
+' can't equal any row: report 0 here so the row is routed to NoMatch -- never querying with a value that
+' would raise a type mismatch. A numeric accession is compared numerically against the indexed column
+' (see OpenBatchByAccession_); the compare is exact, so no trim/case folding is needed.
 Private Function CountBatchMatches_(ByRef db As DAO.Database, ByVal accession As String) As Long
     Dim rs As DAO.Recordset
+    If Not IsNumeric(accession) Then
+        CountBatchMatches_ = 0
+        Exit Function
+    End If
     Set rs = OpenBatchByAccession_(db, accession, False)   ' snapshot
     If rs.EOF Then
         CountBatchMatches_ = 0
@@ -418,18 +424,21 @@ Private Function CountBatchMatches_(ByRef db As DAO.Database, ByVal accession As
     Set rs = Nothing
 End Function
 
-' Open the Batches rows matching `accession` by an exact compare on [Ac Number]. That column holds
-' numeric-only values, so no trim/case folding is needed; the bare-column compare can use an index. The
-' accession arriving from selectPendingSales is already trimmed. A parameterised query avoids any
-' quoting/escaping of the accession. SELECT Batches.* from a single table keeps the dynaset updatable.
+' Open the Batches rows matching `accession` by an exact compare on [Ac Number]. That column is a NUMBER
+' field, so the accession is bound as a Double parameter and compared numerically -- binding it as Text
+' (as an earlier version did) raises "Data type mismatch in criteria expression" (error 3464) against a
+' numeric column. The numeric equality can still use the column's index. Callers pass only numeric
+' accessions (CountBatchMatches_ routes a non-numeric one to NoMatch first), so CDbl is safe here. A
+' parameterised query avoids any quoting/escaping; SELECT Batches.* from a single table keeps the
+' dynaset updatable.
 Private Function OpenBatchByAccession_(ByRef db As DAO.Database, ByVal accession As String, _
                                        ByVal updatable As Boolean) As DAO.Recordset
     Dim qd As DAO.QueryDef
     Set qd = db.CreateQueryDef("", _
-        "PARAMETERS pAcc Text ( 255 ); " & _
+        "PARAMETERS pAcc Double; " & _
         "SELECT Batches.* FROM Batches " & _
         "WHERE Batches.[Ac Number]=[pAcc];")
-    qd.Parameters("pAcc").Value = accession
+    qd.Parameters("pAcc").Value = CDbl(accession)
     If updatable Then
         Set OpenBatchByAccession_ = qd.OpenRecordset(dbOpenDynaset)
     Else
