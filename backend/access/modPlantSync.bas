@@ -210,6 +210,72 @@ Private Sub PrintOrderIndependence_()
                 IIf(pa = pb And ta = tb And ma = mb, "  OK", "  FAIL")
 End Sub
 
+' Safe DRY RUN of the sales-in (reverse sync) selection, mirroring SyncSelfTest's dry-run/redacted-secret
+' style. POSTs pendingSales and, for each returned row, prints how the NEXT REAL run would route it --
+' already-ledgered (re-flip only), would-deduct (one batch match), or NoMatch (unrecognized/blank unit,
+' no batch, or an ambiguous >1 match) -- WITHOUT decrementing any stock or flipping any Sheet cell. It is
+' the diagnostic that surfaced the [Ac Number] type-mismatch: it walks the exact decision tree
+' ApplyPendingSales_ uses, so its routing matches what the real run will do. Side effects are limited to
+' the pendingSales read (which stamps the SyncStatus tab, as any read does) and auto-creating the empty
+' ledger if missing (harmless; the real run does the same). Run from the Immediate window:
+'   modPlantSync.SalesInSelfTest
+Public Sub SalesInSelfTest()
+    Dim url As String, secret As String, body As String
+    Dim sales As Collection, row As Variant, db As DAO.Database
+    Dim i As Long, receipt As String, accession As String, unit As String, ledStatus As String
+    Dim itemSeq As Long, qty As Long, matches As Long
+
+    url = Environ$(ENV_URL)
+    secret = Environ$(ENV_SECRET)
+    Debug.Print "--- SalesInSelfTest (dry run: no stock change, no Sheet flip) ---"
+    Debug.Print "config:  " & ENV_URL & "=" & IIf(Len(url) > 0, "SET", "MISSING") & _
+                ", " & ENV_SECRET & "=" & IIf(Len(secret) > 0, "SET", "MISSING")
+    If Len(url) = 0 Or Len(secret) = 0 Then Exit Sub
+
+    If Not PostJsonResponse(url, _
+        "{""action"":""pendingSales"",""secret"":""" & JsonEscape(secret) & """}", body) Then
+        Debug.Print "pending: POST FAILED (no ok:true response)"
+        Exit Sub
+    End If
+
+    Set sales = ParsePendingSales_(body)
+    Debug.Print "pending: " & sales.Count & " row(s)"
+    If sales.Count = 0 Then Exit Sub
+
+    Set db = CurrentDb
+    EnsureLedger_ db
+    For i = 1 To sales.Count
+        row = sales.Item(i)
+        receipt = CStr(row(0))
+        itemSeq = row(1)
+        accession = CStr(row(2))
+        qty = row(3)
+        unit = LCase$(Trim$(CStr(row(4))))
+
+        ledStatus = LedgerStatus_(db, receipt, itemSeq)
+        If Len(ledStatus) > 0 Then
+            Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " " & unit & " x" & qty & _
+                        " -> already ledgered '" & ledStatus & "' (would re-flip only)"
+        ElseIf Not IsSellUnit_(unit) Then
+            Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " unit=[" & unit & "]" & _
+                        " -> NoMatch (unrecognized/blank unit)"
+        Else
+            matches = CountBatchMatches_(db, accession)
+            Select Case matches
+                Case 1
+                    Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " " & unit & " x" & qty & _
+                                " -> would deduct (1 batch match)"
+                Case 0
+                    Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & _
+                                " -> NoMatch (no batch / non-numeric accession)"
+                Case Else
+                    Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & _
+                                " -> NoMatch (ambiguous: " & matches & " batches)"
+            End Select
+        End If
+    Next i
+End Sub
+
 ' ============================================================================
 '  Sales-in (reverse sync): Pending Sales rows -> Access stock decrement
 ' ============================================================================
@@ -402,11 +468,17 @@ Private Function ClampSub_(ByVal cur As Long, ByVal qty As Long) As Long
     End If
 End Function
 
-' Count Batches rows whose [Ac Number] equals `accession` (>1 is treated as ambiguous upstream). The
-' compare is exact: [Ac Number] holds numeric-only values, so no trim/case folding is needed -- and an
-' exact compare on the bare column can use an index instead of scanning every row.
+' Count Batches rows whose [Ac Number] equals `accession` (>1 is treated as ambiguous upstream).
+' [Ac Number] is a NUMBER field, so a non-numeric accession (e.g. a "sell as unknown" line, or a typo)
+' can't equal any row: report 0 here so the row is routed to NoMatch -- never querying with a value that
+' would raise a type mismatch. A numeric accession is compared numerically against the indexed column
+' (see OpenBatchByAccession_); the compare is exact, so no trim/case folding is needed.
 Private Function CountBatchMatches_(ByRef db As DAO.Database, ByVal accession As String) As Long
     Dim rs As DAO.Recordset
+    If Not IsNumeric(accession) Then
+        CountBatchMatches_ = 0
+        Exit Function
+    End If
     Set rs = OpenBatchByAccession_(db, accession, False)   ' snapshot
     If rs.EOF Then
         CountBatchMatches_ = 0
@@ -418,18 +490,21 @@ Private Function CountBatchMatches_(ByRef db As DAO.Database, ByVal accession As
     Set rs = Nothing
 End Function
 
-' Open the Batches rows matching `accession` by an exact compare on [Ac Number]. That column holds
-' numeric-only values, so no trim/case folding is needed; the bare-column compare can use an index. The
-' accession arriving from selectPendingSales is already trimmed. A parameterised query avoids any
-' quoting/escaping of the accession. SELECT Batches.* from a single table keeps the dynaset updatable.
+' Open the Batches rows matching `accession` by an exact compare on [Ac Number]. That column is a NUMBER
+' field, so the accession is bound as a Double parameter and compared numerically -- binding it as Text
+' (as an earlier version did) raises "Data type mismatch in criteria expression" (error 3464) against a
+' numeric column. The numeric equality can still use the column's index. Callers pass only numeric
+' accessions (CountBatchMatches_ routes a non-numeric one to NoMatch first), so CDbl is safe here. A
+' parameterised query avoids any quoting/escaping; SELECT Batches.* from a single table keeps the
+' dynaset updatable.
 Private Function OpenBatchByAccession_(ByRef db As DAO.Database, ByVal accession As String, _
                                        ByVal updatable As Boolean) As DAO.Recordset
     Dim qd As DAO.QueryDef
     Set qd = db.CreateQueryDef("", _
-        "PARAMETERS pAcc Text ( 255 ); " & _
+        "PARAMETERS pAcc Double; " & _
         "SELECT Batches.* FROM Batches " & _
         "WHERE Batches.[Ac Number]=[pAcc];")
-    qd.Parameters("pAcc").Value = accession
+    qd.Parameters("pAcc").Value = CDbl(accession)
     If updatable Then
         Set OpenBatchByAccession_ = qd.OpenRecordset(dbOpenDynaset)
     Else
