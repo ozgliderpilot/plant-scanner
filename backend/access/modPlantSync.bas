@@ -210,6 +210,72 @@ Private Sub PrintOrderIndependence_()
                 IIf(pa = pb And ta = tb And ma = mb, "  OK", "  FAIL")
 End Sub
 
+' Safe DRY RUN of the sales-in (reverse sync) selection, mirroring SyncSelfTest's dry-run/redacted-secret
+' style. POSTs pendingSales and, for each returned row, prints how the NEXT REAL run would route it --
+' already-ledgered (re-flip only), would-deduct (one batch match), or NoMatch (unrecognized/blank unit,
+' no batch, or an ambiguous >1 match) -- WITHOUT decrementing any stock or flipping any Sheet cell. It is
+' the diagnostic that surfaced the [Ac Number] type-mismatch: it walks the exact decision tree
+' ApplyPendingSales_ uses, so its routing matches what the real run will do. Side effects are limited to
+' the pendingSales read (which stamps the SyncStatus tab, as any read does) and auto-creating the empty
+' ledger if missing (harmless; the real run does the same). Run from the Immediate window:
+'   modPlantSync.SalesInSelfTest
+Public Sub SalesInSelfTest()
+    Dim url As String, secret As String, body As String
+    Dim sales As Collection, row As Variant, db As DAO.Database
+    Dim i As Long, receipt As String, accession As String, unit As String, ledStatus As String
+    Dim itemSeq As Long, qty As Long, matches As Long
+
+    url = Environ$(ENV_URL)
+    secret = Environ$(ENV_SECRET)
+    Debug.Print "--- SalesInSelfTest (dry run: no stock change, no Sheet flip) ---"
+    Debug.Print "config:  " & ENV_URL & "=" & IIf(Len(url) > 0, "SET", "MISSING") & _
+                ", " & ENV_SECRET & "=" & IIf(Len(secret) > 0, "SET", "MISSING")
+    If Len(url) = 0 Or Len(secret) = 0 Then Exit Sub
+
+    If Not PostJsonResponse(url, _
+        "{""action"":""pendingSales"",""secret"":""" & JsonEscape(secret) & """}", body) Then
+        Debug.Print "pending: POST FAILED (no ok:true response)"
+        Exit Sub
+    End If
+
+    Set sales = ParsePendingSales_(body)
+    Debug.Print "pending: " & sales.Count & " row(s)"
+    If sales.Count = 0 Then Exit Sub
+
+    Set db = CurrentDb
+    EnsureLedger_ db
+    For i = 1 To sales.Count
+        row = sales.Item(i)
+        receipt = CStr(row(0))
+        itemSeq = row(1)
+        accession = CStr(row(2))
+        qty = row(3)
+        unit = LCase$(Trim$(CStr(row(4))))
+
+        ledStatus = LedgerStatus_(db, receipt, itemSeq)
+        If Len(ledStatus) > 0 Then
+            Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " " & unit & " x" & qty & _
+                        " -> already ledgered '" & ledStatus & "' (would re-flip only)"
+        ElseIf Not IsSellUnit_(unit) Then
+            Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " unit=[" & unit & "]" & _
+                        " -> NoMatch (unrecognized/blank unit)"
+        Else
+            matches = CountBatchMatches_(db, accession)
+            Select Case matches
+                Case 1
+                    Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " " & unit & " x" & qty & _
+                                " -> would deduct (1 batch match)"
+                Case 0
+                    Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & _
+                                " -> NoMatch (no batch / non-numeric accession)"
+                Case Else
+                    Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & _
+                                " -> NoMatch (ambiguous: " & matches & " batches)"
+            End Select
+        End If
+    Next i
+End Sub
+
 ' ============================================================================
 '  Sales-in (reverse sync): Pending Sales rows -> Access stock decrement
 ' ============================================================================
