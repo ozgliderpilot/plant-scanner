@@ -3,7 +3,8 @@
  * secret stored in Script Properties (key SHARED_SECRET):
  *   - getPlants       -> reads the "Plants" sheet, returns plant objects (the manual "Update plant list")
  *   - replacePlants   -> full-mirror rewrite of the "Plants" sheet from Access (in-stock plants only)
- *   - appendSales     -> appends sales rows to the "Sales" sheet, deduped by receipt # (auto-export/push)
+ *   - appendSales     -> appends sales rows to "Sales" (deduped by receipt #), stamping each newly
+ *                        appended row's sync_status "Pending" for the Access reverse sync (auto-export/push)
  *   - pendingSales    -> returns every "Sales" row whose sync_status is "Pending" (Access reverse sync)
  *   - markSalesSynced -> sets sync_status by (receipt,item_seq) key (Access reverse sync, status-agnostic)
  *
@@ -139,6 +140,11 @@ function handleAppendSales_(body) {
       forceTextColumn_(sheet, startRow, result.rows.length, receiptCol);
       forceTextColumn_(sheet, startRow, result.rows.length, body.header.indexOf('accession'));
       sheet.getRange(startRow, 1, result.rows.length, body.header.length).setValues(result.rows);
+      // Stamp ONLY these freshly appended rows "Pending" so the Access reverse sync (selectPendingSales)
+      // picks them up. The app's payload header has no sync_status column, so the column lives only on
+      // the sheet (added manually to the Sales tab). Skipped/duplicate rows are left as-is — never
+      // re-stamped, so an already-Synced row can't be resurrected to Pending.
+      stampPending_(sheet, startRow, result.rows.length);
     }
     recordSync_('Sales from device', 'device → Sheet',
       'appended ' + result.rows.length + ', skipped ' + result.skipped);
@@ -223,6 +229,20 @@ function getOrCreateSalesSheet_(header) {
     sheet.getRange(1, 1, 1, header.length).setValues([header]);
   }
   return sheet;
+}
+
+/**
+ * Stamp `numRows` rows starting at `startRow` with sync_status "Pending" — the marker the Access reverse
+ * sync selects on. The sync_status column is located by name from the sheet's OWN header (it isn't in the
+ * app's payload header, and its position isn't fixed); it is provisioned manually on the Sales tab.
+ */
+function stampPending_(sheet, startRow, numRows) {
+  var headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var statusCol = salesColIndex(headerRow, 'sync_status'); // 0-based; column is added manually
+  if (statusCol < 0) return;                               // no sync_status column -> nothing to stamp
+  var pending = [];
+  for (var i = 0; i < numRows; i++) pending.push(['Pending']);
+  sheet.getRange(startRow, statusCol + 1, numRows, 1).setValues(pending);
 }
 
 /**
