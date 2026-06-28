@@ -88,7 +88,7 @@ fun LineItemScreen(
         AlertDialog(
             onDismissRequest = { showZeroConfirm = false },
             title = { Text("Line total is ${Money.formatAud(lineTotal)}") },
-            text = { Text("This line will be added for free. Add it anyway?") },
+            text = { Text("The plant will be added for free. Add it anyway?") },
             confirmButton = {
                 TextButton(onClick = { showZeroConfirm = false; commit() }) { Text("Add anyway") }
             },
