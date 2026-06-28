@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -23,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -73,6 +75,28 @@ fun LineItemScreen(
     val unitPriceCents = parseDollarsToCents(priceText) ?: 0L
     val discountPct = (discountText.toIntOrNull() ?: 0).coerceIn(0, 100)
     val lineTotal = Money.lineTotalCents(qty, unitPriceCents, discountPct)
+
+    // A $0 line is allowed but uncommon (issue #14) — usually it means the volunteer forgot to key the
+    // price. Confirm before committing one, on both the Add and the Edit path; otherwise commit directly.
+    var showZeroConfirm by remember(draft) { mutableStateOf(false) }
+    val commit = {
+        vm.commitDraft(qty = qty, unitPriceCents = unitPriceCents, discountPct = discountPct, unit = unit)
+        onAdded()
+    }
+
+    if (showZeroConfirm) {
+        AlertDialog(
+            onDismissRequest = { showZeroConfirm = false },
+            title = { Text("Line total is ${Money.formatAud(lineTotal)}") },
+            text = { Text("This line will be added for free. Add it anyway?") },
+            confirmButton = {
+                TextButton(onClick = { showZeroConfirm = false; commit() }) { Text("Add anyway") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showZeroConfirm = false }) { Text("Go back") }
+            },
+        )
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(
@@ -134,10 +158,7 @@ fun LineItemScreen(
 
             BigButton(
                 text = if (draft.editIndex != null) "Save changes" else "Add to receipt",
-                onClick = {
-                    vm.commitDraft(qty = qty, unitPriceCents = unitPriceCents, discountPct = discountPct, unit = unit)
-                    onAdded()
-                },
+                onClick = { if (Money.isFreeLine(qty, unitPriceCents, discountPct)) showZeroConfirm = true else commit() },
             )
         }
     }

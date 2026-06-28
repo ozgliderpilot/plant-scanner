@@ -24,6 +24,14 @@ object Money {
         return (remainingNumerator + 50) / 100
     }
 
+    /**
+     * Is this line free? True when the computed [lineTotalCents] is $0, by any path — a forgotten
+     * unit price (the common accidental case) or a 100% discount. The UI uses this to confirm before
+     * adding/saving a $0 line, since $0 is allowed but uncommon (issue #14).
+     */
+    fun isFreeLine(qty: Int, unitPriceCents: Long, discountPct: Int): Boolean =
+        lineTotalCents(qty, unitPriceCents, discountPct) == 0L
+
     fun receiptTotalCents(lines: List<LineItem>): Long =
         lines.sumOf { lineTotalCents(it.qty, it.unitPriceCents, it.discountPct) }
 

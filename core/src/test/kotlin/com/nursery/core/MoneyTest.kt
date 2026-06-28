@@ -3,6 +3,8 @@ package com.nursery.core
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class MoneyTest {
 
@@ -44,6 +46,18 @@ class MoneyTest {
         assertFailsWith<ArithmeticException> {
             Money.lineTotalCents(qty = Int.MAX_VALUE, unitPriceCents = Long.MAX_VALUE / 2, discountPct = 0)
         }
+    }
+
+    @Test fun `isFreeLine is true when unit price was left at zero`() {
+        assertTrue(Money.isFreeLine(qty = 3, unitPriceCents = 0, discountPct = 0))
+    }
+
+    @Test fun `isFreeLine is true for a full hundred percent discount`() {
+        assertTrue(Money.isFreeLine(qty = 2, unitPriceCents = 1000, discountPct = 100))
+    }
+
+    @Test fun `isFreeLine is false for a normal priced line`() {
+        assertFalse(Money.isFreeLine(qty = 1, unitPriceCents = 1000, discountPct = 10))
     }
 
     @Test fun `receipt total sums lines`() {
