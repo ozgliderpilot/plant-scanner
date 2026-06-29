@@ -24,6 +24,10 @@ object Money {
         return (remainingNumerator + 50) / 100
     }
 
+    /** True when the line total is $0, by any path (forgotten price or 100% discount). */
+    fun isFreeLine(qty: Int, unitPriceCents: Long, discountPct: Int): Boolean =
+        lineTotalCents(qty, unitPriceCents, discountPct) == 0L
+
     fun receiptTotalCents(lines: List<LineItem>): Long =
         lines.sumOf { lineTotalCents(it.qty, it.unitPriceCents, it.discountPct) }
 
