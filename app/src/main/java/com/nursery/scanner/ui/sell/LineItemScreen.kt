@@ -76,8 +76,6 @@ fun LineItemScreen(
     val discountPct = (discountText.toIntOrNull() ?: 0).coerceIn(0, 100)
     val lineTotal = Money.lineTotalCents(qty, unitPriceCents, discountPct)
 
-    // A $0 line is allowed but uncommon (issue #14) — usually it means the volunteer forgot to key the
-    // price. Confirm before committing one, on both the Add and the Edit path; otherwise commit directly.
     var showZeroConfirm by remember(draft) { mutableStateOf(false) }
     val commit = {
         vm.commitDraft(qty = qty, unitPriceCents = unitPriceCents, discountPct = discountPct, unit = unit)
