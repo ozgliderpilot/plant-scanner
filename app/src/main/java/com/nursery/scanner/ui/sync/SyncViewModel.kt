@@ -43,7 +43,12 @@ class SyncViewModel(
     }
 
     private fun describe(result: SyncResult, okWord: String): String = when (result) {
-        is SyncResult.Done -> "$okWord (${result.count})"
+        is SyncResult.Done -> when {
+            result.salesCount == 0 && result.cullCount == 0 -> "$okWord (0)"
+            result.cullCount == 0 -> "$okWord (${result.salesCount} sales)"
+            result.salesCount == 0 -> "$okWord (${result.cullCount} cull)"
+            else -> "$okWord (${result.salesCount} sales, ${result.cullCount} cull)"
+        }
         is SyncResult.Error -> "Error: ${result.message}"
         SyncResult.NotConfigured -> "Set up the connection in Settings first"
     }

@@ -1,7 +1,10 @@
 package com.nursery.scanner.data.repo
 
+import com.nursery.core.CullStatus
 import com.nursery.core.Export
 import com.nursery.core.ReceiptStatus
+import com.nursery.core.Retention
+import com.nursery.scanner.data.local.dao.CullDao
 import com.nursery.scanner.data.local.dao.ReceiptDao
 import com.nursery.scanner.data.local.toCore
 import com.nursery.scanner.data.remote.SheetsClient
@@ -31,39 +34,42 @@ data class SyncState(
 
 /** Outcome surfaced to the manual Sync screen (auto-export ignores it / stays silent). */
 sealed interface SyncResult {
-    data class Done(val count: Int) : SyncResult
+    data class Done(val salesCount: Int, val cullCount: Int = 0) : SyncResult {
+        val count: Int get() = salesCount + cullCount
+    }
     data class Error(val message: String) : SyncResult
     data object NotConfigured : SyncResult
 }
 
 /**
  * The single place "talk to the cloud" happens. Both auto-export and the manual "Export now" call
- * [exportPending]; "Update plant list" calls [updatePlantList]. Exported receipts are flipped to
+ * [exportPending]; "Update plant list" calls [updatePlantList]. Exported rows are flipped to
  * EXPORTED only on success — nothing lost, no double counting (spec Sync & Export).
  */
 class SyncRepository(
     private val receiptDao: ReceiptDao,
+    private val cullDao: CullDao,
     private val settings: SettingsRepository,
     private val sheets: SheetsClient,
     private val plants: PlantRepository,
     connectivity: ConnectivityObserver,
     scope: CoroutineScope,
     private val zone: ZoneId = ZoneId.systemDefault(),
+    private val now: () -> Long = System::currentTimeMillis,
 ) {
     private val transient = MutableStateFlow(TransientState())
 
-    // Serializes every cloud operation so the auto-export ticker and the manual "Export now"/"Update
-    // plant list" can never run concurrently (which would double-push receipts and corrupt `transient`).
     private val cloudMutex = Mutex()
 
     val state: StateFlow<SyncState> = combine(
         receiptDao.observePendingCount(ReceiptStatus.SAVED.name),
+        cullDao.observePendingCount(CullStatus.PENDING.name),
         settings.lastSyncedMs,
         connectivity.online,
         transient,
-    ) { pending, lastSynced, online, t ->
+    ) { salesPending, cullsPending, lastSynced, online, t ->
         SyncState(
-            pendingCount = pending,
+            pendingCount = salesPending + cullsPending,
             lastSyncedMs = lastSynced,
             online = online,
             isBusy = t.busy,
@@ -71,30 +77,50 @@ class SyncRepository(
         )
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), SyncState())
 
-    /** Push pending (SAVED) receipts. Used by both the silent ticker and the manual button. */
+    /** Push pending sales then culls (cull leg stubbed until #27), then retention GC. */
     suspend fun exportPending(): SyncResult = cloudMutex.withLock {
         val config = settings.config.first()
         if (!config.isComplete) return@withLock SyncResult.NotConfigured
 
-        val pending = receiptDao.receiptsByStatus(ReceiptStatus.SAVED.name).map { it.toCore() }
-        if (pending.isEmpty()) return@withLock SyncResult.Done(0)
+        val salesPending = receiptDao.receiptsByStatus(ReceiptStatus.SAVED.name).map { it.toCore() }
+        val cullsPending = cullDao.cullsByStatus(CullStatus.PENDING.name).map { it.toCore() }
+        if (salesPending.isEmpty() && cullsPending.isEmpty()) {
+            purgeRetained()
+            return@withLock SyncResult.Done(0, 0)
+        }
 
         transient.update { it.copy(busy = true, error = null) }
-        val rows = Export.buildRows(pending, zone).map { Export.rowAsStrings(it) }
-        val result = sheets.appendSales(config, Export.HEADER, rows)
-        transient.update { it.copy(busy = false) }
+        var salesExported = 0
+        var cullsExported = 0
 
-        result.fold(
-            onSuccess = {
-                receiptDao.markExported(pending.map { r -> r.localId }, ReceiptStatus.EXPORTED.name)
-                settings.setLastSynced(System.currentTimeMillis())
-                SyncResult.Done(pending.size)
-            },
-            onFailure = { e ->
-                transient.update { it.copy(error = e.message) }
-                SyncResult.Error(e.message ?: "Export failed")
-            },
-        )
+        if (salesPending.isNotEmpty()) {
+            val rows = Export.buildRows(salesPending, zone).map { Export.rowAsStrings(it) }
+            val result = sheets.appendSales(config, Export.HEADER, rows)
+            result.fold(
+                onSuccess = {
+                    receiptDao.markExported(salesPending.map { r -> r.localId }, ReceiptStatus.EXPORTED.name)
+                    salesExported = salesPending.size
+                },
+                onFailure = { e ->
+                    transient.update { it.copy(busy = false, error = e.message) }
+                    return@withLock SyncResult.Error(e.message ?: "Export failed")
+                },
+            )
+        }
+
+        // Cull Sheets push stubbed until #27 — records stay PENDING.
+        // cullsExported remains 0.
+
+        purgeRetained()
+        transient.update { it.copy(busy = false) }
+        if (salesExported > 0) settings.setLastSynced(now())
+        SyncResult.Done(salesExported, cullsExported)
+    }
+
+    private suspend fun purgeRetained() {
+        val cutoff = now() - Retention.RETENTION_MS
+        receiptDao.deleteExportedOlderThan(ReceiptStatus.EXPORTED.name, cutoff)
+        cullDao.deleteExportedOlderThan(CullStatus.EXPORTED.name, cutoff)
     }
 
     suspend fun updatePlantList(): SyncResult = cloudMutex.withLock {

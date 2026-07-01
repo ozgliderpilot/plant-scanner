@@ -34,4 +34,19 @@ class SyncTest {
         assertEquals(ReceiptStatus.SAVED, saved.status)
         assertTrue(Sync.pending(listOf(saved)).isNotEmpty())
     }
+
+    @Test fun `totalPendingCount combines SAVED receipts and PENDING culls`() {
+        val culls = listOf(
+            cull(1, CullStatus.PENDING),
+            cull(2, CullStatus.PENDING),
+            cull(3, CullStatus.EXPORTED),
+        )
+        assertEquals(4, Sync.totalPendingCount(receipts, culls)) // 2 SAVED + 2 PENDING
+    }
+
+    private fun cull(id: Long, status: CullStatus) = CullRecord(
+        localId = id, cullNo = "PP-$id", createdAtEpochMs = 0, status = status,
+        accession = "A", name = "X", group = null, isUnknown = false,
+        qty = 1, unit = SaleUnit.TUBES, reason = CullReason.DEAD, notes = null,
+    )
 }

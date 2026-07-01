@@ -20,6 +20,12 @@ import androidx.navigation.navArgument
 import com.nursery.scanner.di.AppContainer
 import com.nursery.scanner.ui.components.NurseryBottomBar
 import com.nursery.scanner.ui.components.NurseryTopBar
+import com.nursery.scanner.ui.cull.CullScanScreen
+import com.nursery.scanner.ui.cull.CullSuccessScreen
+import com.nursery.scanner.ui.cull.CullViewModel
+import com.nursery.scanner.ui.cull.EnterInfoScreen
+import com.nursery.scanner.ui.culls.CullListScreen
+import com.nursery.scanner.ui.culls.CullListViewModel
 import com.nursery.scanner.ui.home.HomeScreen
 import com.nursery.scanner.ui.nav.Routes
 import com.nursery.scanner.ui.nav.TabRoutes
@@ -84,7 +90,10 @@ private fun NurseryNavHost(
     NavHost(navController = navController, startDestination = Routes.ACTIONS, modifier = modifier) {
 
         composable(Routes.ACTIONS) {
-            HomeScreen(onSell = { navController.navigate(Routes.SELL_GRAPH) })
+            HomeScreen(
+                onSell = { navController.navigate(Routes.SELL_GRAPH) },
+                onCull = { navController.navigate(Routes.CULL_GRAPH) },
+            )
         }
 
         composable(Routes.RECEIPTS) {
@@ -107,7 +116,13 @@ private fun NurseryNavHost(
                 vm,
                 onSettings = { navController.navigate(Routes.SETTINGS) },
                 onViewPlants = { navController.navigate(Routes.PLANTS) },
+                onViewCulls = { navController.navigate(Routes.CULLS) },
             )
+        }
+
+        composable(Routes.CULLS) {
+            val vm: CullListViewModel = viewModel(factory = container.viewModelFactory)
+            CullListScreen(vm, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.PLANTS) {
@@ -190,6 +205,45 @@ private fun NurseryNavHost(
                 )
             }
         }
+
+        // Cull flow — nested graph so one CullViewModel is shared across its screens.
+        navigation(startDestination = Routes.CULL_SCAN, route = Routes.CULL_GRAPH) {
+            composable(Routes.CULL_SCAN) { entry ->
+                val vm = cullViewModel(navController, container, entry)
+                CullScanScreen(
+                    vm = vm,
+                    onResolved = { navController.navigate(Routes.CULL_INFO) },
+                    onClose = { navController.popBackStack(Routes.ACTIONS, inclusive = false) },
+                )
+            }
+            composable(Routes.CULL_INFO) { entry ->
+                val vm = cullViewModel(navController, container, entry)
+                EnterInfoScreen(
+                    vm = vm,
+                    onRecorded = { navController.navigate(Routes.CULL_SUCCESS) },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.CULL_SUCCESS) { entry ->
+                val vm = cullViewModel(navController, container, entry)
+                val syncState by container.syncRepository.state.collectAsStateWithLifecycle()
+                CullSuccessScreen(
+                    vm = vm,
+                    pendingCount = syncState.pendingCount,
+                    onCullAnother = {
+                        navController.navigate(Routes.CULL_SCAN) {
+                            popUpTo(Routes.CULL_GRAPH) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                        vm.reset()
+                    },
+                    onDone = {
+                        navController.popBackStack(Routes.ACTIONS, inclusive = false)
+                        vm.reset()
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -202,6 +256,19 @@ private fun sellViewModel(
 ): SellViewModel {
     val parentEntry = androidx.compose.runtime.remember(entry) {
         navController.getBackStackEntry(Routes.SELL_GRAPH)
+    }
+    return viewModel(viewModelStoreOwner = parentEntry, factory = container.viewModelFactory)
+}
+
+/** Shared CullViewModel scoped to the cull nav graph back-stack entry. */
+@Composable
+private fun cullViewModel(
+    navController: NavHostController,
+    container: AppContainer,
+    entry: NavBackStackEntry,
+): CullViewModel {
+    val parentEntry = androidx.compose.runtime.remember(entry) {
+        navController.getBackStackEntry(Routes.CULL_GRAPH)
     }
     return viewModel(viewModelStoreOwner = parentEntry, factory = container.viewModelFactory)
 }

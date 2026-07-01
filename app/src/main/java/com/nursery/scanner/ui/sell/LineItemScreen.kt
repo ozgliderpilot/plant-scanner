@@ -14,14 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,8 +35,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nursery.core.Money
 import com.nursery.core.SaleUnit
 import com.nursery.scanner.ui.components.BigButton
+import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.components.PlantCard
 import com.nursery.scanner.ui.components.ScreenHeader
+import com.nursery.scanner.ui.components.UnitDropdown
 import com.nursery.scanner.ui.theme.Dimens
 import com.nursery.scanner.util.centsToEditable
 import com.nursery.scanner.util.parseDollarsToCents
@@ -158,36 +155,6 @@ fun LineItemScreen(
                 text = if (draft.editIndex != null) "Save changes" else "Add to receipt",
                 onClick = { if (Money.isFreeLine(qty, unitPriceCents, discountPct)) showZeroConfirm = true else commit() },
             )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun UnitDropdown(selected: SaleUnit, qty: Int, onSelect: (SaleUnit) -> Unit, modifier: Modifier = Modifier) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
-        modifier = modifier,
-    ) {
-        OutlinedTextField(
-            value = selected.labelFor(qty),
-            onValueChange = {},
-            readOnly = true,
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            textStyle = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                .fillMaxWidth(),
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            SaleUnit.entries.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option.labelFor(qty), style = MaterialTheme.typography.bodyLarge) },
-                    onClick = { onSelect(option); expanded = false },
-                )
-            }
         }
     }
 }

@@ -1,10 +1,14 @@
 package com.nursery.scanner.data.local
 
+import com.nursery.core.CullReason
+import com.nursery.core.CullRecord
+import com.nursery.core.CullStatus
 import com.nursery.core.LineItem
 import com.nursery.core.Plant
 import com.nursery.core.Receipt
 import com.nursery.core.ReceiptStatus
 import com.nursery.core.SaleUnit
+import com.nursery.scanner.data.local.entity.CullEntity
 import com.nursery.scanner.data.local.entity.LineItemEntity
 import com.nursery.scanner.data.local.entity.PlantEntity
 import com.nursery.scanner.data.local.entity.ReceiptEntity
@@ -69,4 +73,38 @@ fun Receipt.toEntity(): ReceiptEntity =
         receiptNo = receiptNo,
         createdAtEpochMs = createdAtEpochMs,
         status = status.name,
+    )
+
+// ---- Cull ----
+
+fun CullEntity.toCore(): CullRecord =
+    CullRecord(
+        localId = localId,
+        cullNo = cullNo,
+        createdAtEpochMs = createdAtEpochMs,
+        status = CullStatus.valueOf(status),
+        accession = accession,
+        name = name,
+        group = group,
+        isUnknown = isUnknown,
+        qty = qty,
+        unit = runCatching { SaleUnit.valueOf(unit) }.getOrDefault(SaleUnit.TUBES),
+        reason = runCatching { CullReason.valueOf(reason) }.getOrDefault(CullReason.DEFAULT),
+        notes = notes,
+    )
+
+fun CullRecord.toEntity(): CullEntity =
+    CullEntity(
+        localId = localId,
+        cullNo = cullNo,
+        createdAtEpochMs = createdAtEpochMs,
+        status = status.name,
+        accession = accession,
+        name = name,
+        group = group,
+        isUnknown = isUnknown,
+        qty = qty,
+        unit = unit.name,
+        reason = reason.name,
+        notes = notes,
     )

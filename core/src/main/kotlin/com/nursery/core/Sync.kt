@@ -16,4 +16,8 @@ object Sync {
     fun markSaved(receipt: Receipt): Receipt = receipt.copy(status = ReceiptStatus.SAVED)
 
     fun markExported(receipt: Receipt): Receipt = receipt.copy(status = ReceiptStatus.EXPORTED)
+
+    /** Combined pending count for the status chip, success screens, and Data export tile. */
+    fun totalPendingCount(receipts: List<Receipt>, culls: List<CullRecord>): Int =
+        pendingCount(receipts) + culls.count { it.status == CullStatus.PENDING }
 }
