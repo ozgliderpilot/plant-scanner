@@ -1,3 +1,3 @@
 # CLAUDE.md
 
-Project guidance for coding agents lives in [AGENTS.md](./AGENTS.md). Read that file.
+All project guidance for coding agents is contained in @AGENTS.md. Refer to that file.
