@@ -44,3 +44,24 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
     }
 }
+
+/**
+ * v5 -> v6: taxonomic snapshot columns on plants, line_items, and culls (issue #27). Additive only.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE plants ADD COLUMN genus TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE plants ADD COLUMN species TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE plants ADD COLUMN cultivar TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE plants ADD COLUMN commonName TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE line_items ADD COLUMN genus TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE line_items ADD COLUMN species TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE line_items ADD COLUMN cultivar TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE line_items ADD COLUMN commonName TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE line_items ADD COLUMN plant_group TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE culls ADD COLUMN genus TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE culls ADD COLUMN species TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE culls ADD COLUMN cultivar TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE culls ADD COLUMN commonName TEXT NOT NULL DEFAULT ''")
+    }
+}

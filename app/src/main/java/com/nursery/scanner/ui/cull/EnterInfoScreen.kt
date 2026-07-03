@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -26,6 +28,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nursery.core.CullRecord
@@ -45,20 +49,23 @@ fun EnterInfoScreen(
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val draft = ui.draft
+    val focusManager = LocalFocusManager.current
 
-    if (draft == null) {
-        LaunchedEffect(Unit) { onBack() }
-        return
+    // After save, `saved` is set — navigate to success. If draft is missing (e.g. process death), go back.
+    // Mirror CartScreen → ConfirmScreen (Sell flow).
+    LaunchedEffect(ui.saved, draft) {
+        when {
+            ui.saved != null -> onRecorded()
+            draft == null -> onBack()
+        }
     }
+
+    if (draft == null) return
 
     var qty by remember(draft) { mutableIntStateOf(draft.qty.coerceAtLeast(1)) }
     var unit by remember(draft) { mutableStateOf(draft.unit) }
     var reason by remember(draft) { mutableStateOf(draft.reason) }
     var notes by remember(draft) { mutableStateOf(draft.notes) }
-
-    LaunchedEffect(ui.saved) {
-        if (ui.saved != null) onRecorded()
-    }
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(title = "Record cull", onBack = { vm.discardDraft(); onBack() })
@@ -93,11 +100,12 @@ fun EnterInfoScreen(
 
             OutlinedTextField(
                 value = notes,
-                onValueChange = { notes = it.take(CullRecord.MAX_NOTES_LENGTH) },
+                onValueChange = { notes = it.replace("\n", "").take(CullRecord.MAX_NOTES_LENGTH) },
                 label = { Text("Notes (optional)") },
-                singleLine = false,
-                maxLines = 3,
+                singleLine = true,
                 textStyle = MaterialTheme.typography.bodyLarge,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                 modifier = Modifier.fillMaxWidth(),
             )
 

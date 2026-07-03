@@ -1,0 +1,12 @@
+{
+  "name": "nursery-backend",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/logic.test.js",
+    "deploy:test": "bash scripts/deploy-gas.sh test",
+    "deploy:prod": "bash scripts/deploy-gas.sh prod"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.5.0"
+  }
+}

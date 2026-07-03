@@ -1,0 +1,49 @@
+name: Deploy GAS (prod)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-gas-prod.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      - name: Backend logic tests
+        run: npm test
+
+      - name: clasp credentials
+        run: echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
+
+      - name: clasp project (prod)
+        run: |
+          cat > .clasp.prod.json <<EOF
+          {
+            "scriptId": "${{ secrets.GAS_PROD_SCRIPT_ID }}",
+            "rootDir": "."
+          }
+          EOF
+
+      - name: Push and redeploy prod Web App
+        run: |
+          DESC="prod-ci-${GITHUB_SHA::7}-$(date -u +%Y%m%d%H%M%S)"
+          npx clasp push --force --project .clasp.prod.json
+          npx clasp deploy \
+            --project .clasp.prod.json \
+            --deploymentId "${{ secrets.GAS_PROD_DEPLOYMENT_ID }}" \
+            --description "$DESC"

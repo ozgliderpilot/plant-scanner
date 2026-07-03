@@ -50,7 +50,10 @@ fun CullSuccessScreen(
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(72.dp),
         )
-        Text("Cull ${saved.cullNo}", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            text = if (saved.isUnknown) "Unknown plant" else saved.name,
+            style = MaterialTheme.typography.headlineSmall,
+        )
         Text(
             "Saved locally · $pendingCount pending",
             style = MaterialTheme.typography.bodyLarge,

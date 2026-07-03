@@ -28,6 +28,10 @@ import kotlinx.coroutines.launch
 data class LineDraft(
     val accession: String,
     val name: String,
+    val genus: String,
+    val species: String,
+    val cultivar: String,
+    val commonName: String,
     val group: String?,
     val light: String?,
     val isUnknown: Boolean,
@@ -42,7 +46,8 @@ data class LineDraft(
 ) {
     companion object {
         fun fromPlant(p: Plant) = LineDraft(
-            accession = p.accession, name = p.name, group = p.group, light = p.light,
+            accession = p.accession, name = p.name, genus = p.genus, species = p.species,
+            cultivar = p.cultivar, commonName = p.commonName, group = p.group, light = p.light,
             isUnknown = false, qty = 1, unitPriceCents = 0, discountPct = 0,
             unit = SaleUnit.defaultFor(p.potsInNursery, p.tubesInNursery, p.miscInNursery),
             potsInNursery = p.potsInNursery, tubesInNursery = p.tubesInNursery, miscInNursery = p.miscInNursery,
@@ -50,7 +55,8 @@ data class LineDraft(
         )
 
         fun unknown(code: String) = LineDraft(
-            accession = code, name = PlantBook.UNKNOWN_NAME, group = null, light = null,
+            accession = code, name = PlantBook.UNKNOWN_NAME, genus = "", species = "",
+            cultivar = "", commonName = "", group = null, light = null,
             isUnknown = true, qty = 1, unitPriceCents = 0, discountPct = 0,
             unit = SaleUnit.POTS, potsInNursery = 0, tubesInNursery = 0, miscInNursery = 0,
             editIndex = null,
@@ -126,6 +132,11 @@ class SellViewModel(
         val line = LineItem(
             accession = d.accession,
             name = d.name,
+            genus = d.genus,
+            species = d.species,
+            cultivar = d.cultivar,
+            commonName = d.commonName,
+            group = d.group.orEmpty(),
             qty = qty,
             unitPriceCents = unitPriceCents,
             discountPct = discountPct,
@@ -145,7 +156,11 @@ class SellViewModel(
                 draft = LineDraft(
                     accession = line.accession,
                     name = line.name,
-                    group = plant?.group,
+                    genus = line.genus,
+                    species = line.species,
+                    cultivar = line.cultivar,
+                    commonName = line.commonName,
+                    group = plant?.group ?: line.group.takeIf { it.isNotEmpty() },
                     light = plant?.light,
                     isUnknown = PlantBook.isUnknown(line),
                     qty = line.qty,

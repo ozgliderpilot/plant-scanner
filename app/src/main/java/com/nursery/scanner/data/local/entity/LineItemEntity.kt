@@ -1,5 +1,6 @@
 package com.nursery.scanner.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -23,6 +24,11 @@ data class LineItemEntity(
     val receiptId: Long,
     val accession: String,
     val name: String,
+    val genus: String = "",
+    val species: String = "",
+    val cultivar: String = "",
+    val commonName: String = "",
+    @ColumnInfo(name = "plant_group") val group: String = "",
     val qty: Int,
     val unitPriceCents: Long,
     val discountPct: Int,

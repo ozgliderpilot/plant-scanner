@@ -1,5 +1,6 @@
 package com.nursery.scanner.data.repo
 
+import com.nursery.core.CullExport
 import com.nursery.core.CullStatus
 import com.nursery.core.Export
 import com.nursery.core.ReceiptStatus
@@ -34,7 +35,11 @@ data class SyncState(
 
 /** Outcome surfaced to the manual Sync screen (auto-export ignores it / stays silent). */
 sealed interface SyncResult {
-    data class Done(val salesCount: Int, val cullCount: Int = 0) : SyncResult {
+    data class Done(
+        val salesCount: Int,
+        val cullCount: Int = 0,
+        val partialError: String? = null,
+    ) : SyncResult {
         val count: Int get() = salesCount + cullCount
     }
     data class Error(val message: String) : SyncResult
@@ -77,7 +82,7 @@ class SyncRepository(
         )
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), SyncState())
 
-    /** Push pending sales then culls (cull leg stubbed until #27), then retention GC. */
+    /** Push pending sales then culls, then retention GC. Queues are independent on partial failure. */
     suspend fun exportPending(): SyncResult = cloudMutex.withLock {
         val config = settings.config.first()
         if (!config.isComplete) return@withLock SyncResult.NotConfigured
@@ -108,12 +113,29 @@ class SyncRepository(
             )
         }
 
-        // Cull Sheets push stubbed until #27 — records stay PENDING.
-        // cullsExported remains 0.
+        if (cullsPending.isNotEmpty()) {
+            val rows = CullExport.buildRows(cullsPending, zone).map { CullExport.rowAsStrings(it) }
+            val result = sheets.appendCulls(config, CullExport.HEADER, rows)
+            result.fold(
+                onSuccess = {
+                    cullDao.markExported(cullsPending.map { c -> c.localId }, CullStatus.EXPORTED.name)
+                    cullsExported = cullsPending.size
+                },
+                onFailure = { e ->
+                    transient.update { it.copy(busy = false, error = e.message) }
+                    purgeRetained()
+                    if (salesExported > 0) {
+                        settings.setLastSynced(now())
+                        return@withLock SyncResult.Done(salesExported, 0, partialError = "Cull export failed")
+                    }
+                    return@withLock SyncResult.Error(e.message ?: "Export failed")
+                },
+            )
+        }
 
         purgeRetained()
         transient.update { it.copy(busy = false) }
-        if (salesExported > 0) settings.setLastSynced(now())
+        if (salesExported > 0 || cullsExported > 0) settings.setLastSynced(now())
         SyncResult.Done(salesExported, cullsExported)
     }
 

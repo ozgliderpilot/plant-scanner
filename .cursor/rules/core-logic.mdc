@@ -1,0 +1,12 @@
+---
+description: Core module — business logic and JVM tests
+globs: core/**/*
+alwaysApply: false
+---
+
+# core/
+
+- Put money math, sync selection, export shaping, validation, and search/filter in `core/`, with a JUnit test.
+- Use system `gradle test` in `core/`, not `./gradlew`.
+- Edit `core/src/` only — never `core/bin/` (generated copies from searches).
+- No Android imports in this module.

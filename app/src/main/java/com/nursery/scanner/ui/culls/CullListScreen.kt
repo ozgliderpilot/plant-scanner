@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nursery.core.CullList
 import com.nursery.core.CullRecord
@@ -86,11 +87,12 @@ private fun CullCard(cull: CullRecord) {
                     "${cull.qty} ${cull.unit.labelFor(cull.qty)} · ${cull.reason.label}",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                cull.notes?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, style = MaterialTheme.typography.bodyMedium)
-                }
-                Text(cull.cullNo, style = MaterialTheme.typography.bodyMedium)
-                Text(formatDateTime(cull.createdAtEpochMs), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    formatDateTime(cull.createdAtEpochMs),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

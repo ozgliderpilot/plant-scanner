@@ -37,6 +37,11 @@ local.properties
 # Node (backend tooling)
 node_modules/
 
+# clasp local config (script IDs + deployment IDs — never commit)
+backend/.clasp.prod.json
+backend/.clasp.test.json
+backend/gas-deploy.json
+
 # Logs & OS cruft
 *.log
 .DS_Store

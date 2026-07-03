@@ -24,6 +24,10 @@ import kotlinx.coroutines.launch
 data class CullDraft(
     val accession: String,
     val name: String,
+    val genus: String,
+    val species: String,
+    val cultivar: String,
+    val commonName: String,
     val group: String?,
     val isUnknown: Boolean,
     val qty: Int,
@@ -38,6 +42,10 @@ data class CullDraft(
         fun fromPlant(p: Plant) = CullDraft(
             accession = p.accession,
             name = p.name,
+            genus = p.genus,
+            species = p.species,
+            cultivar = p.cultivar,
+            commonName = p.commonName,
             group = p.group,
             isUnknown = false,
             qty = 1,
@@ -52,6 +60,10 @@ data class CullDraft(
         fun unknown(code: String) = CullDraft(
             accession = code,
             name = PlantBook.UNKNOWN_NAME,
+            genus = "",
+            species = "",
+            cultivar = "",
+            commonName = "",
             group = null,
             isUnknown = true,
             qty = 1,
@@ -123,6 +135,10 @@ class CullViewModel(
             status = com.nursery.core.CullStatus.PENDING,
             accession = d.accession,
             name = d.name,
+            genus = d.genus,
+            species = d.species,
+            cultivar = d.cultivar,
+            commonName = d.commonName,
             group = d.group,
             isUnknown = d.isUnknown,
             qty = qty,
@@ -138,6 +154,10 @@ class CullViewModel(
                 val saved = cullRepo.saveCull(
                     accession = d.accession,
                     name = d.name,
+                    genus = d.genus,
+                    species = d.species,
+                    cultivar = d.cultivar,
+                    commonName = d.commonName,
                     group = d.group,
                     isUnknown = d.isUnknown,
                     qty = qty,
@@ -146,7 +166,7 @@ class CullViewModel(
                     notes = notes.takeIf { it.isNotBlank() },
                     config = config,
                 )
-                _ui.update { it.copy(saved = saved, draft = null) }
+                _ui.update { it.copy(saved = saved) }
             } finally {
                 isSaving = false
             }

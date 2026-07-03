@@ -1,0 +1,11 @@
+---
+description: Room schema — real migrations only
+globs: app/**/Migrations.kt,app/**/NurseryDatabase.kt,app/**/entity/**
+alwaysApply: false
+---
+
+# Room migrations
+
+- No `fallbackToDestructiveMigration` — the local DB must never be silently wiped in production.
+- Every schema change needs a real `Migration` in `Migrations.kt`; bump version in `NurseryDatabase.kt`.
+- Plant list is replaced wholesale on sync; receipt/cull data is not.

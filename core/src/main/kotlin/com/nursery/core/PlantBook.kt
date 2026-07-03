@@ -18,6 +18,11 @@ class PlantBook(plants: List<Plant>) {
         LineItem(
             accession = plant.accession,
             name = plant.name,
+            genus = plant.genus,
+            species = plant.species,
+            cultivar = plant.cultivar,
+            commonName = plant.commonName,
+            group = plant.group.orEmpty(),
             qty = qty,
             unitPriceCents = unitPriceCents,
             discountPct = discountPct,

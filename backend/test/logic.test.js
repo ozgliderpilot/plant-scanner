@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey,
-  accessionColIndex, selectPendingSales, resolveSalesMarks,
+  accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
 } = require('../shared.js');
 
 test('isAuthorized accepts the right secret only', () => {
@@ -30,7 +30,8 @@ test('parsePlants maps by header name and skips blank accessions', () => {
   const plants = parsePlants(values);
   assert.strictEqual(plants.length, 2);
   assert.deepStrictEqual(plants[0], {
-    accession: '2021-0345', name: 'Banksia', group: 'Proteaceae', light: 'Full sun',
+    accession: '2021-0345', name: 'Banksia', genus: '', species: '', cultivar: '', commonName: '',
+    group: 'Proteaceae', light: 'Full sun',
     potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0, stockInNursery: 0,
   });
   // blank optional cells become null
@@ -151,12 +152,29 @@ test('parsePlants reads the raw Batches+Species view and composes name', () => {
   const plants = parsePlants(values);
   assert.strictEqual(plants.length, 2);
   assert.deepStrictEqual(plants[0], {
-    accession: '31011', name: 'Acacia pycnantha', group: 'Tree', light: 'Full sun',
+    accession: '31011', name: 'Acacia pycnantha', genus: 'Acacia', species: 'pycnantha',
+    cultivar: '', commonName: 'Golden Wattle', group: 'Tree', light: 'Full sun',
     potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0, stockInNursery: 2,
   });
   // cultivar folded into the name
   assert.strictEqual(plants[1].name, "Banksia integrifolia 'Roller Coaster'");
+  assert.strictEqual(plants[1].genus, 'Banksia');
+  assert.strictEqual(plants[1].species, 'integrifolia');
+  assert.strictEqual(plants[1].cultivar, 'Roller Coaster');
   assert.strictEqual(plants[1].group, 'Shrub');
+});
+
+test('parsePlants emits taxonomic parts separately alongside composed name', () => {
+  const values = [
+    ['accession', 'genus', 'species', 'cultivar', 'common name'],
+    ['100', 'Grevillea', 'rosmarinifolia', 'Pink', 'Rose Grevillea'],
+  ];
+  const p = parsePlants(values)[0];
+  assert.strictEqual(p.name, "Grevillea rosmarinifolia 'Pink'");
+  assert.strictEqual(p.genus, 'Grevillea');
+  assert.strictEqual(p.species, 'rosmarinifolia');
+  assert.strictEqual(p.cultivar, 'Pink');
+  assert.strictEqual(p.commonName, 'Rose Grevillea');
 });
 
 test('parsePlants name falls back to Common Name, and legacy headers still work', () => {
@@ -167,7 +185,8 @@ test('parsePlants name falls back to Common Name, and legacy headers still work'
   // old-style sheet (accession/name/group/light) keeps parsing
   const legacy = parsePlants([['accession', 'name', 'group', 'light'], ['2021-1', 'Wattle', 'Tree', 'Sun']]);
   assert.deepStrictEqual(legacy[0], {
-    accession: '2021-1', name: 'Wattle', group: 'Tree', light: 'Sun',
+    accession: '2021-1', name: 'Wattle', genus: '', species: '', cultivar: '', commonName: '',
+    group: 'Tree', light: 'Sun',
     potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0, stockInNursery: 0,
   });
 });
@@ -349,4 +368,36 @@ test('resolveSalesMarks on empty keys or empty sheet returns []', () => {
   assert.deepStrictEqual(resolveSalesMarks([SALES_HEADER], [{ receipt: 'x', item_seq: 1, status: 'Synced' }]), []);
   assert.deepStrictEqual(resolveSalesMarks([SALES_HEADER, ['PP-1-1', '', 1, '', '', 0, '', 0, 0, 0, 'Pending']], []), []);
   assert.deepStrictEqual(resolveSalesMarks(null, null), []);
+});
+
+const CULLS_HEADER = [
+  'cull_id', 'date', 'accession', 'name', 'genus', 'species', 'cultivar', 'common_name',
+  'group', 'qty', 'unit', 'reason', 'notes',
+];
+
+test('ensureSyncStatusColumn appends sync_status when missing', () => {
+  assert.deepStrictEqual(
+    ensureSyncStatusColumn(CULLS_HEADER),
+    [...CULLS_HEADER, 'sync_status'],
+  );
+});
+
+test('ensureSyncStatusColumn does not duplicate an existing sync_status column', () => {
+  const withStatus = [...CULLS_HEADER, 'sync_status'];
+  assert.deepStrictEqual(ensureSyncStatusColumn(withStatus), withStatus);
+  const midStatus = ['cull_id', 'sync_status', 'date'];
+  assert.deepStrictEqual(ensureSyncStatusColumn(midStatus), midStatus);
+});
+
+test('filterNewRows dedupes culls by cull_id independently', () => {
+  const incoming = [
+    ['PP-1-1', '2026-07-01', '31011'],
+    ['PP-1-2', '2026-07-01', '31011'], // same accession, different cull_id -> both kept
+    ['PP-1-3', '2026-07-01', '8250'],  // already exported -> skipped
+  ];
+  const existing = ['PP-1-3'];
+  const result = filterNewRows(incoming, existing, 0);
+  assert.strictEqual(result.skipped, 1);
+  assert.strictEqual(result.rows.length, 2);
+  assert.deepStrictEqual(result.rows.map((r) => r[0]), ['PP-1-1', 'PP-1-2']);
 });

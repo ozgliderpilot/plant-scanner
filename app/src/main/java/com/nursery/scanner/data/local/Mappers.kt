@@ -18,14 +18,16 @@ import com.nursery.scanner.data.local.entity.ReceiptWithLines
 
 fun PlantEntity.toCore(): Plant =
     Plant(
-        accession = accession, name = name, group = group, light = light,
+        accession = accession, name = name, genus = genus, species = species,
+        cultivar = cultivar, commonName = commonName, group = group, light = light,
         potsInNursery = potsInNursery, tubesInNursery = tubesInNursery, miscInNursery = miscInNursery,
         stockInNursery = stockInNursery,
     )
 
 fun Plant.toEntity(): PlantEntity =
     PlantEntity(
-        accession = accession, name = name, group = group, light = light,
+        accession = accession, name = name, genus = genus, species = species,
+        cultivar = cultivar, commonName = commonName, group = group, light = light,
         potsInNursery = potsInNursery, tubesInNursery = tubesInNursery, miscInNursery = miscInNursery,
         stockInNursery = stockInNursery,
     )
@@ -36,6 +38,11 @@ fun LineItemEntity.toCore(): LineItem =
     LineItem(
         accession = accession,
         name = name,
+        genus = genus,
+        species = species,
+        cultivar = cultivar,
+        commonName = commonName,
+        group = group,
         qty = qty,
         unitPriceCents = unitPriceCents,
         discountPct = discountPct,
@@ -48,6 +55,11 @@ fun LineItem.toEntity(receiptId: Long): LineItemEntity =
         receiptId = receiptId,
         accession = accession,
         name = name,
+        genus = genus,
+        species = species,
+        cultivar = cultivar,
+        commonName = commonName,
+        group = group,
         qty = qty,
         unitPriceCents = unitPriceCents,
         discountPct = discountPct,
@@ -85,6 +97,10 @@ fun CullEntity.toCore(): CullRecord =
         status = CullStatus.valueOf(status),
         accession = accession,
         name = name,
+        genus = genus,
+        species = species,
+        cultivar = cultivar,
+        commonName = commonName,
         group = group,
         isUnknown = isUnknown,
         qty = qty,
@@ -101,6 +117,10 @@ fun CullRecord.toEntity(): CullEntity =
         status = status.name,
         accession = accession,
         name = name,
+        genus = genus,
+        species = species,
+        cultivar = cultivar,
+        commonName = commonName,
         group = group,
         isUnknown = isUnknown,
         qty = qty,

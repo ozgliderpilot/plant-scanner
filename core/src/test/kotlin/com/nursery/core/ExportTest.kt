@@ -15,8 +15,12 @@ class ExportTest {
         createdAtEpochMs = createdAt,
         status = ReceiptStatus.SAVED,
         lines = listOf(
-            LineItem(accession = "2021-0345", name = "Banksia", qty = 2, unitPriceCents = 1000, discountPct = 10, unit = SaleUnit.TUBES, itemSeq = 1), // 1800
-            LineItem(accession = "9999999999999", name = "unknown", qty = 1, unitPriceCents = 500, discountPct = 0, itemSeq = 2), // 500, unit defaults POTS
+            LineItem(
+                accession = "2021-0345", name = "Banksia integrifolia", genus = "Banksia",
+                species = "integrifolia", cultivar = "", commonName = "Coast Banksia", group = "Shrub",
+                qty = 2, unitPriceCents = 1000, discountPct = 10, unit = SaleUnit.TUBES, itemSeq = 1,
+            ),
+            LineItem(accession = "9999999999999", name = "unknown", qty = 1, unitPriceCents = 500, discountPct = 0, itemSeq = 2),
         ),
     )
 
@@ -28,28 +32,42 @@ class ExportTest {
         assertEquals(500, rows[1].lineTotalCents)
     }
 
-    @Test fun `row strings follow header order`() {
+    @Test fun `row strings follow header order with taxonomic columns`() {
         val rows = Export.buildRows(listOf(receipt), ZoneOffset.UTC)
         assertEquals(
-            listOf("07-241", "2026-06-09", "1", "2021-0345", "Banksia", "2", "tubes", "10.00", "10", "18.00"),
+            listOf(
+                "07-241", "2026-06-09", "1", "2021-0345", "Banksia integrifolia",
+                "Banksia", "integrifolia", "", "Coast Banksia", "Shrub",
+                "2", "tubes", "10.00", "10", "18.00",
+            ),
             Export.rowAsStrings(rows[0]),
         )
-        // unknown line: the scanned code lives in the accession column, name = "unknown", unit defaults to Pots
         assertEquals(
-            listOf("07-241", "2026-06-09", "2", "9999999999999", "unknown", "1", "pots", "5.00", "0", "5.00"),
+            listOf(
+                "07-241", "2026-06-09", "2", "9999999999999", "unknown",
+                "", "", "", "", "",
+                "1", "pots", "5.00", "0", "5.00",
+            ),
             Export.rowAsStrings(rows[1]),
         )
     }
 
-    @Test fun `item_seq column sits immediately after date`() {
+    @Test fun `header includes taxonomic columns after name`() {
         assertEquals(
-            listOf("receipt", "date", "item_seq", "accession", "name", "qty", "unit", "unit_price", "discount_pct", "line_total"),
+            listOf(
+                "receipt", "date", "item_seq", "accession", "name",
+                "genus", "species", "cultivar", "common_name", "group",
+                "qty", "unit", "unit_price", "discount_pct", "line_total",
+            ),
             Export.HEADER,
         )
     }
 
+    @Test fun `item_seq column sits immediately after date`() {
+        assertEquals("item_seq", Export.HEADER[2])
+    }
+
     @Test fun `item_seq is taken from the line, not a positional index`() {
-        // Lines carry non-positional seq values (3, 7); the export must surface those, not 1, 2.
         val r = receipt.copy(
             lines = listOf(
                 receipt.lines[0].copy(itemSeq = 3),
