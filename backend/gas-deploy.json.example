@@ -1,0 +1,8 @@
+{
+  "test": {
+    "deploymentId": "PASTE_TEST_DEPLOYMENT_ID"
+  },
+  "prod": {
+    "deploymentId": "PASTE_PROD_DEPLOYMENT_ID"
+  }
+}

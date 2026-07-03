@@ -5,6 +5,7 @@
  *   - replacePlants   -> full-mirror rewrite of the "Plants" sheet from Access (in-stock plants only)
  *   - appendSales     -> appends sales rows to "Sales" (deduped by receipt #), stamping each newly
  *                        appended row's sync_status "Pending" for the Access reverse sync (auto-export/push)
+ *   - appendCulls     -> appends cull rows to "Culls" (deduped by cull_id), stamping sync_status
  *   - pendingSales    -> returns every "Sales" row whose sync_status is "Pending" (Access reverse sync)
  *   - markSalesSynced -> sets sync_status by (receipt,item_seq) key (Access reverse sync, status-agnostic)
  *
@@ -25,6 +26,7 @@ function doPost(e) {
       case 'getPlants': return handleGetPlants_();
       case 'replacePlants': return handleReplacePlants_(body);
       case 'appendSales': return handleAppendSales_(body);
+      case 'appendCulls': return handleAppendCulls_(body);
       case 'pendingSales': return handlePendingSales_();
       case 'markSalesSynced': return handleMarkSalesSynced_(body);
       default: return json_({ ok: false, error: 'Unknown action: ' + body.action });
@@ -104,6 +106,41 @@ function handleReplacePlants_(body) {
 
     recordSync_('Plants from Access', 'Access → Sheet', plan.rows.length + ' plants');
     return json_({ ok: true, written: plan.rows.length });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function handleAppendCulls_(body) {
+  if (!body.header || !body.rows) return json_({ ok: false, error: 'Missing header/rows' });
+
+  var lock = LockService.getDocumentLock();
+  try {
+    lock.waitLock(30000);
+  } catch (e) {
+    return json_({ ok: false, error: 'Sheet busy, please retry' });
+  }
+  try {
+    var sheet = getOrCreateCullsSheet_(body.header);
+    var cullCol = body.header.indexOf('cull_id');
+    if (cullCol < 0) cullCol = 0;
+    var lastRow = sheet.getLastRow();
+    var existing = [];
+    if (lastRow > 1) {
+      existing = sheet.getRange(2, cullCol + 1, lastRow - 1, 1)
+        .getValues().map(function (r) { return String(r[0]); });
+    }
+    var result = filterNewRows(body.rows, existing, cullCol);
+    if (result.rows.length > 0) {
+      var startRow = sheet.getLastRow() + 1;
+      forceTextColumn_(sheet, startRow, result.rows.length, cullCol);
+      forceTextColumn_(sheet, startRow, result.rows.length, body.header.indexOf('accession'));
+      sheet.getRange(startRow, 1, result.rows.length, body.header.length).setValues(result.rows);
+      stampPending_(sheet, startRow, result.rows.length);
+    }
+    recordSync_('Culls from device', 'device → Sheet',
+      'appended ' + result.rows.length + ', skipped ' + result.skipped);
+    return json_({ ok: true, appended: result.rows.length, skipped: result.skipped });
   } finally {
     lock.releaseLock();
   }
@@ -222,19 +259,48 @@ function forceTextColumn_(sheet, startRow, numRows, colIndex) {
 function getOrCreateSalesSheet_(header) {
   var ss = SpreadsheetApp.getActive();
   var sheet = ss.getSheetByName('Sales');
+  var fullHeader = ensureSyncStatusColumn(header);
   if (!sheet) {
     sheet = ss.insertSheet('Sales');
-    sheet.getRange(1, 1, 1, header.length).setValues([header]);
+    sheet.getRange(1, 1, 1, fullHeader.length).setValues([fullHeader]);
   } else if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, header.length).setValues([header]);
+    sheet.getRange(1, 1, 1, fullHeader.length).setValues([fullHeader]);
+  } else {
+    provisionSyncStatusColumn_(sheet);
   }
   return sheet;
+}
+
+function getOrCreateCullsSheet_(header) {
+  var ss = SpreadsheetApp.getActive();
+  var sheet = ss.getSheetByName('Culls');
+  var fullHeader = ensureSyncStatusColumn(header);
+  if (!sheet) {
+    sheet = ss.insertSheet('Culls');
+    sheet.getRange(1, 1, 1, fullHeader.length).setValues([fullHeader]);
+  } else if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, fullHeader.length).setValues([fullHeader]);
+  } else {
+    provisionSyncStatusColumn_(sheet);
+  }
+  return sheet;
+}
+
+/** Append sync_status as the last header cell when an existing tab is missing it. */
+function provisionSyncStatusColumn_(sheet) {
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return;
+  var headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var ensured = ensureSyncStatusColumn(headerRow);
+  if (ensured.length > headerRow.length) {
+    sheet.getRange(1, ensured.length).setValue('sync_status');
+  }
 }
 
 /**
  * Stamp `numRows` rows starting at `startRow` with sync_status "Pending" — the marker the Access reverse
  * sync selects on. The sync_status column is located by name from the sheet's OWN header (it isn't in the
- * app's payload header, and its position isn't fixed); it is provisioned manually on the Sales tab.
+ * app's payload header); auto-provisioned on first append when missing.
  */
 function stampPending_(sheet, startRow, numRows) {
   var headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];

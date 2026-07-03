@@ -77,18 +77,61 @@ Because the endpoint URL + secret are **per-device runtime config** (entered in 
 into the build), one APK flavor can point at either backend — the test flavor exists only to keep the
 *local* DB separate and make the install unmistakable on the device.
 
-## Alternative: clasp (command line)
+## Automated deploy (clasp)
+
+Code in `backend/` can be pushed with [clasp](https://github.com/google/clasp) instead of
+copy-paste. **Prod** deploys on merge to `main` (GitHub Actions). **Test** deploys from your
+machine with one command.
+
+### One-time setup (per environment)
+
+Do this once for **each** Sheet/script (test + prod):
+
+1. Complete steps 1–4 above (Sheet, paste or push code, `SHARED_SECRET`, **first** Web App
+   deployment).
+2. Note the **Script ID** (Project Settings → IDs) and the **Deployment ID** of the Web App
+   (Deploy → Manage deployments → copy the ID column, *not* the `/exec` URL).
+
+Local config (gitignored — copy the `.example` files in `backend/`):
 
 ```bash
-npm install -g @google/clasp
-clasp login
-# In an empty dir bound to your script's ID:
-clasp clone <SCRIPT_ID>
-# copy backend/Code.gs and backend/shared.js in, then:
-clasp push
+cd backend
+npm install
+cp .clasp.test.json.example .clasp.test.json   # set test scriptId
+cp .clasp.prod.json.example .clasp.prod.json   # set prod scriptId (CI uses secrets instead)
+cp gas-deploy.json.example gas-deploy.json     # set both deploymentIds
+npx clasp login
 ```
 
-You still set `SHARED_SECRET` and deploy the Web App from the editor (steps 3–4).
+GitHub repo secrets (Settings → Secrets → Actions) for **prod CI**:
+
+| Secret | Value |
+|--------|--------|
+| `CLASPRC_JSON` | Full contents of `~/.clasprc.json` after `clasp login` |
+| `GAS_PROD_SCRIPT_ID` | Prod Apps Script project ID |
+| `GAS_PROD_DEPLOYMENT_ID` | Prod Web App deployment ID |
+
+Refresh `CLASPRC_JSON` if the OAuth token expires.
+
+### Deploy test (CLI)
+
+From `backend/`:
+
+```bash
+npm run deploy:test
+```
+
+Runs `backend/test/logic.test.js`, `clasp push`, then redeploys the **test** Web App (same `/exec`
+URL, new code version). Requires `clasp login` on your machine.
+
+### Deploy prod (CI)
+
+Merge to `main` with changes under `backend/` → workflow **Deploy GAS (prod)** runs automatically.
+Manual prod deploy (emergency): `npm run deploy:prod` with local `.clasp.prod.json` configured.
+
+> `clasp push` alone only updates project HEAD. The deploy step (`clasp deploy -i <deploymentId>`)
+> is what publishes to the live `/exec` URL — same as **Manage deployments → New version** in the
+> editor.
 
 ## What the endpoint does
 

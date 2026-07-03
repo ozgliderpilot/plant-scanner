@@ -34,6 +34,7 @@ fun SyncScreen(
     vm: SyncViewModel,
     onSettings: () -> Unit,
     onViewPlants: () -> Unit,
+    onViewCulls: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -85,10 +86,10 @@ fun SyncScreen(
             }
         }
 
-        // Sales export (push)
+        // Data export (sales + culls)
         Card(shape = RoundedCornerShape(Dimens.CardCorner)) {
             Column(Modifier.padding(Dimens.Gap), verticalArrangement = Arrangement.spacedBy(Dimens.GapSmall)) {
-                Text("Sales export", style = MaterialTheme.typography.titleMedium)
+                Text("Data export", style = MaterialTheme.typography.titleMedium)
                 Text("Auto every ${intervalLabel(config.autoExportSeconds)}", style = MaterialTheme.typography.bodyLarge)
                 Text("${state.pendingCount} pending · last ${relativeTime(state.lastSyncedMs, now)}", style = MaterialTheme.typography.bodyMedium)
                 BigButton(
@@ -97,6 +98,18 @@ fun SyncScreen(
                     enabled = canTalk,
                 )
                 if (!state.online) Text("Needs Wi-Fi", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+
+        // Culled plants (view only)
+        Card(shape = RoundedCornerShape(Dimens.CardCorner)) {
+            Column(Modifier.padding(Dimens.Gap), verticalArrangement = Arrangement.spacedBy(Dimens.GapSmall)) {
+                Text("Culled plants", style = MaterialTheme.typography.titleMedium)
+                BigButton(
+                    text = "View culled plants",
+                    onClick = onViewCulls,
+                    style = BigButtonStyle.Secondary,
+                )
             }
         }
 

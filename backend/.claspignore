@@ -1,0 +1,11 @@
+# Apps Script project files only — exclude local tooling and tests.
+test/**
+access/**
+node_modules/**
+scripts/**
+package.json
+package-lock.json
+gas-deploy.json
+gas-deploy.json.example
+.claspignore
+**/*.example

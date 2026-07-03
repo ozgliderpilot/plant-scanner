@@ -10,6 +10,11 @@ data class ExportRow(
     val itemSeq: Int,
     val accession: String,
     val name: String,
+    val genus: String,
+    val species: String,
+    val cultivar: String,
+    val commonName: String,
+    val group: String,
     val qty: Int,
     val unit: SaleUnit,
     val unitPriceCents: Long,
@@ -26,6 +31,7 @@ object Export {
     /** Column order written to the Sheet — keep stable; the Apps Script relies on it. */
     val HEADER: List<String> = listOf(
         "receipt", "date", "item_seq", "accession", "name",
+        "genus", "species", "cultivar", "common_name", "group",
         "qty", "unit", "unit_price", "discount_pct", "line_total",
     )
 
@@ -39,6 +45,11 @@ object Export {
                     itemSeq = line.itemSeq,
                     accession = line.accession,
                     name = line.name,
+                    genus = line.genus,
+                    species = line.species,
+                    cultivar = line.cultivar,
+                    commonName = line.commonName,
+                    group = line.group,
                     qty = line.qty,
                     unit = line.unit,
                     unitPriceCents = line.unitPriceCents,
@@ -55,6 +66,11 @@ object Export {
         row.itemSeq.toString(),
         row.accession,
         row.name,
+        row.genus,
+        row.species,
+        row.cultivar,
+        row.commonName,
+        row.group,
         row.qty.toString(),
         row.unit.label,
         Money.formatPlain(row.unitPriceCents),

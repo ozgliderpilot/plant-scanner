@@ -14,7 +14,8 @@ Three parts, deploy in this order:
 ## End-to-end checklist
 
 - [ ] Sheet created with a **`Plants`** tab (header: `accession, name, group, light`).
-- [ ] `Code.gs` + `shared.gs` pasted into Apps Script; `appsscript.json` set.
+- [ ] `Code.gs` + `shared.gs` in Apps Script (paste or `clasp push`); `appsscript.json` set.
+- [ ] *(clasp)* `backend/.clasp.*.json` + `gas-deploy.json` configured; GitHub secrets set for prod CI.
 - [ ] Script Property **`SHARED_SECRET`** set.
 - [ ] Web App deployed (**Anyone** access); `/exec` URL copied.
 - [ ] `curl` smoke-test returns `{"ok":true,...}`.

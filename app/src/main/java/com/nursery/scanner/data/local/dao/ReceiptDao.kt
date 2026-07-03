@@ -44,4 +44,7 @@ interface ReceiptDao {
     /** Flip the given receipts to EXPORTED in one statement (no double-counting, spec). */
     @Query("UPDATE receipts SET status = :exportedStatus WHERE localId IN (:ids)")
     suspend fun markExported(ids: List<Long>, exportedStatus: String)
+
+    @Query("DELETE FROM receipts WHERE status = :exportedStatus AND createdAtEpochMs < :cutoffMs")
+    suspend fun deleteExportedOlderThan(exportedStatus: String, cutoffMs: Long)
 }

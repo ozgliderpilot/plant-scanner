@@ -86,6 +86,10 @@ function parsePlants(values) {
     out.push({
       accession: accession,
       name: nameOf(row),
+      genus: get(row, iGenus),
+      species: get(row, iSpecies),
+      cultivar: get(row, iCultivar),
+      commonName: get(row, iCommon),
       group: iGroup >= 0 ? emptyToNull(row[iGroup]) : null,
       light: iLight >= 0 ? emptyToNull(row[iLight]) : null,
       potsInNursery: num(row, iPots),
@@ -95,6 +99,17 @@ function parsePlants(values) {
     });
   }
   return out;
+}
+
+/**
+ * Return a header row with a trailing sync_status column when absent. If sync_status already exists
+ * anywhere in the row (any casing), the header is returned unchanged — never duplicated.
+ */
+function ensureSyncStatusColumn(header) {
+  var h = (header || []).map(function (x) { return String(x).trim(); });
+  var lower = h.map(function (x) { return x.toLowerCase(); });
+  if (lower.indexOf('sync_status') >= 0) return h;
+  return h.concat(['sync_status']);
 }
 
 /**
@@ -260,6 +275,7 @@ function resolveSalesMarks(values, keys) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey,
-    accessionColIndex, salesColIndex, salesRowKey, selectPendingSales, resolveSalesMarks
+    accessionColIndex, salesColIndex, salesRowKey, selectPendingSales, resolveSalesMarks,
+    ensureSyncStatusColumn,
   };
 }

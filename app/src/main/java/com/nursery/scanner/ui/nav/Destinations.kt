@@ -20,6 +20,12 @@ object Routes {
     const val SELL_CART = "sell/cart"
     const val SELL_CONFIRM = "sell/confirm"
 
+    const val CULL_GRAPH = "cull"
+    const val CULL_SCAN = "cull/scan"
+    const val CULL_INFO = "cull/info"
+    const val CULL_SUCCESS = "cull/success"
+    const val CULLS = "culls"
+
     const val RECEIPT_DETAIL = "receipt/{id}"
     fun receiptDetail(id: Long) = "receipt/$id"
 }

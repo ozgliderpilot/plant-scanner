@@ -22,6 +22,10 @@ enum class ReceiptStatus {
 data class Plant(
     val accession: String,
     val name: String,
+    val genus: String = "",
+    val species: String = "",
+    val cultivar: String = "",
+    val commonName: String = "",
     val group: String?,
     val light: String?,
     val potsInNursery: Int = 0,
@@ -42,6 +46,11 @@ data class Plant(
 data class LineItem(
     val accession: String,
     val name: String,
+    val genus: String = "",
+    val species: String = "",
+    val cultivar: String = "",
+    val commonName: String = "",
+    val group: String = "",
     val qty: Int,
     val unitPriceCents: Long,
     val discountPct: Int,

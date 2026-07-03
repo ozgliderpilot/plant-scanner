@@ -19,11 +19,10 @@ import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.theme.Dimens
 
 /**
- * Action-first home (decision #1): one big primary "Sell plants", with the four Phase-2 actions
- * shown but dimmed/disabled so the navigation shell is visible without doing anything yet.
+ * Action-first home: Sell plants and Cull plants enabled; remaining Phase-2 actions dimmed.
  */
 @Composable
-fun HomeScreen(onSell: () -> Unit, modifier: Modifier = Modifier) {
+fun HomeScreen(onSell: () -> Unit, onCull: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -37,6 +36,12 @@ fun HomeScreen(onSell: () -> Unit, modifier: Modifier = Modifier) {
             leadingIcon = Icons.Filled.PointOfSale,
             style = BigButtonStyle.Primary,
         )
+        BigButton(
+            text = "Cull plants",
+            onClick = onCull,
+            leadingIcon = Icons.Filled.LocalFlorist,
+            style = BigButtonStyle.Primary,
+        )
 
         Text(
             "Coming later",
@@ -44,8 +49,7 @@ fun HomeScreen(onSell: () -> Unit, modifier: Modifier = Modifier) {
             modifier = Modifier.padding(top = Dimens.Gap),
         )
 
-        // Phase 2 — dimmed (disabled) tiles, present only to prove the shell holds them.
-        listOf("New accession", "Print label", "Repot", "Record death").forEach { label ->
+        listOf("New accession", "Print label", "Repot").forEach { label ->
             BigButton(
                 text = label,
                 onClick = {},

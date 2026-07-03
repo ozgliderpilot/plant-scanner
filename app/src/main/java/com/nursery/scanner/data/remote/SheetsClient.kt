@@ -53,6 +53,10 @@ class SheetsClient(
                 Plant(
                     accession = it.accession,
                     name = it.name,
+                    genus = it.genus,
+                    species = it.species,
+                    cultivar = it.cultivar,
+                    commonName = it.commonName,
                     group = it.group,
                     light = it.light,
                     potsInNursery = it.potsInNursery,
@@ -75,6 +79,21 @@ class SheetsClient(
             )
             val resp = json.decodeFromString<AppendSalesResponse>(postRaw(config.endpointUrl, requestBody))
             if (!resp.ok) error(resp.error ?: "Server rejected the export")
+            AppendOutcome(appended = resp.appended, skipped = resp.skipped)
+        }
+    }
+
+    suspend fun appendCulls(
+        config: DeviceConfig,
+        header: List<String>,
+        rows: List<List<String>>,
+    ): Result<AppendOutcome> = withContext(Dispatchers.IO) {
+        runCatching {
+            val requestBody = json.encodeToString(
+                AppendCullsRequest(secret = config.sharedSecret, header = header, rows = rows),
+            )
+            val resp = json.decodeFromString<AppendCullsResponse>(postRaw(config.endpointUrl, requestBody))
+            if (!resp.ok) error(resp.error ?: "Server rejected the cull export")
             AppendOutcome(appended = resp.appended, skipped = resp.skipped)
         }
     }

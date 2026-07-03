@@ -37,7 +37,7 @@ fun PlantCard(
             )
             if (isUnknown) {
                 Text(
-                    "Will be sold as unknown and reconciled later.",
+                    "Will be recorded as unknown and reconciled later.",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(top = 6.dp),
                 )

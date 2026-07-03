@@ -8,6 +8,10 @@ import kotlinx.serialization.Serializable
 data class PlantDto(
     val accession: String,
     val name: String,
+    val genus: String = "",
+    val species: String = "",
+    val cultivar: String = "",
+    val commonName: String = "",
     val group: String? = null,
     val light: String? = null,
     val potsInNursery: Int = 0,
@@ -41,6 +45,22 @@ data class AppendSalesRequest(
 
 @Serializable
 data class AppendSalesResponse(
+    val ok: Boolean,
+    val appended: Int = 0,
+    val skipped: Int = 0,
+    val error: String? = null,
+)
+
+@Serializable
+data class AppendCullsRequest(
+    val secret: String,
+    val header: List<String>,
+    val rows: List<List<String>>,
+    val action: String = "appendCulls",
+)
+
+@Serializable
+data class AppendCullsResponse(
     val ok: Boolean,
     val appended: Int = 0,
     val skipped: Int = 0,
