@@ -55,4 +55,12 @@ class CullRecordTest {
             assertEquals(message, CullRecord.validationError(record(notes = "note$char")))
         }
     }
+
+    @Test fun `sanitizeNotes strips newlines forbidden chars and enforces max length`() {
+        assertEquals("aphids on tips", CullRecord.sanitizeNotes("aphids on tips"))
+        assertEquals("Stock plant", CullRecord.sanitizeNotes("Stock plant"))
+        assertEquals("notebracket", CullRecord.sanitizeNotes("note[bracket]"))
+        assertEquals("abc", CullRecord.sanitizeNotes("a\nb{[c]}"))
+        assertEquals("a".repeat(200), CullRecord.sanitizeNotes("a".repeat(250)))
+    }
 }

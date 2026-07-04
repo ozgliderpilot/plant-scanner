@@ -51,6 +51,13 @@ data class CullRecord(
 
         private val FORBIDDEN_NOTES_CHARS = setOf('[', ']', '{', '}')
 
+        /** Notes safe for entry and export: no newlines, no Access reverse-sync delimiters, max length. */
+        fun sanitizeNotes(input: String): String =
+            input
+                .replace("\n", "")
+                .filter { it !in FORBIDDEN_NOTES_CHARS }
+                .take(MAX_NOTES_LENGTH)
+
         /** Null when valid; otherwise a short reason the save should be rejected. */
         fun validationError(record: CullRecord): String? = when {
             record.qty < 1 -> "Quantity must be at least 1"

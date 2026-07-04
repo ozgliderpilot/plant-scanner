@@ -100,7 +100,7 @@ fun EnterInfoScreen(
 
             OutlinedTextField(
                 value = notes,
-                onValueChange = { notes = it.replace("\n", "").take(CullRecord.MAX_NOTES_LENGTH) },
+                onValueChange = { notes = CullRecord.sanitizeNotes(it) },
                 label = { Text("Notes (optional)") },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyLarge,
