@@ -272,10 +272,133 @@ function resolveSalesMarks(values, keys) {
   return out;
 }
 
+/**
+ * Normalised cull_id primary key for a Culls row — trimmed string so " PP-1 " and "PP-1" collide.
+ */
+function cullRowKey(cullId) {
+  return String(cullId === undefined || cullId === null ? '' : cullId).trim();
+}
+
+/**
+ * Backing logic for the `pendingCulls` action: select the reverse-sync work set from the raw "Culls"
+ * sheet values (row 0 = header). Returns every row whose `sync_status` is exactly "Pending" (trimmed,
+ * case-insensitive), shaped as the minimal object the Access culls-in phase consumes:
+ * `{cull_id, accession, qty, unit, notes}`.
+ *
+ * Columns are resolved by header name, so reordered / extra columns are tolerated and a missing data
+ * column yields a default ('' for strings, 0 for numbers). A header-only or empty sheet, or one with no
+ * `sync_status` column, yields [].
+ */
+function selectPendingCulls(values) {
+  if (!values || values.length < 2) return [];
+  var header = values[0];
+  var iStatus = salesColIndex(header, 'sync_status');
+  if (iStatus < 0) return [];
+  var iCullId = salesColIndex(header, 'cull_id');
+  var iAcc = salesColIndex(header, 'accession');
+  var iQty = salesColIndex(header, 'qty');
+  var iUnit = salesColIndex(header, 'unit');
+  var iNotes = salesColIndex(header, 'notes');
+
+  function str(row, idx) { return idx >= 0 ? String(row[idx]).trim() : ''; }
+  function num(row, idx) {
+    if (idx < 0) return 0;
+    var n = Number(row[idx]);
+    return isNaN(n) ? 0 : n;
+  }
+
+  var out = [];
+  for (var r = 1; r < values.length; r++) {
+    var row = values[r];
+    if (String(row[iStatus]).trim().toLowerCase() !== 'pending') continue;
+    out.push({
+      cull_id: str(row, iCullId),
+      accession: str(row, iAcc),
+      qty: num(row, iQty),
+      unit: str(row, iUnit),
+      notes: str(row, iNotes),
+    });
+  }
+  return out;
+}
+
+/**
+ * Backing logic for the `markCullsSynced` action: resolve a batch of mark requests against the raw
+ * "Culls" sheet values (row 0 = header). Each request is `{cull_id, status}`; this finds the data row
+ * whose `cull_id` primary key matches (see cullRowKey) and pairs it with the requested status.
+ *
+ * Returns `[{ rowIndex, status }]` where `rowIndex` is the 0-based index into `values` (so the header is
+ * row 0 and the caller writes sheet row `rowIndex + 1`). A key with no matching row is silently ignored.
+ */
+function resolveCullMarks(values, keys) {
+  if (!values || values.length < 2 || !keys || keys.length === 0) return [];
+  var header = values[0];
+  var iCullId = salesColIndex(header, 'cull_id');
+  if (iCullId < 0) return [];
+
+  var byKey = Object.create(null);
+  for (var r = 1; r < values.length; r++) {
+    var k = cullRowKey(values[r][iCullId]);
+    if (byKey[k] === undefined) byKey[k] = r;
+  }
+
+  var out = [];
+  (keys || []).forEach(function (req) {
+    var rowIndex = byKey[cullRowKey(req.cull_id)];
+    if (rowIndex !== undefined) out.push({ rowIndex: rowIndex, status: req.status });
+  });
+  return out;
+}
+
+/**
+ * True when a cull's notes and unit identify a stock-plant cull per #28 UX: volunteers record
+ * Pot type + `Notes = "Stock plant"`. Such rows must not decrement inventory.
+ */
+function isStockPlantCull(notes, unit) {
+  if (String(notes === undefined || notes === null ? '' : notes).trim().toLowerCase() !== 'stock plant') {
+    return false;
+  }
+  var u = String(unit === undefined || unit === null ? '' : unit).trim().toLowerCase();
+  return u === 'pots' || u === 'pot';
+}
+
+/** max(0, cur - qty) — shared clamp for cull deduction. */
+function clampSub(cur, qty) {
+  if (qty < 0) qty = 0;
+  return cur - qty < 0 ? 0 : cur - qty;
+}
+
+/**
+ * Pure cull deduction arithmetic (#28): subtract qty ONLY from the named container type, clamped at
+ * zero. Unlike sales, misc oversell does NOT draw from pots. StockInNursery is never touched.
+ * `unit` is normalised to lowercase; unknown units leave all counts unchanged.
+ */
+function computeCullDeduction(unit, qty, pots, tubes, misc) {
+  var u = String(unit === undefined || unit === null ? '' : unit).trim().toLowerCase();
+  var p = pots;
+  var t = tubes;
+  var m = misc;
+  switch (u) {
+    case 'pots':
+    case 'pot':
+      p = clampSub(p, qty);
+      break;
+    case 'tubes':
+    case 'tube':
+      t = clampSub(t, qty);
+      break;
+    case 'misc':
+      m = clampSub(m, qty);
+      break;
+  }
+  return { pots: p, tubes: t, misc: m };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey,
     accessionColIndex, salesColIndex, salesRowKey, selectPendingSales, resolveSalesMarks,
-    ensureSyncStatusColumn,
+    ensureSyncStatusColumn, cullRowKey, selectPendingCulls, resolveCullMarks,
+    isStockPlantCull, computeCullDeduction,
   };
 }

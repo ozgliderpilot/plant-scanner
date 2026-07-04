@@ -8,6 +8,8 @@ Option Explicit
 '    1. Sales-in (reverse sync): pull "Pending" Sales rows out of the Sheet,
 '       decrement the matching Batches stock in Access (or set a row aside as
 '       "NoMatch" when it can't be applied), then mark each row on the Sheet.
+'    1b. Culls-in (reverse sync): same handshake for "Pending" Culls rows, with
+'       a stricter single-type deduction rule and a StockPlant skip path.
 '    2. Plant push ("replacePlants"): full-mirror rewrite of the "Plants" sheet
 '       from the in-stock plant view (qryPlantsExport).
 '  Sales-in runs FIRST so the same run's push already reflects the freshly
@@ -57,6 +59,10 @@ Private Const QUERY_NAME As String = "qryPlantsExport"
 ' it is never deducted again even if the Sheet flip to "Synced" failed last run.
 Private Const LEDGER_NAME As String = "tblAppliedSales"
 
+' Local idempotency ledger for the culls-in reverse sync. Auto-created on first run,
+' PK (cull_id). A row here means "this cull has already been processed in Access".
+Private Const CULL_LEDGER_NAME As String = "tblAppliedCulls"
+
 ' The export query is (re)created automatically on first run if missing (see EnsureQueryDef_), so the
 ' nursery PC needs no manual query setup. This SELECT is the single source of truth for the export
 ' columns (Batches + Species joined on [Id No], in-stock only).
@@ -103,6 +109,7 @@ Public Sub SyncPlants(Optional ByVal force As Boolean = False, _
     ' push: swallow its errors here, then restore the push's handler.
     On Error Resume Next
     ApplyPendingSales_ url, secret
+    ApplyPendingCulls_ url, secret
     On Error GoTo Done
 
     ' ---- Phase 2: plant push (full-mirror replacePlants) -------------------------------------------
@@ -276,6 +283,82 @@ Public Sub SalesInSelfTest()
     Next i
 End Sub
 
+' Immediate-window self-test for cull deduction arithmetic (ComputeCullDeduction_) — single-type clamp,
+' no misc->pots overflow. Run: modPlantSync.CullDeductSelfTest
+Public Sub CullDeductSelfTest()
+    Debug.Print "--- CullDeductSelfTest ---"
+    PrintCullDeduct_ "pots", 1, 0, 4, 0, 0, 4, 0   ' issue example: don't touch tubes
+    PrintCullDeduct_ "tubes", 3, 10, 5, 4, 10, 2, 4
+    PrintCullDeduct_ "misc", 7, 10, 5, 4, 10, 5, 0  ' no overflow to pots
+    PrintCullDeduct_ "pots", 9, 2, 5, 4, 0, 5, 4
+End Sub
+
+Private Sub PrintCullDeduct_(ByVal unit As String, ByVal qty As Long, _
+                             ByVal p As Long, ByVal t As Long, ByVal m As Long, _
+                             ByVal wantP As Long, ByVal wantT As Long, ByVal wantM As Long)
+    ComputeCullDeduction_ unit, qty, p, t, m
+    Debug.Print "  " & unit & " qty " & qty & " -> P=" & p & " T=" & t & " M=" & m & _
+                IIf(p = wantP And t = wantT And m = wantM, "  OK", _
+                    "  FAIL (want P=" & wantP & " T=" & wantT & " M=" & wantM & ")")
+End Sub
+
+' Safe DRY RUN of the culls-in selection. POSTs pendingCulls and prints routing without changing stock
+' or flipping Sheet cells. Run: modPlantSync.CullsInSelfTest
+Public Sub CullsInSelfTest()
+    Dim url As String, secret As String, body As String
+    Dim culls As Collection, row As Variant, db As DAO.Database
+    Dim i As Long, cullId As String, accession As String, unit As String, notes As String, ledStatus As String
+    Dim qty As Long, matches As Long
+
+    url = Environ$(ENV_URL)
+    secret = Environ$(ENV_SECRET)
+    Debug.Print "--- CullsInSelfTest (dry run: no stock change, no Sheet flip) ---"
+    Debug.Print "config:  " & ENV_URL & "=" & IIf(Len(url) > 0, "SET", "MISSING") & _
+                ", " & ENV_SECRET & "=" & IIf(Len(secret) > 0, "SET", "MISSING")
+    If Len(url) = 0 Or Len(secret) = 0 Then Exit Sub
+
+    If Not PostJsonResponse(url, _
+        "{""action"":""pendingCulls"",""secret"":""" & JsonEscape(secret) & """}", body) Then
+        Debug.Print "pending: POST FAILED (no ok:true response)"
+        Exit Sub
+    End If
+
+    Set culls = ParsePendingCulls_(body)
+    Debug.Print "pending: " & culls.Count & " row(s)"
+    If culls.Count = 0 Then Exit Sub
+
+    Set db = CurrentDb
+    EnsureCullLedger_ db
+    For i = 1 To culls.Count
+        row = culls.Item(i)
+        cullId = CStr(row(0))
+        accession = CStr(row(1))
+        qty = row(2)
+        unit = LCase$(Trim$(CStr(row(3))))
+        notes = CStr(row(4))
+
+        ledStatus = CullLedgerStatus_(db, cullId)
+        If Len(ledStatus) > 0 Then
+            Debug.Print "  " & cullId & " acc=" & accession & " -> already ledgered '" & ledStatus & "'"
+        ElseIf IsStockPlantCull_(notes, unit) Then
+            Debug.Print "  " & cullId & " acc=" & accession & " notes=[" & notes & "] -> StockPlant (skip)"
+        ElseIf Not IsSellUnit_(unit) Then
+            Debug.Print "  " & cullId & " acc=" & accession & " unit=[" & unit & "] -> NoMatch"
+        Else
+            matches = CountBatchMatches_(db, accession)
+            Select Case matches
+                Case 1
+                    Debug.Print "  " & cullId & " acc=" & accession & " " & unit & " x" & qty & _
+                                " -> would deduct (1 batch match)"
+                Case 0
+                    Debug.Print "  " & cullId & " acc=" & accession & " -> NoMatch (no batch)"
+                Case Else
+                    Debug.Print "  " & cullId & " acc=" & accession & " -> NoMatch (ambiguous: " & matches & ")"
+            End Select
+        End If
+    Next i
+End Sub
+
 ' ============================================================================
 '  Sales-in (reverse sync): Pending Sales rows -> Access stock decrement
 ' ============================================================================
@@ -358,6 +441,239 @@ Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
         PostJson url, payload
     End If
 End Sub
+
+' ============================================================================
+'  Culls-in (reverse sync): Pending Culls rows -> Access stock decrement
+' ============================================================================
+
+' Pull every "Pending" Culls row from the Sheet and route each one to a terminal state.
+' Same resilience/idempotency pattern as ApplyPendingSales_, but:
+'   * ledger keyed on cull_id (not receipt/item_seq)
+'   * ComputeCullDeduction_ (single-type clamp, NO misc->pots overflow)
+'   * Notes = "Stock plant" -> ledger "StockPlant", no stock moved (#28)
+Private Sub ApplyPendingCulls_(ByVal url As String, ByVal secret As String)
+    Dim db As DAO.Database
+    Dim body As String, payload As String
+    Dim culls As Collection, marks As Collection, row As Variant
+    Dim i As Long
+    Dim cullId As String, accession As String, unit As String, notes As String, ledStatus As String
+    Dim qty As Long
+
+    Set db = CurrentDb
+    EnsureCullLedger_ db
+
+    payload = "{""action"":""pendingCulls"",""secret"":""" & JsonEscape(secret) & """}"
+    If Not PostJsonResponse(url, payload, body) Then Exit Sub
+    Set culls = ParsePendingCulls_(body)
+    If culls.Count = 0 Then Exit Sub
+
+    Set marks = New Collection
+    For i = 1 To culls.Count
+        row = culls.Item(i)
+        cullId = CStr(row(0))
+        accession = CStr(row(1))
+        qty = row(2)
+        unit = LCase$(Trim$(CStr(row(3))))
+        notes = CStr(row(4))
+
+        ledStatus = CullLedgerStatus_(db, cullId)
+        If Len(ledStatus) > 0 Then
+            marks.Add CullMarkJson_(cullId, ledStatus)
+        ElseIf IsStockPlantCull_(notes, unit) Then
+            If ApplyCullStockPlant_(db, cullId) Then
+                marks.Add CullMarkJson_(cullId, "StockPlant")
+            End If
+        ElseIf Not IsSellUnit_(unit) Then
+            If ApplyCullNoMatch_(db, cullId) Then
+                marks.Add CullMarkJson_(cullId, "NoMatch")
+            End If
+        ElseIf CountBatchMatches_(db, accession) = 1 Then
+            If ApplyCullDeduction_(db, cullId, accession, unit, qty) Then
+                marks.Add CullMarkJson_(cullId, "Synced")
+            End If
+        Else
+            If ApplyCullNoMatch_(db, cullId) Then
+                marks.Add CullMarkJson_(cullId, "NoMatch")
+            End If
+        End If
+    Next i
+
+    If marks.Count > 0 Then
+        Dim arr() As String
+        ReDim arr(0 To marks.Count - 1)
+        For i = 1 To marks.Count
+            arr(i - 1) = marks.Item(i)
+        Next i
+        payload = "{""action"":""markCullsSynced""," & _
+                  """secret"":""" & JsonEscape(secret) & """," & _
+                  """keys"":[" & Join(arr, ",") & "]}"
+        PostJson url, payload
+    End If
+End Sub
+
+' Decrement ONLY the cull unit's stock count for the single matching batch AND insert the cull ledger
+' row, in ONE DAO transaction. Uses ComputeCullDeduction_ (no misc->pots overflow). StockInNursery and
+' the *ForSale flags are never touched.
+Private Function ApplyCullDeduction_(ByRef db As DAO.Database, _
+                                     ByVal cullId As String, ByVal accession As String, _
+                                     ByVal unit As String, ByVal qty As Long) As Boolean
+    Dim ws As DAO.Workspace
+    Dim rs As DAO.Recordset
+    Dim inTrans As Boolean
+    Dim p As Long, t As Long, m As Long
+
+    On Error GoTo Fail
+    Set ws = DBEngine.Workspaces(0)
+    ws.BeginTrans
+    inTrans = True
+
+    Set rs = OpenBatchByAccession_(db, accession, True)
+    If rs.EOF Then Err.Raise vbObjectError, , "batch vanished"
+
+    p = Nz(rs![PotsInNursery], 0)
+    t = Nz(rs![TubesInNursery], 0)
+    m = Nz(rs![MiscInNursery], 0)
+    ComputeCullDeduction_ unit, qty, p, t, m
+
+    rs.Edit
+    rs![PotsInNursery] = p
+    rs![TubesInNursery] = t
+    rs![MiscInNursery] = m
+    rs.Update
+    rs.Close
+    Set rs = Nothing
+
+    CullLedgerInsert_ db, cullId, "Synced"
+
+    ws.CommitTrans
+    inTrans = False
+    ApplyCullDeduction_ = True
+    Exit Function
+Fail:
+    If Not rs Is Nothing Then
+        On Error Resume Next
+        rs.Close
+        On Error GoTo 0
+    End If
+    If inTrans Then ws.Rollback
+    ApplyCullDeduction_ = False
+End Function
+
+' Record an unactionable cull row in the ledger as "NoMatch" — no stock moved.
+Private Function ApplyCullNoMatch_(ByRef db As DAO.Database, ByVal cullId As String) As Boolean
+    On Error GoTo Fail
+    CullLedgerInsert_ db, cullId, "NoMatch"
+    ApplyCullNoMatch_ = True
+    Exit Function
+Fail:
+    ApplyCullNoMatch_ = False
+End Function
+
+' Record a stock-plant cull (Notes = "Stock plant") — no stock moved, StockInNursery untouched.
+Private Function ApplyCullStockPlant_(ByRef db As DAO.Database, ByVal cullId As String) As Boolean
+    On Error GoTo Fail
+    CullLedgerInsert_ db, cullId, "StockPlant"
+    ApplyCullStockPlant_ = True
+    Exit Function
+Fail:
+    ApplyCullStockPlant_ = False
+End Function
+
+' Pure cull deduction (#28): subtract qty ONLY from the named container, clamped at zero.
+' Unlike ComputeDeduction_, misc oversell does NOT draw from pots.
+Private Sub ComputeCullDeduction_(ByVal unit As String, ByVal qty As Long, _
+                                  ByRef p As Long, ByRef t As Long, ByRef m As Long)
+    Select Case unit
+        Case "pots", "pot"
+            p = ClampSub_(p, qty)
+        Case "tubes", "tube"
+            t = ClampSub_(t, qty)
+        Case "misc"
+            m = ClampSub_(m, qty)
+    End Select
+End Sub
+
+' True when notes + unit identify a stock-plant cull per #28 (Pot + Notes = "Stock plant").
+Private Function IsStockPlantCull_(ByVal notes As String, ByVal unit As String) As Boolean
+    IsStockPlantCull_ = (LCase$(Trim$(notes)) = "stock plant") And _
+                          (LCase$(Trim$(unit)) = "pots" Or LCase$(Trim$(unit)) = "pot")
+End Function
+
+Private Sub EnsureCullLedger_(ByRef db As DAO.Database)
+    Dim tdf As DAO.TableDef
+    On Error Resume Next
+    Set tdf = db.TableDefs(CULL_LEDGER_NAME)
+    On Error GoTo 0
+    If Not (tdf Is Nothing) Then Exit Sub
+    db.Execute _
+        "CREATE TABLE " & CULL_LEDGER_NAME & " (" & _
+        "[cull_id] TEXT(255) NOT NULL, " & _
+        "[status] TEXT(50), " & _
+        "[applied_at] DATETIME, " & _
+        "CONSTRAINT PrimaryKey PRIMARY KEY ([cull_id]));", dbFailOnError
+End Sub
+
+Private Function CullLedgerStatus_(ByRef db As DAO.Database, ByVal cullId As String) As String
+    Dim qd As DAO.QueryDef, rs As DAO.Recordset
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pId Text ( 255 ); " & _
+        "SELECT [status] FROM " & CULL_LEDGER_NAME & " WHERE [cull_id]=[pId];")
+    qd.Parameters("pId").Value = cullId
+    Set rs = qd.OpenRecordset(dbOpenSnapshot)
+    If rs.EOF Then
+        CullLedgerStatus_ = ""
+    Else
+        CullLedgerStatus_ = Nz(rs!Status, "Synced")
+    End If
+    rs.Close
+    Set rs = Nothing
+End Function
+
+Private Sub CullLedgerInsert_(ByRef db As DAO.Database, ByVal cullId As String, ByVal status As String)
+    Dim qd As DAO.QueryDef
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pId Text ( 255 ), pStatus Text ( 50 ), pAt DateTime; " & _
+        "INSERT INTO " & CULL_LEDGER_NAME & " ([cull_id], [status], [applied_at]) " & _
+        "VALUES ([pId], [pStatus], [pAt]);")
+    qd.Parameters("pId").Value = cullId
+    qd.Parameters("pStatus").Value = status
+    qd.Parameters("pAt").Value = Now()
+    qd.Execute dbFailOnError
+End Sub
+
+Private Function CullMarkJson_(ByVal cullId As String, ByVal status As String) As String
+    CullMarkJson_ = "{""cull_id"":""" & JsonEscape(cullId) & """," & _
+                    """status"":""" & JsonEscape(status) & """}"
+End Function
+
+Private Function ParsePendingCulls_(ByVal body As String) As Collection
+    Dim result As New Collection
+    Dim p As Long, q As Long, inner As String
+    Dim re As Object, matches As Object, obj As String, i As Long
+
+    p = InStr(1, body, """culls"":[")
+    If p = 0 Then GoTo Done
+    p = p + Len("""culls"":[")
+    q = InStr(p, body, "]")
+    If q = 0 Then GoTo Done
+    inner = Mid$(body, p, q - p)
+
+    Set re = CreateObject("VBScript.RegExp")
+    re.Global = True
+    re.Pattern = "\{[^{}]*\}"
+    Set matches = re.Execute(inner)
+    For i = 0 To matches.Count - 1
+        obj = matches.Item(i).Value
+        result.Add Array( _
+            JsonStr_(obj, "cull_id"), _
+            JsonStr_(obj, "accession"), _
+            CLng(Val(JsonNum_(obj, "qty"))), _
+            JsonStr_(obj, "unit"), _
+            JsonStr_(obj, "notes"))
+    Next i
+Done:
+    Set ParsePendingCulls_ = result
+End Function
 
 ' Decrement the sale unit's stock count(s) for the single matching batch AND insert the ledger row, in
 ' ONE DAO transaction on Workspaces(0) (which covers the linked Jet back-end). Returns True only if both
