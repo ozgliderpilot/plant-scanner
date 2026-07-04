@@ -80,8 +80,9 @@ into the build), one APK flavor can point at either backend — the test flavor 
 ## Automated deploy (clasp)
 
 Code in `backend/` can be pushed with [clasp](https://github.com/google/clasp) instead of
-copy-paste. **Prod** deploys on merge to `main` (GitHub Actions). **Test** deploys from your
-machine with one command.
+copy-paste. **Prod** deploys on merge to `main` (GitHub Actions). **Test** deploys automatically
+on pull requests that change `backend/Code.gs` or `backend/shared.js`, and can still be run
+locally with one command.
 
 ### One-time setup (per environment)
 
@@ -103,15 +104,26 @@ cp gas-deploy.json.example gas-deploy.json     # set both deploymentIds
 npx clasp login
 ```
 
-GitHub repo secrets (Settings → Secrets → Actions) for **prod CI**:
+GitHub repo secrets (Settings → Secrets → Actions):
 
 | Secret | Value |
 |--------|--------|
 | `CLASPRC_JSON` | Full contents of `~/.clasprc.json` after `clasp login` |
+| `GAS_TEST_SCRIPT_ID` | Test Apps Script project ID |
+| `GAS_TEST_DEPLOYMENT_ID` | Test Web App deployment ID |
 | `GAS_PROD_SCRIPT_ID` | Prod Apps Script project ID |
 | `GAS_PROD_DEPLOYMENT_ID` | Prod Web App deployment ID |
 
 Refresh `CLASPRC_JSON` if the OAuth token expires.
+
+### Deploy test (CI)
+
+Open or update a PR to `main` that touches `backend/Code.gs` or `backend/shared.js` → workflow
+**Deploy GAS (test)** runs automatically (logic tests, `clasp push`, redeploy test Web App). New
+commits on the same PR re-deploy test; only the latest run completes if several are queued.
+
+> Fork PRs do not receive repository secrets, so test deploy is skipped for those (CI tests still
+> run). Use a branch in this repo for backend changes you want deployed to test.
 
 ### Deploy test (CLI)
 
