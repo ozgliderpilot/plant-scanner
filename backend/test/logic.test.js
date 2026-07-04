@@ -3,6 +3,8 @@ const assert = require('node:assert');
 const {
   isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey,
   accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
+  selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction,
+  validateAppendCullsNotes,
 } = require('../shared.js');
 
 test('isAuthorized accepts the right secret only', () => {
@@ -387,6 +389,130 @@ test('ensureSyncStatusColumn does not duplicate an existing sync_status column',
   assert.deepStrictEqual(ensureSyncStatusColumn(withStatus), withStatus);
   const midStatus = ['cull_id', 'sync_status', 'date'];
   assert.deepStrictEqual(ensureSyncStatusColumn(midStatus), midStatus);
+});
+
+// ---- Reverse sync (Culls -> Access) selection & marking -------------------------------------------
+const CULLS_SHEET_HEADER = [...CULLS_HEADER, 'sync_status'];
+
+test('selectPendingCulls returns [] for an empty or header-only sheet', () => {
+  assert.deepStrictEqual(selectPendingCulls(null), []);
+  assert.deepStrictEqual(selectPendingCulls([]), []);
+  assert.deepStrictEqual(selectPendingCulls([CULLS_SHEET_HEADER]), []);
+});
+
+test('selectPendingCulls selects only Pending rows, shaped {cull_id,accession,qty,unit,notes}', () => {
+  const values = [
+    CULLS_SHEET_HEADER,
+    ['PP-1-1', '2026-07-01', '31011', 'Acacia', '', '', '', '', 'Tree', 2, 'tubes', 'Dead', '', 'Pending'],
+    ['PP-1-2', '2026-07-01', '8250', 'Banksia', '', '', '', '', '', 1, 'pots', 'Pest', 'aphids', 'Synced'],
+    ['PP-1-3', '2026-07-01', '9000', 'Grevillea', '', '', '', '', '', 1, 'misc', 'Other', '', 'Pending'],
+  ];
+  assert.deepStrictEqual(selectPendingCulls(values), [
+    { cull_id: 'PP-1-1', accession: '31011', qty: 2, unit: 'tubes', notes: '' },
+    { cull_id: 'PP-1-3', accession: '9000', qty: 1, unit: 'misc', notes: '' },
+  ]);
+});
+
+test('selectPendingCulls carries notes for stock-plant routing', () => {
+  const values = [
+    CULLS_SHEET_HEADER,
+    ['PP-2-1', '2026-07-01', '16726', 'Hardenbergia', '', '', '', '', '', 1, 'pots', 'Dead', 'Stock plant', 'Pending'],
+  ];
+  assert.deepStrictEqual(selectPendingCulls(values), [
+    { cull_id: 'PP-2-1', accession: '16726', qty: 1, unit: 'pots', notes: 'Stock plant' },
+  ]);
+});
+
+test('resolveCullMarks maps each cull_id key to its values row index and status', () => {
+  const values = [
+    CULLS_SHEET_HEADER,
+    ['PP-1-1', '2026-07-01', '31011', 'A', '', '', '', '', '', 1, 'tubes', 'Dead', '', 'Pending'],
+    ['PP-1-2', '2026-07-01', '8250', 'B', '', '', '', '', '', 1, 'pots', 'Dead', '', 'Pending'],
+  ];
+  assert.deepStrictEqual(
+    resolveCullMarks(values, [{ cull_id: 'PP-1-2', status: 'Synced' }]),
+    [{ rowIndex: 2, status: 'Synced' }],
+  );
+});
+
+test('resolveCullMarks ignores keys with no matching row (not an error)', () => {
+  const values = [CULLS_SHEET_HEADER, ['PP-1-1', '2026-07-01', '31011', 'A', '', '', '', '', '', 1, 'tubes', 'Dead', '', 'Pending']];
+  assert.deepStrictEqual(
+    resolveCullMarks(values, [
+      { cull_id: 'PP-1-1', status: 'Synced' },
+      { cull_id: 'PP-NOPE', status: 'Synced' },
+    ]),
+    [{ rowIndex: 1, status: 'Synced' }],
+  );
+});
+
+test('isStockPlantCull matches the spec phrase case-insensitively after trim', () => {
+  assert.strictEqual(isStockPlantCull('Stock plant', 'pots'), true);
+  assert.strictEqual(isStockPlantCull('  stock plant  ', 'pot'), true);
+  assert.strictEqual(isStockPlantCull('STOCK PLANT', 'POTS'), true);
+  assert.strictEqual(isStockPlantCull('Stock plant', 'tubes'), false);
+  assert.strictEqual(isStockPlantCull('Stock plant cull', 'pots'), false);
+  assert.strictEqual(isStockPlantCull('', 'pots'), false);
+  assert.strictEqual(isStockPlantCull(null, 'pots'), false);
+});
+
+test('computeCullDeduction subtracts only from the named container, clamped at zero', () => {
+  // Issue example: Tubes=4, cull 1 Pot at Pots=0 -> Pots stays 0, Tubes untouched
+  assert.deepStrictEqual(
+    computeCullDeduction('pots', 1, 0, 4, 0),
+    { pots: 0, tubes: 4, misc: 0 },
+  );
+  assert.deepStrictEqual(
+    computeCullDeduction('tubes', 3, 10, 5, 4),
+    { pots: 10, tubes: 2, misc: 4 },
+  );
+  assert.deepStrictEqual(
+    computeCullDeduction('misc', 7, 10, 5, 4),
+    { pots: 10, tubes: 5, misc: 0 }, // no misc->pots overflow (unlike sales)
+  );
+  assert.deepStrictEqual(
+    computeCullDeduction('pots', 9, 2, 5, 4),
+    { pots: 0, tubes: 5, misc: 4 },
+  );
+});
+
+test('validateAppendCullsNotes accepts clean notes and empty notes', () => {
+  const rows = [
+    ['PP-1-1', '2026-07-01', '31011', 'Acacia', '', '', '', '', 'Tree', 2, 'tubes', 'Dead', 'aphids on tips'],
+    ['PP-1-2', '2026-07-01', '8250', 'Banksia', '', '', '', '', '', 1, 'pots', 'Dead', ''],
+  ];
+  assert.strictEqual(validateAppendCullsNotes(CULLS_HEADER, rows), null);
+});
+
+test('validateAppendCullsNotes rejects notes containing bracket or brace characters', () => {
+  const rows = [
+    ['PP-1-1', '2026-07-01', '31011', 'Acacia', '', '', '', '', 'Tree', 2, 'tubes', 'Dead', 'ok'],
+    ['PP-1-2', '2026-07-01', '8250', 'Banksia', '', '', '', '', '', 1, 'pots', 'Dead', 'bad [note'],
+  ];
+  assert.strictEqual(
+    validateAppendCullsNotes(CULLS_HEADER, rows),
+    'Cull notes contain unsupported characters',
+  );
+  for (const ch of ['[', ']', '{', '}']) {
+    const bad = [
+      ['PP-1-1', '2026-07-01', '31011', 'Acacia', '', '', '', '', 'Tree', 2, 'tubes', 'Dead', `x${ch}y`],
+    ];
+    assert.strictEqual(
+      validateAppendCullsNotes(CULLS_HEADER, bad),
+      'Cull notes contain unsupported characters',
+    );
+  }
+});
+
+test('validateAppendCullsNotes resolves notes column from header order', () => {
+  const header = ['notes', 'cull_id', 'date'];
+  const rows = [['fine', 'PP-1-1', '2026-07-01']];
+  assert.strictEqual(validateAppendCullsNotes(header, rows), null);
+  rows[0][0] = '{bad}';
+  assert.strictEqual(
+    validateAppendCullsNotes(header, rows),
+    'Cull notes contain unsupported characters',
+  );
 });
 
 test('filterNewRows dedupes culls by cull_id independently', () => {

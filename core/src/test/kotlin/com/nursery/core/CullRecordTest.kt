@@ -46,4 +46,21 @@ class CullRecordTest {
             CullRecord.validationError(record(notes = "a".repeat(201))),
         )
     }
+
+    @Test fun `notes cannot contain bracket or brace characters`() {
+        assertNull(CullRecord.validationError(record(notes = "aphids on tips")))
+        assertNull(CullRecord.validationError(record(notes = "Stock plant")))
+        val message = "Notes cannot contain [, ], {, or }"
+        for (char in listOf('[', ']', '{', '}')) {
+            assertEquals(message, CullRecord.validationError(record(notes = "note$char")))
+        }
+    }
+
+    @Test fun `sanitizeNotes strips newlines forbidden chars and enforces max length`() {
+        assertEquals("aphids on tips", CullRecord.sanitizeNotes("aphids on tips"))
+        assertEquals("Stock plant", CullRecord.sanitizeNotes("Stock plant"))
+        assertEquals("notebracket", CullRecord.sanitizeNotes("note[bracket]"))
+        assertEquals("abc", CullRecord.sanitizeNotes("a\nb{[c]}"))
+        assertEquals("a".repeat(200), CullRecord.sanitizeNotes("a".repeat(250)))
+    }
 }

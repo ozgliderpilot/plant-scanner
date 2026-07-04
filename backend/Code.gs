@@ -8,6 +8,8 @@
  *   - appendCulls     -> appends cull rows to "Culls" (deduped by cull_id), stamping sync_status
  *   - pendingSales    -> returns every "Sales" row whose sync_status is "Pending" (Access reverse sync)
  *   - markSalesSynced -> sets sync_status by (receipt,item_seq) key (Access reverse sync, status-agnostic)
+ *   - pendingCulls    -> returns every "Culls" row whose sync_status is "Pending" (Access reverse sync)
+ *   - markCullsSynced -> sets sync_status by cull_id key (Access reverse sync, status-agnostic)
  *
  * Every action also stamps a "SyncStatus" sheet (one row per event) with the last time it ran, so the
  * Sheet shows when plants were last pushed from Access and last pulled to / pushed from the device.
@@ -29,6 +31,8 @@ function doPost(e) {
       case 'appendCulls': return handleAppendCulls_(body);
       case 'pendingSales': return handlePendingSales_();
       case 'markSalesSynced': return handleMarkSalesSynced_(body);
+      case 'pendingCulls': return handlePendingCulls_();
+      case 'markCullsSynced': return handleMarkCullsSynced_(body);
       default: return json_({ ok: false, error: 'Unknown action: ' + body.action });
     }
   } catch (err) {
@@ -113,6 +117,8 @@ function handleReplacePlants_(body) {
 
 function handleAppendCulls_(body) {
   if (!body.header || !body.rows) return json_({ ok: false, error: 'Missing header/rows' });
+  var notesError = validateAppendCullsNotes(body.header, body.rows);
+  if (notesError) return json_({ ok: false, error: notesError });
 
   var lock = LockService.getDocumentLock();
   try {
@@ -244,6 +250,63 @@ function handleMarkSalesSynced_(body) {
       sheet.getRange(m.rowIndex + 1, statusCol + 1).setValue(m.status);
     });
     recordSync_('Sales to Access', 'Sheet → Access', 'marked ' + marks.length);
+    return json_({ ok: true, marked: marks.length });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Reverse sync, step 1 (Access pulls culls): return every "Culls" row whose sync_status is "Pending",
+ * shaped as {cull_id, accession, qty, unit, notes}. Read under the document lock. The error-prone
+ * selection lives in shared.js selectPendingCulls (unit-tested).
+ */
+function handlePendingCulls_() {
+  var lock = LockService.getDocumentLock();
+  try {
+    lock.waitLock(30000);
+  } catch (e) {
+    return json_({ ok: false, error: 'Sheet busy, please retry' });
+  }
+  try {
+    var sheet = SpreadsheetApp.getActive().getSheetByName('Culls');
+    if (!sheet) return json_({ ok: false, error: 'No "Culls" sheet found' });
+    var values = sheet.getDataRange().getValues();
+    var culls = selectPendingCulls(values);
+    recordSync_('Culls to Access', 'Sheet → Access', culls.length + ' pending');
+    return json_({ ok: true, culls: culls, count: culls.length });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Reverse sync, step 2 (Access acknowledges culls): set each addressed row's sync_status to the status
+ * it is handed. Body: { keys: [{cull_id, status}] }. Located by cull_id primary key; keys absent from
+ * the sheet are ignored without error. Status-agnostic — Access decides ("Synced", "NoMatch",
+ * "StockPlant", …). Key resolution lives in shared.js resolveCullMarks (unit-tested).
+ */
+function handleMarkCullsSynced_(body) {
+  if (!body.keys) return json_({ ok: false, error: 'Missing keys' });
+
+  var lock = LockService.getDocumentLock();
+  try {
+    lock.waitLock(30000);
+  } catch (e) {
+    return json_({ ok: false, error: 'Sheet busy, please retry' });
+  }
+  try {
+    var sheet = SpreadsheetApp.getActive().getSheetByName('Culls');
+    if (!sheet) return json_({ ok: false, error: 'No "Culls" sheet found' });
+    var values = sheet.getDataRange().getValues();
+    var statusCol = salesColIndex(values[0], 'sync_status');
+    if (statusCol < 0) return json_({ ok: false, error: 'No sync_status column' });
+
+    var marks = resolveCullMarks(values, body.keys);
+    marks.forEach(function (m) {
+      sheet.getRange(m.rowIndex + 1, statusCol + 1).setValue(m.status);
+    });
+    recordSync_('Culls to Access', 'Sheet → Access', 'marked ' + marks.length);
     return json_({ ok: true, marked: marks.length });
   } finally {
     lock.releaseLock();
