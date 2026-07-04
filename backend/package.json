@@ -7,6 +7,6 @@
     "deploy:prod": "bash scripts/deploy-gas.sh prod"
   },
   "devDependencies": {
-    "@google/clasp": "^2.5.0"
+    "@google/clasp": "^3.2.0"
   }
 }
