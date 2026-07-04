@@ -19,23 +19,24 @@ volunteers (big buttons, big text, high contrast, no flicker, tap-not-gesture).
   `PP`, the creation time in epoch seconds, and a sequence that resets daily — so multiple devices
   never collide and numbers survive a reinstall.
 
-## Architecture (three independently-buildable parts)
+## Architecture
+
+![Plant Scanner system architecture](docs/architecture.png)
+
+### Repo modules (independently buildable)
 
 ```
 core/      Pure Kotlin/JVM — ALL business logic (money, receipt #, plant lookup, sync, export, config).
-           No Android types. Unit-tested with `gradle test`. (28 tests.)
-app/       Android (Jetpack Compose + Room + CameraX + ML Kit + Retrofit + DataStore). Thin glue over
+           No Android types. Unit-tested with `gradle test`.
+app/       Android (Jetpack Compose + Room + CameraX + ML Kit + OkHttp + DataStore). Thin glue over
            `core`. Consumes core via a Gradle composite build.
-backend/   Google Apps Script web app (getPlants / appendSales, shared-secret auth, dedupe). Pure
-           logic mirrored as Node-testable JS. (6 tests.)
+backend/   Google Apps Script web app (getPlants / appendSales / appendCulls, shared-secret auth,
+           dedupe). Pure logic mirrored as Node-testable JS in `shared.js`. VBA sync module lives in
+           `backend/access/modPlantSync.bas` (deployed to the nursery PC — see docs/deploy/access.md).
 ```
 
 Why the split: the build machine had no Android SDK, so every decision that's easy to get wrong was
 pushed into `core/` and tested there; the Android module is declarative UI compiled with the SDK.
-
-```
-Android app ──HTTPS+JSON──► Apps Script /exec ──► Google Sheet (Plants / Sales)
-```
 
 ## Build & test
 
@@ -53,7 +54,7 @@ node --test backend/test/logic.test.js
 
 ## Deploy
 
-See **[docs/deploy/README.md](docs/deploy/README.md)** — backend → app → connect, in that order.
+See **[docs/deploy/README.md](docs/deploy/README.md)** — backend → Android → connect → Access, in that order.
 
 ## Key tech choices
 
@@ -67,7 +68,9 @@ See `docs/tech-stack.md` for the full rationale and `docs/superpowers/specs/` fo
 
 ## Project docs
 
+- [`docs/architecture.png`](docs/architecture.png) — system architecture diagram (source:
+  [`docs/plant-scanner-architecture.excalidraw`](docs/plant-scanner-architecture.excalidraw)).
 - `docs/superpowers/specs/2026-06-09-plant-scanner-screen-flows-design.md` — the approved design spec.
 - `docs/tech-stack.md` — technology decisions.
 - `docs/superpowers/plans/2026-06-09-plant-scanner-implementation.md` — the implementation plan.
-- `docs/deploy/` — deployment & wiring instructions.
+- `docs/deploy/` — deployment & wiring instructions (backend → Android → connect → Access).
