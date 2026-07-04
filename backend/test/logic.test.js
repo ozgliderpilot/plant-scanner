@@ -4,6 +4,7 @@ const {
   isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey,
   accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
   selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction,
+  validateAppendCullsNotes,
 } = require('../shared.js');
 
 test('isAuthorized accepts the right secret only', () => {
@@ -472,6 +473,45 @@ test('computeCullDeduction subtracts only from the named container, clamped at z
   assert.deepStrictEqual(
     computeCullDeduction('pots', 9, 2, 5, 4),
     { pots: 0, tubes: 5, misc: 4 },
+  );
+});
+
+test('validateAppendCullsNotes accepts clean notes and empty notes', () => {
+  const rows = [
+    ['PP-1-1', '2026-07-01', '31011', 'Acacia', '', '', '', '', 'Tree', 2, 'tubes', 'Dead', 'aphids on tips'],
+    ['PP-1-2', '2026-07-01', '8250', 'Banksia', '', '', '', '', '', 1, 'pots', 'Dead', ''],
+  ];
+  assert.strictEqual(validateAppendCullsNotes(CULLS_HEADER, rows), null);
+});
+
+test('validateAppendCullsNotes rejects notes containing bracket or brace characters', () => {
+  const rows = [
+    ['PP-1-1', '2026-07-01', '31011', 'Acacia', '', '', '', '', 'Tree', 2, 'tubes', 'Dead', 'ok'],
+    ['PP-1-2', '2026-07-01', '8250', 'Banksia', '', '', '', '', '', 1, 'pots', 'Dead', 'bad [note'],
+  ];
+  assert.strictEqual(
+    validateAppendCullsNotes(CULLS_HEADER, rows),
+    'Cull notes contain unsupported characters',
+  );
+  for (const ch of ['[', ']', '{', '}']) {
+    const bad = [
+      ['PP-1-1', '2026-07-01', '31011', 'Acacia', '', '', '', '', 'Tree', 2, 'tubes', 'Dead', `x${ch}y`],
+    ];
+    assert.strictEqual(
+      validateAppendCullsNotes(CULLS_HEADER, bad),
+      'Cull notes contain unsupported characters',
+    );
+  }
+});
+
+test('validateAppendCullsNotes resolves notes column from header order', () => {
+  const header = ['notes', 'cull_id', 'date'];
+  const rows = [['fine', 'PP-1-1', '2026-07-01']];
+  assert.strictEqual(validateAppendCullsNotes(header, rows), null);
+  rows[0][0] = '{bad}';
+  assert.strictEqual(
+    validateAppendCullsNotes(header, rows),
+    'Cull notes contain unsupported characters',
   );
 });
 

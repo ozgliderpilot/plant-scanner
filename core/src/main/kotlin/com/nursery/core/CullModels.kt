@@ -49,10 +49,14 @@ data class CullRecord(
     companion object {
         const val MAX_NOTES_LENGTH = 200
 
+        private val FORBIDDEN_NOTES_CHARS = setOf('[', ']', '{', '}')
+
         /** Null when valid; otherwise a short reason the save should be rejected. */
         fun validationError(record: CullRecord): String? = when {
             record.qty < 1 -> "Quantity must be at least 1"
             (record.notes?.length ?: 0) > MAX_NOTES_LENGTH -> "Notes must be at most $MAX_NOTES_LENGTH characters"
+            record.notes?.any { it in FORBIDDEN_NOTES_CHARS } == true ->
+                "Notes cannot contain [, ], {, or }"
             else -> null
         }
     }

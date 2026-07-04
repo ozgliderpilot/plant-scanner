@@ -273,6 +273,25 @@ function resolveSalesMarks(values, keys) {
 }
 
 /**
+ * Reject appendCulls payloads whose notes column contains [, ], {, or } — Access reverse-sync JSON
+ * parsing uses simple delimiters and these break it. Returns an error message when invalid, null when
+ * every row is OK. Resolves the notes column from header via salesColIndex.
+ */
+function validateAppendCullsNotes(header, rows) {
+  var iNotes = salesColIndex(header, 'notes');
+  if (iNotes < 0) return null;
+  for (var r = 0; r < (rows || []).length; r++) {
+    var row = rows[r];
+    var notes = row && iNotes < row.length ? row[iNotes] : '';
+    notes = String(notes === undefined || notes === null ? '' : notes);
+    if (/[[\]{}]/.test(notes)) {
+      return 'Cull notes contain unsupported characters';
+    }
+  }
+  return null;
+}
+
+/**
  * Normalised cull_id primary key for a Culls row — trimmed string so " PP-1 " and "PP-1" collide.
  */
 function cullRowKey(cullId) {
@@ -398,7 +417,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey,
     accessionColIndex, salesColIndex, salesRowKey, selectPendingSales, resolveSalesMarks,
-    ensureSyncStatusColumn, cullRowKey, selectPendingCulls, resolveCullMarks,
+    ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
     isStockPlantCull, computeCullDeduction,
   };
 }

@@ -117,6 +117,8 @@ function handleReplacePlants_(body) {
 
 function handleAppendCulls_(body) {
   if (!body.header || !body.rows) return json_({ ok: false, error: 'Missing header/rows' });
+  var notesError = validateAppendCullsNotes(body.header, body.rows);
+  if (notesError) return json_({ ok: false, error: notesError });
 
   var lock = LockService.getDocumentLock();
   try {
