@@ -86,3 +86,24 @@ Single-context: `CONTEXT.md` + `docs/adr/`. See [`docs/agents/domain.md`](./docs
 
 - **`core/bin/` is generated** — edit `core/src/`, never `core/bin/`.
 - **Do not commit secrets** — `.clasp.*.json`, credentials, deploy tokens (see `.gitignore`).
+
+## Cursor Cloud specific instructions
+
+Toolchain is preinstalled in the VM snapshot: JDK 21, Node 22, a system `gradle` 8.9 (on `PATH`,
+used by `core/`), and the Android SDK at `~/android-sdk` (platform 34 + build-tools 35). The update
+script only refreshes `backend/` npm deps; everything else persists in the snapshot.
+
+- **`core/`** — `cd core && gradle test` (system gradle, not the wrapper). Downloads deps on first run.
+- **`backend/`** — `node --test backend/test/logic.test.js`. npm deps (`@google/clasp`) are only for
+  deploy, not for the tests.
+- **`app/`** — `./gradlew :app:assembleQaDebug` builds the APK (`app/build/outputs/apk/qa/debug/`).
+  Needs a `local.properties` with `sdk.dir=$HOME/android-sdk` (already present in the snapshot; not
+  committed). The committed `gradlew` is not executable — run `chmod +x gradlew` or use `sh gradlew`.
+  The Kotlin compile daemon may fail to start in this VM (memory-mapped file limits) and fall back to
+  "Compile without Kotlin daemon" — the build still succeeds; ignore that warning.
+- **Running the app GUI is not possible here** — no `/dev/kvm`, so an Android emulator can't run.
+  Validate app behaviour through `core/` (all business logic lives there) + `backend/` tests. The
+  full scan → sale → export → sheet pipeline can be exercised at the logic level via `core/` and
+  `backend/shared.js` without a device.
+- **Live sync** (deployed Apps Script `/exec` + Google Sheet) is optional and needs external Google
+  credentials; not required for local dev or testing.
