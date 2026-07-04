@@ -1,0 +1,127 @@
+name: Post issue #29 comment
+
+on:
+  push:
+    branches:
+      - fyodor/issue-analysis-and-response-d66b
+
+permissions:
+  issues: write
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post analysis comment on issue #29
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `## Simpler & more generic approaches
+
+            The triage note is correct on root cause: **\`contains(wholeQuery)\` requires the query to appear as one contiguous substring**, and botanical notation inserts extra characters (quotes, ×, spaces) between the words the user typed. The proposed fix (strip specific symbols, then \`contains\`) works, but listing \`'\`, \`'\`, \`×\` by hand is the least generic version of the fix.
+
+            Below are three options, simplest first, with a recommendation at the end.
+
+            ---
+
+            ### Option A — Generic punctuation folding + same \`contains\` *(recommended)*
+
+            Instead of naming botanical symbols, **fold all non-alphanumeric characters to spaces** (keep \`-\` so accessions like \`2022-0100\` stay intact), collapse whitespace, lowercase, then run today's \`contains\`:
+
+            \`\`\`kotlin
+            private fun normalize(s: String): String =
+                s.lowercase()
+                    .replace(Regex("[^a-z0-9-]+"), " ")
+                    .replace(Regex("\\\\s+"), " ")
+                    .trim()
+            \`\`\`
+
+            Apply identically to the query and each searchable field before matching.
+
+            **Why this is simpler:** one regex replaces a growing list of cultivar quotes, ×, curly quotes, etc. Any future punctuation in imported plant names gets handled for free.
+
+            **Verification against the issue scenarios:**
+
+            | Stored name | Normalized | Query | Normalized query | Match? |
+            |---|---|---|---|---|
+            | \`Begonia 'Nellie Bly'\` | \`begonia nellie bly\` | \`Begonia Nellie\` | \`begonia nellie\` | ✓ substring |
+            | \`Begonia × erythrophylla\` | \`begonia erythrophylla\` | \`Begonia erythro\` | \`begonia erythro\` | ✓ substring |
+
+            Existing tests (accession hyphens, mid-string \`rotea\`, order preservation) stay green — hyphens are preserved and normalization only affects punctuation/whitespace.
+
+            **Where:** add \`normalize\` inside \`PlantSearch.kt\` (or a tiny shared helper — see Option C). Extend \`PlantSearchTest.kt\` with the two issue scenarios. No \`app/\` change.
+
+            ---
+
+            ### Option B — Token-AND matching *(most generic semantics)*
+
+            If we want to go one step further, change the **matching model** rather than only the normalization:
+
+            1. Normalize both sides (same as Option A).
+            2. Split the query on whitespace into tokens.
+            3. Match when **every token** appears as a substring somewhere in the normalized field.
+
+            \`\`\`kotlin
+            private fun matchesField(field: String, query: String): Boolean {
+                val normalized = normalize(field)
+                val tokens = normalize(query).split(' ').filter { it.isNotEmpty() }
+                return tokens.all { normalized.contains(it) }
+            }
+            \`\`\`
+
+            **Extra wins beyond the issue:**
+            - \`Begonia Bly\` matches \`Begonia 'Nellie Bly'\` (words need not be adjacent).
+            - Any future inter-word junk (parentheses, \`cv.\`, extra punctuation) is handled without new rules.
+
+            **Trade-off:** slightly looser matching. For a few-hundred-plant offline list this is usually desirable search UX, but it is a behaviour change beyond the two reported scenarios — worth an explicit test case if we choose this.
+
+            ---
+
+            ### Option C — Shared \`SearchText\` helper *(DRY, not a fix by itself)*
+
+            \`PlantSearch\` and \`CullSearch\` today share the same pattern (\`trim → lowercase → per-field contains\`). Extract normalization + matching into one internal helper (e.g. \`SearchText.matchesAnyField(query, fields...)\`) and call it from both.
+
+            This doesn't change behaviour on its own, but it means botanical/punctuation fixes (Option A or B) land once and cull search gets the same ergonomics for free.
+
+            ---
+
+            ### What I'd avoid
+
+            | Approach | Why not |
+            |---|---|
+            | **Per-symbol botanical rules** (only strip \`'\` and ×) | Works, but every new notation edge case needs another line. Option A covers the same ground with less code. |
+            | **Treat ASCII \`x\` as hybrid marker** | \`x\` is a real letter in names (\`Buxus\`, \`Phlox\`, \`max\`). Generic punct folding already removes U+00D7; deliberately mapping typed \`x\` is risky for little gain. |
+            | **ICU / diacritic folding / fuzzy search** | Overkill for this screen size and volunteer audience; adds dependency and harder-to-reason-about matches. |
+            | **Full inverted index / token prefix tree** | Same — unnecessary complexity for an in-memory filter over a local plant list. |
+
+            ---
+
+            ### Recommendation
+
+            **Ship Option A** for this issue: ~5 lines, one regex, fixes both scenarios, keeps current \`contains\` semantics and test expectations. Optionally extract Option C at the same time since the diff is tiny and \`CullSearch\` benefits immediately.
+
+            Consider **Option B** only if we explicitly want non-adjacent word matching (\`Begonia Bly\`); it's still small and pure-Kotlin, but it's a deliberate UX widening rather than the minimal fix.
+
+            **On the open question (ASCII \`x\`):** stick to generic punct folding — U+00D7 disappears, ASCII \`x\` stays as a letter. Users who omit the hybrid sign entirely (\`Begonia erythro\`) are covered; users who type a literal ASCII \`x\` (\`Begonia x erythro\`) are not, and that's acceptable.
+
+            If this direction looks good I can drop the \`needs-info\` label and implement Option A (+ tests) on a follow-up PR.`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 29,
+            });
+
+            const marker = '## Simpler & more generic approaches';
+            const alreadyPosted = comments.some((comment) => comment.body?.includes(marker));
+            if (alreadyPosted) {
+              core.info('Issue #29 analysis comment already present; skipping.');
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 29,
+              body,
+            });
