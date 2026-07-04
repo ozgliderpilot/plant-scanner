@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      backend: ${{ steps.filter.outputs.backend }}
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - 'core/**'
+              - '.github/workflows/ci.yml'
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+            app:
+              - 'app/**'
+              - 'core/**'
+              - 'gradle/**'
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+              - 'gradle.properties'
+              - 'gradlew'
+              - 'gradlew.bat'
+              - '.github/workflows/ci.yml'
+
+  core:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.4.1"
+
+      - name: Core unit tests
+        run: gradle test
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      - name: Backend logic tests
+        run: npm test
+
+  app:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platforms;android-34
+            build-tools;34.0.0
+            platform-tools
+
+      - name: Build qa debug APK
+        run: ./gradlew :app:assembleQaDebug --stacktrace
+
+  ci-success:
+    needs: [changes, core, backend, app]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require passing jobs
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          CORE_ENABLED: ${{ needs.changes.outputs.core }}
+          CORE_RESULT: ${{ needs.core.result }}
+          BACKEND_ENABLED: ${{ needs.changes.outputs.backend }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          APP_ENABLED: ${{ needs.changes.outputs.app }}
+          APP_RESULT: ${{ needs.app.result }}
+        run: |
+          fail() { echo "$1"; exit 1; }
+
+          [[ "$CHANGES" == "success" ]] || fail "changes job failed"
+
+          if [[ "$CORE_ENABLED" == "true" ]]; then
+            [[ "$CORE_RESULT" == "success" ]] || fail "core job failed"
+          elif [[ "$CORE_RESULT" != "skipped" ]]; then
+            fail "core job unexpected result: $CORE_RESULT"
+          fi
+
+          if [[ "$BACKEND_ENABLED" == "true" ]]; then
+            [[ "$BACKEND_RESULT" == "success" ]] || fail "backend job failed"
+          elif [[ "$BACKEND_RESULT" != "skipped" ]]; then
+            fail "backend job unexpected result: $BACKEND_RESULT"
+          fi
+
+          if [[ "$APP_ENABLED" == "true" ]]; then
+            [[ "$APP_RESULT" == "success" ]] || fail "app job failed"
+          elif [[ "$APP_RESULT" != "skipped" ]]; then
+            fail "app job unexpected result: $APP_RESULT"
+          fi
+
+          echo "CI passed"
