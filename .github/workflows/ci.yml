@@ -148,3 +148,34 @@ jobs:
           fi
 
           echo "CI passed"
+
+  mark-cursor-pr-ready:
+    needs: ci-success
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark Cursor agent PR ready for review
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          pr="$(gh pr view "$PR_NUMBER" --json author,isDraft)"
+          author="$(jq -r '.author.login' <<<"$pr")"
+          draft="$(jq -r '.isDraft' <<<"$pr")"
+
+          case "$author" in
+            cursor\[bot\]|app/cursor|cursor) ;;
+            *)
+              echo "Author $author is not a Cursor bot; skipping."
+              exit 0
+              ;;
+          esac
+
+          if [[ "$draft" != "true" ]]; then
+            echo "PR #$PR_NUMBER is not a draft; skipping."
+            exit 0
+          fi
+
+          gh pr ready "$PR_NUMBER"
