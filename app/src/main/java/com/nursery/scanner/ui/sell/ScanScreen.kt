@@ -6,10 +6,12 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -103,52 +105,60 @@ fun ScanScreen(
                     onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                 )
             } else {
-                ScannerView(
+                // Weighted box shrinks when the type-in controls below grow so the keypad never
+                // overlaps the camera preview (AndroidView can draw past its Compose bounds).
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
                         .weight(1f)
-                        .padding(bottom = Dimens.Gap),
-                    // Pause emission while the not-found card is up; "Retry" clears it and re-arms.
-                    scanning = ui.notFoundCode == null,
-                    onBarcode = { code -> vm.onCode(code) },
-                )
-            }
-
-            val notFound = ui.notFoundCode
-            if (notFound != null) {
-                Card(
-                    shape = RoundedCornerShape(Dimens.CardCorner),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Dimens.CardCorner)),
                 ) {
-                    Column(Modifier.padding(Dimens.Gap), verticalArrangement = Arrangement.spacedBy(Dimens.GapSmall)) {
-                        Text("Not in plant list", style = MaterialTheme.typography.titleMedium)
-                        Text("Scanned: $notFound", style = MaterialTheme.typography.bodyMedium)
-                        BigButton(text = "Sell as unknown", onClick = { vm.sellAsUnknown() })
-                        BigButton(text = "Retry", onClick = { vm.clearNotFound() }, style = BigButtonStyle.Secondary)
-                    }
+                    ScannerView(
+                        modifier = Modifier.fillMaxSize(),
+                        // Pause emission while the not-found card is up; "Retry" clears it and re-arms.
+                        scanning = ui.notFoundCode == null,
+                        onBarcode = { code -> vm.onCode(code) },
+                    )
                 }
             }
 
-            BigButton(
-                text = if (showType) "Hide keypad" else "Type number instead",
-                onClick = { showType = !showType },
-                style = BigButtonStyle.Secondary,
-            )
-            if (showType) {
-                OutlinedTextField(
-                    value = typed,
-                    onValueChange = { typed = it },
-                    label = { Text("Accession number") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { submitTyped() }),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.Gap)) {
+                val notFound = ui.notFoundCode
+                if (notFound != null) {
+                    Card(
+                        shape = RoundedCornerShape(Dimens.CardCorner),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    ) {
+                        Column(Modifier.padding(Dimens.Gap), verticalArrangement = Arrangement.spacedBy(Dimens.GapSmall)) {
+                            Text("Not in plant list", style = MaterialTheme.typography.titleMedium)
+                            Text("Scanned: $notFound", style = MaterialTheme.typography.bodyMedium)
+                            BigButton(text = "Sell as unknown", onClick = { vm.sellAsUnknown() })
+                            BigButton(text = "Retry", onClick = { vm.clearNotFound() }, style = BigButtonStyle.Secondary)
+                        }
+                    }
+                }
+
                 BigButton(
-                    text = "Find",
-                    onClick = submitTyped,
-                    enabled = typed.isNotBlank(),
+                    text = if (showType) "Hide keypad" else "Type number instead",
+                    onClick = { showType = !showType },
+                    style = BigButtonStyle.Secondary,
                 )
+                if (showType) {
+                    OutlinedTextField(
+                        value = typed,
+                        onValueChange = { typed = it },
+                        label = { Text("Accession number") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { submitTyped() }),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    BigButton(
+                        text = "Find",
+                        onClick = submitTyped,
+                        enabled = typed.isNotBlank(),
+                    )
+                }
             }
         }
     }
