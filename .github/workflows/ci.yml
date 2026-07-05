@@ -167,9 +167,6 @@ jobs:
           echo "event author: $EVENT_AUTHOR"
           echo "event draft: $EVENT_DRAFT"
 
-          live="$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '{user: .user.login, draft: .draft}')"
-          echo "live PR: $live"
-
           if [[ "$EVENT_AUTHOR" != "cursor[bot]" ]]; then
             echo "Skipping: event author is not cursor[bot]"
             exit 0
@@ -179,5 +176,8 @@ jobs:
             echo "Skipping: event draft is not true"
             exit 0
           fi
+
+          live="$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '{user: .user.login, draft: .draft}')"
+          echo "live PR: $live"
 
           gh pr ready "$PR_NUMBER" --repo "$REPO"
