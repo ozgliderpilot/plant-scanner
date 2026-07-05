@@ -69,4 +69,46 @@ class PlantSearchTest {
             accessions(PlantSearch.filter(plants, "0")),
         )
     }
+
+    private val begoniaNellie = Plant(
+        accession = "2024-0001",
+        name = "Begonia 'Nellie Bly'",
+        group = "Begoniaceae",
+        light = null,
+    )
+
+    private val begoniaErythro = Plant(
+        accession = "2024-0002",
+        name = "Begonia x erythrophylla",
+        group = "Begoniaceae",
+        light = null,
+    )
+
+    private val begoniaPlants = listOf(begoniaNellie, begoniaErythro)
+
+    @Test fun `matches any single word from a multi-word plant name`() {
+        assertEquals(listOf("2024-0001", "2024-0002"), accessions(PlantSearch.filter(begoniaPlants, "begonia")))
+        assertEquals(listOf("2024-0001"), accessions(PlantSearch.filter(begoniaPlants, "nellie")))
+        assertEquals(listOf("2024-0001"), accessions(PlantSearch.filter(begoniaPlants, "bly")))
+    }
+
+    @Test fun `matches any combination of words in the plant name`() {
+        assertEquals(listOf("2024-0001"), accessions(PlantSearch.filter(begoniaPlants, "begonia nellie")))
+        assertEquals(listOf("2024-0001"), accessions(PlantSearch.filter(begoniaPlants, "begonia bly")))
+        assertEquals(listOf("2024-0001"), accessions(PlantSearch.filter(begoniaPlants, "nellie bly")))
+        assertEquals(listOf("2024-0001"), accessions(PlantSearch.filter(begoniaPlants, "Begonia 'Nellie Bly'")))
+    }
+
+    @Test fun `matches partial words and hybrid notation in botanical names`() {
+        assertEquals(listOf("2024-0002"), accessions(PlantSearch.filter(begoniaPlants, "erythro")))
+        assertEquals(listOf("2024-0002"), accessions(PlantSearch.filter(begoniaPlants, "begonia erythro")))
+        assertEquals(listOf("2024-0002"), accessions(PlantSearch.filter(begoniaPlants, "begonia x erythro")))
+        assertEquals(listOf("2024-0002"), accessions(PlantSearch.filter(begoniaPlants, "erythrophylla")))
+        assertEquals(listOf("2024-0002"), accessions(PlantSearch.filter(begoniaPlants, "Begonia x erythrophylla")))
+    }
+
+    @Test fun `multi-word query can match words across name and group fields`() {
+        val plant = Plant(accession = "2024-0003", name = "Banksia", group = "Proteaceae", light = null)
+        assertEquals(listOf("2024-0003"), accessions(PlantSearch.filter(listOf(plant), "banksia proteaceae")))
+    }
 }
