@@ -1,14 +1,15 @@
 package com.nursery.scanner.ui.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -32,31 +33,32 @@ fun SegmentedControl(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Dimens.GapSmall),
     ) {
+        val tonalColors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
         options.forEach { option ->
             val isSelected = option == selected
             val shape = RoundedCornerShape(Dimens.CardCorner)
             val btnModifier = Modifier
                 .weight(1f)
                 .heightIn(min = Dimens.BigButtonHeight)
+                .then(
+                    if (isSelected) {
+                        Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape)
+                    } else {
+                        Modifier
+                    },
+                )
             val label = option.displayLabel
-            if (isSelected) {
-                Button(
-                    onClick = { onSelect(option) },
-                    enabled = enabled,
-                    shape = shape,
-                    modifier = btnModifier,
-                ) {
-                    Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 8.dp))
-                }
-            } else {
-                OutlinedButton(
-                    onClick = { onSelect(option) },
-                    enabled = enabled,
-                    shape = shape,
-                    modifier = btnModifier,
-                ) {
-                    Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 8.dp))
-                }
+            FilledTonalButton(
+                onClick = { onSelect(option) },
+                enabled = enabled,
+                shape = shape,
+                modifier = btnModifier,
+                colors = tonalColors,
+            ) {
+                Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 8.dp))
             }
         }
     }
