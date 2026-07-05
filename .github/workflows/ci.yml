@@ -153,7 +153,7 @@ jobs:
     needs: ci-success
     if: |
       github.event_name == 'pull_request' &&
-      github.event.pull_request.user.login == 'app/cursor' &&
+      github.event.pull_request.user.login == 'cursor[bot]' &&
       github.event.pull_request.draft == true
     runs-on: ubuntu-latest
     steps:
