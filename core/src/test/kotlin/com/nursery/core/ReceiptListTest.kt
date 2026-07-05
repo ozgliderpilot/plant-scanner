@@ -126,4 +126,19 @@ class ReceiptListTest {
     @Test fun `withDayTotals on empty list yields empty`() {
         assertEquals(emptyList(), ReceiptList.withDayTotals(emptyList(), zone))
     }
+
+    @Test fun `withDayTotals sums all receipts on a day split across pending and exported`() {
+        val july3 = epochMs(2026, 7, 3)
+        val pending = receipt(1, ReceiptStatus.SAVED, july3, unitPriceCents = 1000)
+        val exported = receipt(2, ReceiptStatus.EXPORTED, july3, unitPriceCents = 3000)
+        val items = ReceiptList.withDayTotals(ReceiptList.grouped(listOf(exported, pending)), zone)
+        assertEquals(
+            listOf(
+                ReceiptListItem.Row(pending),
+                ReceiptListItem.Row(exported),
+                ReceiptListItem.DayTotal(epochDay = LocalDate.of(2026, 7, 3).toEpochDay(), totalCents = 4000),
+            ),
+            items,
+        )
+    }
 }

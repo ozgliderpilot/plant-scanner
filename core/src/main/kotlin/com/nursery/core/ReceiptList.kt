@@ -24,26 +24,27 @@ object ReceiptList {
         )
 
     /**
-     * Interleaves [grouped] receipts with a day-total row after each contiguous calendar-day block.
+     * Interleaves [grouped] receipts with a day-total row after the last receipt for each calendar day.
+     * Totals include every receipt on that day, even when pending/export grouping splits them apart.
      * [receipts] must already be in display order (typically from [grouped]).
      */
     fun withDayTotals(receipts: List<Receipt>, zone: ZoneId): List<ReceiptListItem> {
         if (receipts.isEmpty()) return emptyList()
-        val items = mutableListOf<ReceiptListItem>()
-        var index = 0
-        while (index < receipts.size) {
-            val day = epochDay(receipts[index].createdAtEpochMs, zone)
-            val dayReceipts = mutableListOf<Receipt>()
-            while (index < receipts.size && epochDay(receipts[index].createdAtEpochMs, zone) == day) {
-                val receipt = receipts[index]
-                dayReceipts += receipt
-                items += ReceiptListItem.Row(receipt)
-                index++
+        val totalsByDay = receipts
+            .groupBy { epochDay(it.createdAtEpochMs, zone) }
+            .mapValues { (_, dayReceipts) -> dayReceipts.sumOf { Money.receiptTotalCents(it.lines) } }
+        val lastIndexByDay = receipts
+            .mapIndexed { index, receipt -> epochDay(receipt.createdAtEpochMs, zone) to index }
+            .toMap()
+        return buildList {
+            receipts.forEachIndexed { index, receipt ->
+                add(ReceiptListItem.Row(receipt))
+                val day = epochDay(receipt.createdAtEpochMs, zone)
+                if (lastIndexByDay.getValue(day) == index) {
+                    add(ReceiptListItem.DayTotal(epochDay = day, totalCents = totalsByDay.getValue(day)))
+                }
             }
-            val totalCents = dayReceipts.sumOf { Money.receiptTotalCents(it.lines) }
-            items += ReceiptListItem.DayTotal(epochDay = day, totalCents = totalCents)
         }
-        return items
     }
 
     private fun epochDay(createdAtEpochMs: Long, zone: ZoneId): Long =
