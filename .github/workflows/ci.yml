@@ -148,3 +148,17 @@ jobs:
           fi
 
           echo "CI passed"
+
+  cursor-agent-review:
+    needs: ci-success
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Request Cursor review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh issue comment "$PR_NUMBER" --body '@cursoragent review'
