@@ -164,8 +164,13 @@ jobs:
         run: gh pr ready "${{ github.event.pull_request.number }}"
 
   cursor-agent-review:
-    needs: ci-success
-    if: github.event_name == 'pull_request'
+    needs: [ci-success, mark-cursor-pr-ready]
+    if: |
+      always() &&
+      needs.ci-success.result == 'success' &&
+      (needs.mark-cursor-pr-ready.result == 'success' || needs.mark-cursor-pr-ready.result == 'skipped') &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Request Cursor Bugbot review
