@@ -1,5 +1,9 @@
 package com.nursery.scanner.util
 
+/** Subtitle under History / Plants tab headers. */
+fun updatedAgoLabel(epochMs: Long?, now: Long): String =
+    if (epochMs == null) "Updated never" else "Updated ${relativeTime(epochMs, now)}"
+
 /** Coarse "x ago" label for the status chip. */
 fun relativeTime(epochMs: Long?, now: Long): String {
     if (epochMs == null) return "never"

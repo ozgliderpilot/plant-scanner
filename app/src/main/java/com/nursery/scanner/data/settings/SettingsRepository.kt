@@ -36,6 +36,7 @@ class SettingsRepository(context: Context) : SettingsConfigSource {
         val SEQ = intPreferencesKey("receipt_seq")
         val SEQ_DAY = longPreferencesKey("receipt_seq_day")
         val LAST_SYNCED = longPreferencesKey("last_synced_ms")
+        val LAST_PLANT_LIST_UPDATE = longPreferencesKey("last_plant_list_update_ms")
     }
 
     override val config: Flow<DeviceConfig> = store.data.map { p ->
@@ -51,6 +52,10 @@ class SettingsRepository(context: Context) : SettingsConfigSource {
 
     /** Null when never synced. */
     val lastSyncedMs: Flow<Long?> = store.data.map { p -> p[Keys.LAST_SYNCED]?.takeIf { it > 0 } }
+
+    /** Null when the plant list has never been pulled successfully. */
+    val lastPlantListUpdateMs: Flow<Long?> =
+        store.data.map { p -> p[Keys.LAST_PLANT_LIST_UPDATE]?.takeIf { it > 0 } }
 
     suspend fun saveConfig(config: DeviceConfig) {
         store.edit { p ->
@@ -82,5 +87,9 @@ class SettingsRepository(context: Context) : SettingsConfigSource {
 
     suspend fun setLastSynced(epochMs: Long) {
         store.edit { p -> p[Keys.LAST_SYNCED] = epochMs }
+    }
+
+    suspend fun setLastPlantListUpdate(epochMs: Long) {
+        store.edit { p -> p[Keys.LAST_PLANT_LIST_UPDATE] = epochMs }
     }
 }

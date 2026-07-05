@@ -2,16 +2,16 @@ package com.nursery.scanner.ui.nav
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.ui.graphics.vector.ImageVector
 
 object Routes {
     const val ACTIONS = "actions"
-    const val RECEIPTS = "receipts"
-    const val SYNC = "sync"
-    const val SETTINGS = "settings"
+    const val HISTORY = "history"
     const val PLANTS = "plants"
+    const val SETTINGS = "settings"
+    const val RECEIPTS = "receipts"
 
     // Sell flow lives in a nested graph so one SellViewModel is shared across its screens.
     const val SELL_GRAPH = "sell"
@@ -35,9 +35,9 @@ data class TabItem(val route: String, val label: String, val icon: ImageVector)
 
 val BottomTabs = listOf(
     TabItem(Routes.ACTIONS, "Actions", Icons.Filled.GridView),
-    TabItem(Routes.RECEIPTS, "Receipts", Icons.Filled.ReceiptLong),
-    TabItem(Routes.SYNC, "Sync", Icons.Filled.Sync),
+    TabItem(Routes.HISTORY, "History", Icons.Filled.History),
+    TabItem(Routes.PLANTS, "Plants", Icons.Filled.LocalFlorist),
 )
 
-/** Routes that show the top status bar + bottom tabs (full-screen sub-flows hide them). */
-val TabRoutes = setOf(Routes.ACTIONS, Routes.RECEIPTS, Routes.SYNC)
+/** Routes that show the bottom tabs (full-screen sub-flows hide them). Each tab owns its header. */
+val TabRoutes = setOf(Routes.ACTIONS, Routes.HISTORY, Routes.PLANTS)
