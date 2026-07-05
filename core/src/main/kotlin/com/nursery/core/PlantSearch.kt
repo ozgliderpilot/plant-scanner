@@ -3,20 +3,24 @@ package com.nursery.core
 /**
  * Filtering for the Plant List screen: one search box matched across every field.
  *
- * A plant matches when the (trimmed, case-insensitive) query is a substring of any of its
- * fields — [Plant.accession], [Plant.name], or [Plant.group]. ([Plant.light] is no longer a
- * user-facing field and is not searched.) A blank query returns the list unchanged. Input order
+ * The (trimmed, case-insensitive) query is split on whitespace into words. A plant matches when
+ * every word is a substring of at least one field — [Plant.accession], [Plant.name], or
+ * [Plant.group]. Words may match different fields (e.g. name + group). ([Plant.light] is no longer
+ * a user-facing field and is not searched.) A blank query returns the list unchanged. Input order
  * is preserved.
  */
 object PlantSearch {
 
     fun filter(plants: List<Plant>, query: String): List<Plant> {
-        val q = query.trim().lowercase()
-        if (q.isEmpty()) return plants
+        val words = query.trim().lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (words.isEmpty()) return plants
         return plants.filter { plant ->
-            plant.accession.lowercase().contains(q) ||
-                plant.name.lowercase().contains(q) ||
-                plant.group?.lowercase()?.contains(q) == true
+            val fields = listOfNotNull(
+                plant.accession.lowercase(),
+                plant.name.lowercase(),
+                plant.group?.lowercase(),
+            )
+            words.all { word -> fields.any { field -> field.contains(word) } }
         }
     }
 }
