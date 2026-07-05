@@ -155,10 +155,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
+      pull-requests: write
     steps:
       - name: Request Cursor review
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: gh issue comment "$PR_NUMBER" --body '@cursoragent review'
+        run: gh pr comment "$PR_NUMBER" --body '@cursoragent review'
