@@ -17,6 +17,16 @@ function emptyToNull(v) {
   return s === '' ? null : s;
 }
 
+function rowStr(row, idx) {
+  return idx >= 0 ? String(row[idx]).trim() : '';
+}
+
+function rowNum(row, idx) {
+  if (idx < 0) return 0;
+  var n = Number(row[idx]);
+  return isNaN(n) ? 0 : n;
+}
+
 /**
  * Index of the accession/barcode column in a header row, matched case-insensitively against the app
  * header name ('accession') and the raw Access header ('ac number'), or -1 if neither is present.
@@ -61,21 +71,13 @@ function parsePlants(values) {
   var iMisc = col('miscinnursery');
   var iStock = col('stockinnursery');
 
-  function get(row, idx) { return idx >= 0 ? String(row[idx]).trim() : ''; }
-  function num(row, idx) {
-    if (idx < 0) return 0;
-    var v = row[idx];
-    if (v === '' || v === null || v === undefined) return 0;
-    var n = Number(v);
-    return isNaN(n) ? 0 : n;
-  }
   function nameOf(row) {
-    var legacy = get(row, iName);
+    var legacy = rowStr(row, iName);
     if (legacy) return legacy;
-    var base = [get(row, iGenus), get(row, iSpecies)].filter(Boolean).join(' ');
-    var cv = get(row, iCultivar);
+    var base = [rowStr(row, iGenus), rowStr(row, iSpecies)].filter(Boolean).join(' ');
+    var cv = rowStr(row, iCultivar);
     if (cv) base = (base + " '" + cv + "'").trim();
-    return base || get(row, iCommon);
+    return base || rowStr(row, iCommon);
   }
 
   var out = [];
@@ -86,16 +88,16 @@ function parsePlants(values) {
     out.push({
       accession: accession,
       name: nameOf(row),
-      genus: get(row, iGenus),
-      species: get(row, iSpecies),
-      cultivar: get(row, iCultivar),
-      commonName: get(row, iCommon),
+      genus: rowStr(row, iGenus),
+      species: rowStr(row, iSpecies),
+      cultivar: rowStr(row, iCultivar),
+      commonName: rowStr(row, iCommon),
       group: iGroup >= 0 ? emptyToNull(row[iGroup]) : null,
       light: iLight >= 0 ? emptyToNull(row[iLight]) : null,
-      potsInNursery: num(row, iPots),
-      tubesInNursery: num(row, iTubes),
-      miscInNursery: num(row, iMisc),
-      stockInNursery: num(row, iStock)
+      potsInNursery: rowNum(row, iPots),
+      tubesInNursery: rowNum(row, iTubes),
+      miscInNursery: rowNum(row, iMisc),
+      stockInNursery: rowNum(row, iStock)
     });
   }
   return out;
@@ -117,14 +119,14 @@ function ensureSyncStatusColumn(header) {
  * already exists in the sheet; keep the rest. NOTE: it dedupes only against the EXISTING sheet, so
  * the multiple line-rows of one new receipt are all kept.
  */
-function filterNewRows(rows, existingReceiptNos, receiptColIndex) {
+function filterNewRows(rows, existingKeys, keyColIndex) {
   var existing = {};
-  (existingReceiptNos || []).forEach(function (n) { existing[String(n)] = true; });
+  (existingKeys || []).forEach(function (n) { existing[String(n)] = true; });
   var toAppend = [];
   var skipped = 0;
   (rows || []).forEach(function (row) {
-    var receiptNo = String(row[receiptColIndex]);
-    if (existing[receiptNo]) { skipped++; } else { toAppend.push(row); }
+    var key = String(row[keyColIndex]);
+    if (existing[key]) { skipped++; } else { toAppend.push(row); }
   });
   return { rows: toAppend, skipped: skipped };
 }
@@ -177,11 +179,14 @@ function findRowByKey(rows, key) {
   return -1;
 }
 
-/** Index of the named column in a "Sales" header row (trimmed, case-insensitive), or -1 if absent. */
-function salesColIndex(header, name) {
+/** Index of a named column in a sheet header row (trimmed, case-insensitive), or -1 if absent. */
+function headerColIndex(header, name) {
   var lower = (header || []).map(function (h) { return String(h).trim().toLowerCase(); });
   return lower.indexOf(name);
 }
+
+/** @deprecated Use headerColIndex — kept for existing call sites. */
+function salesColIndex(header, name) { return headerColIndex(header, name); }
 
 /**
  * Composite (receipt, item_seq) primary key for a Sales row, normalised so the two ends of the reverse
@@ -217,23 +222,16 @@ function selectPendingSales(values) {
   var iQty = salesColIndex(header, 'qty');
   var iUnit = salesColIndex(header, 'unit');
 
-  function str(row, idx) { return idx >= 0 ? String(row[idx]).trim() : ''; }
-  function num(row, idx) {
-    if (idx < 0) return 0;
-    var n = Number(row[idx]);
-    return isNaN(n) ? 0 : n;
-  }
-
   var out = [];
   for (var r = 1; r < values.length; r++) {
     var row = values[r];
     if (String(row[iStatus]).trim().toLowerCase() !== 'pending') continue;
     out.push({
-      receipt: str(row, iReceipt),
-      item_seq: num(row, iSeq),
-      accession: str(row, iAcc),
-      qty: num(row, iQty),
-      unit: str(row, iUnit)
+      receipt: rowStr(row, iReceipt),
+      item_seq: rowNum(row, iSeq),
+      accession: rowStr(row, iAcc),
+      qty: rowNum(row, iQty),
+      unit: rowStr(row, iUnit)
     });
   }
   return out;
@@ -319,23 +317,16 @@ function selectPendingCulls(values) {
   var iUnit = salesColIndex(header, 'unit');
   var iNotes = salesColIndex(header, 'notes');
 
-  function str(row, idx) { return idx >= 0 ? String(row[idx]).trim() : ''; }
-  function num(row, idx) {
-    if (idx < 0) return 0;
-    var n = Number(row[idx]);
-    return isNaN(n) ? 0 : n;
-  }
-
   var out = [];
   for (var r = 1; r < values.length; r++) {
     var row = values[r];
     if (String(row[iStatus]).trim().toLowerCase() !== 'pending') continue;
     out.push({
-      cull_id: str(row, iCullId),
-      accession: str(row, iAcc),
-      qty: num(row, iQty),
-      unit: str(row, iUnit),
-      notes: str(row, iNotes),
+      cull_id: rowStr(row, iCullId),
+      accession: rowStr(row, iAcc),
+      qty: rowNum(row, iQty),
+      unit: rowStr(row, iUnit),
+      notes: rowStr(row, iNotes),
     });
   }
   return out;
@@ -370,9 +361,11 @@ function resolveCullMarks(values, keys) {
 }
 
 /**
- * True when a cull's notes and unit identify a stock-plant cull per #28 UX: volunteers record
- * Pot type + `Notes = "Stock plant"`. Such rows must not decrement inventory.
+ * Access-parity helpers (not used by Code.gs): mirrored in backend/access/modPlantSync.bas.
+ * Kept here for Node tests that lock the spec shared with Access reverse-sync.
  */
+
+/** True when a cull's notes and unit identify a stock-plant cull per #28 UX. */
 function isStockPlantCull(notes, unit) {
   if (String(notes === undefined || notes === null ? '' : notes).trim().toLowerCase() !== 'stock plant') {
     return false;
@@ -381,42 +374,31 @@ function isStockPlantCull(notes, unit) {
   return u === 'pots' || u === 'pot';
 }
 
-/** max(0, cur - qty) — shared clamp for cull deduction. */
-function clampSub(cur, qty) {
-  if (qty < 0) qty = 0;
-  return cur - qty < 0 ? 0 : cur - qty;
-}
-
 /**
  * Pure cull deduction arithmetic (#28): subtract qty ONLY from the named container type, clamped at
  * zero. Unlike sales, misc oversell does NOT draw from pots. StockInNursery is never touched.
- * `unit` is normalised to lowercase; unknown units leave all counts unchanged.
+ * Unit strings must match SaleUnit in core/.
  */
 function computeCullDeduction(unit, qty, pots, tubes, misc) {
   var u = String(unit === undefined || unit === null ? '' : unit).trim().toLowerCase();
-  var p = pots;
-  var t = tubes;
-  var m = misc;
+  if (qty < 0) qty = 0;
+  var p = pots, t = tubes, m = misc;
+  function sub(cur) { return cur - qty < 0 ? 0 : cur - qty; }
   switch (u) {
     case 'pots':
-    case 'pot':
-      p = clampSub(p, qty);
-      break;
+    case 'pot': p = sub(p); break;
     case 'tubes':
-    case 'tube':
-      t = clampSub(t, qty);
-      break;
-    case 'misc':
-      m = clampSub(m, qty);
-      break;
+    case 'tube': t = sub(t); break;
+    case 'misc': m = sub(m); break;
   }
   return { pots: p, tubes: t, misc: m };
 }
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey,
-    accessionColIndex, salesColIndex, salesRowKey, selectPendingSales, resolveSalesMarks,
+    isAuthorized, emptyToNull, rowStr, rowNum, parsePlants, filterNewRows, planPlantReplace,
+    findRowByKey, accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
+    selectPendingSales, resolveSalesMarks,
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
     isStockPlantCull, computeCullDeduction,
   };
