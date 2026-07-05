@@ -151,32 +151,13 @@ jobs:
 
   mark-cursor-pr-ready:
     needs: ci-success
-    if: github.event_name == 'pull_request'
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.user.login == 'app/cursor' &&
+      github.event.pull_request.draft == true
     runs-on: ubuntu-latest
     steps:
       - name: Mark Cursor agent PR ready for review
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-
-          pr="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json author,isDraft)"
-          author="$(jq -r '.author.login' <<<"$pr")"
-          draft="$(jq -r '.isDraft' <<<"$pr")"
-
-          case "$author" in
-            cursor\[bot\]|app/cursor|cursor) ;;
-            *)
-              echo "Author $author is not a Cursor bot; skipping."
-              exit 0
-              ;;
-          esac
-
-          if [[ "$draft" != "true" ]]; then
-            echo "PR #$PR_NUMBER is not a draft; skipping."
-            exit 0
-          fi
-
-          gh pr ready "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
+        run: gh pr ready "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}"
