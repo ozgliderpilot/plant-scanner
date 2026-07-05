@@ -4,6 +4,7 @@ import com.nursery.core.CullReason
 import com.nursery.core.CullRecord
 import com.nursery.core.CullStatus
 import com.nursery.core.LineItem
+import com.nursery.core.PaymentMethod
 import com.nursery.core.Plant
 import com.nursery.core.Receipt
 import com.nursery.core.ReceiptStatus
@@ -76,6 +77,8 @@ fun ReceiptWithLines.toCore(): Receipt =
         createdAtEpochMs = receipt.createdAtEpochMs,
         status = ReceiptStatus.valueOf(receipt.status),
         lines = lines.map { it.toCore() },
+        paymentMethod = runCatching { PaymentMethod.valueOf(receipt.paymentMethod) }
+            .getOrDefault(PaymentMethod.CARD),
     )
 
 /** Header row for a not-yet-saved receipt (localId 0 lets Room autogenerate). */
@@ -85,6 +88,7 @@ fun Receipt.toEntity(): ReceiptEntity =
         receiptNo = receiptNo,
         createdAtEpochMs = createdAtEpochMs,
         status = status.name,
+        paymentMethod = paymentMethod.name,
     )
 
 // ---- Cull ----

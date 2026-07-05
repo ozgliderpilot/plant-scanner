@@ -20,6 +20,7 @@ data class ExportRow(
     val unitPriceCents: Long,
     val discountPct: Int,
     val lineTotalCents: Long,
+    val paymentMethod: PaymentMethod,
 )
 
 /**
@@ -32,7 +33,7 @@ object Export {
     val HEADER: List<String> = listOf(
         "receipt", "date", "item_seq", "accession", "name",
         "genus", "species", "cultivar", "common_name", "group",
-        "qty", "unit", "unit_price", "discount_pct", "line_total",
+        "qty", "unit", "unit_price", "discount_pct", "line_total", "payment_method",
     )
 
     fun buildRows(receipts: List<Receipt>, zone: ZoneId): List<ExportRow> =
@@ -55,6 +56,7 @@ object Export {
                     unitPriceCents = line.unitPriceCents,
                     discountPct = line.discountPct,
                     lineTotalCents = Money.lineTotalCents(line.qty, line.unitPriceCents, line.discountPct),
+                    paymentMethod = receipt.paymentMethod,
                 )
             }
         }
@@ -76,5 +78,6 @@ object Export {
         Money.formatPlain(row.unitPriceCents),
         row.discountPct.toString(),
         Money.formatPlain(row.lineTotalCents),
+        row.paymentMethod.exportLabel,
     )
 }

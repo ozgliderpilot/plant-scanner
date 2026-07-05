@@ -4,13 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nursery.core.LineItem
 import com.nursery.core.Money
+import com.nursery.core.PaymentMethod
 import com.nursery.core.Plant
 import com.nursery.core.PlantBook
 import com.nursery.core.Receipt
 import com.nursery.core.SaleUnit
-import com.nursery.scanner.data.repo.PlantRepository
-import com.nursery.scanner.data.repo.ReceiptRepository
-import com.nursery.scanner.data.settings.SettingsRepository
+import com.nursery.scanner.data.repo.PlantBookSource
+import com.nursery.scanner.data.repo.ReceiptSaver
+import com.nursery.scanner.data.settings.SettingsConfigSource
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,6 +70,8 @@ data class SellUiState(
     val draft: LineDraft? = null,
     val notFoundCode: String? = null,
     val saved: Receipt? = null,
+    val paymentMethod: PaymentMethod = PaymentMethod.CARD,
+    val isSaving: Boolean = false,
 ) {
     val totalCents: Long get() = Money.receiptTotalCents(lines)
     val isEmpty: Boolean get() = lines.isEmpty()
@@ -79,9 +82,9 @@ data class SellUiState(
  * receipt-in-progress survives Scan -> LineItem -> Cart -> Confirm.
  */
 class SellViewModel(
-    private val plantRepo: PlantRepository,
-    private val receiptRepo: ReceiptRepository,
-    private val settings: SettingsRepository,
+    private val plantRepo: PlantBookSource,
+    private val receiptRepo: ReceiptSaver,
+    private val settings: SettingsConfigSource,
 ) : ViewModel() {
 
     private var book: PlantBook = PlantBook(emptyList())
@@ -182,17 +185,27 @@ class SellViewModel(
         _ui.update { it.copy(lines = lines) }
     }
 
+    fun setPaymentMethod(method: PaymentMethod) =
+        _ui.update { if (it.isSaving) it else it.copy(paymentMethod = method) }
+
     /** ③ -> ④ Save the receipt locally as SAVED (pending export). */
     fun finishAndSave() {
-        if (_ui.value.lines.isEmpty() || _ui.value.saved != null || isSaving) return
+        val snapshot = _ui.value
+        if (snapshot.lines.isEmpty() || snapshot.saved != null || isSaving) return
         isSaving = true
+        _ui.update { it.copy(isSaving = true) }
         viewModelScope.launch {
             try {
                 val config = settings.config.first()
-                val receipt = receiptRepo.saveReceipt(_ui.value.lines, config)
+                val receipt = receiptRepo.saveReceipt(
+                    snapshot.lines,
+                    config,
+                    snapshot.paymentMethod,
+                )
                 _ui.update { it.copy(saved = receipt) }
             } finally {
                 isSaving = false
+                _ui.update { it.copy(isSaving = false) }
             }
         }
     }

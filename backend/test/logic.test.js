@@ -260,12 +260,12 @@ test('parsePlants reads StockInNursery (Nz -> 0)', () => {
 const SALES_HEADER = [
   'receipt', 'date', 'item_seq', 'accession', 'name',
   'genus', 'species', 'cultivar', 'common_name', 'group',
-  'qty', 'unit', 'unit_price', 'discount_pct', 'line_total', 'sync_status',
+  'qty', 'unit', 'unit_price', 'discount_pct', 'line_total', 'payment_method', 'sync_status',
 ];
 
 /** Build a full-width Sales sheet row; taxonomic/group fields default to empty. */
-function salesRow(receipt, date, itemSeq, accession, name, qty, unit, unitPrice, discount, lineTotal, syncStatus) {
-  return [receipt, date, itemSeq, accession, name, '', '', '', '', '', qty, unit, unitPrice, discount, lineTotal, syncStatus];
+function salesRow(receipt, date, itemSeq, accession, name, qty, unit, unitPrice, discount, lineTotal, syncStatus, paymentMethod = 'card') {
+  return [receipt, date, itemSeq, accession, name, '', '', '', '', '', qty, unit, unitPrice, discount, lineTotal, paymentMethod, syncStatus];
 }
 
 test('selectPendingSales returns [] for an empty or header-only sheet', () => {

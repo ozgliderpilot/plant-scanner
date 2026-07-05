@@ -2,6 +2,7 @@ package com.nursery.scanner.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.nursery.core.PaymentMethod
 
 /** A receipt = one customer (spec #4). [status] holds a ReceiptStatus name; it is the sync queue. */
 @Entity(tableName = "receipts")
@@ -10,4 +11,5 @@ data class ReceiptEntity(
     val receiptNo: String,
     val createdAtEpochMs: Long,
     val status: String,
+    val paymentMethod: String = PaymentMethod.CARD.name,
 )

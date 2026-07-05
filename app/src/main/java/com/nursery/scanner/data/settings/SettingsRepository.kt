@@ -15,12 +15,16 @@ import kotlinx.coroutines.flow.map
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore("settings")
 
+interface SettingsConfigSource {
+    val config: Flow<DeviceConfig>
+}
+
 /**
  * Per-device configuration + local counters, persisted with DataStore. Holds the receipt sequence
  * (for `PP-NNN`, #11), the auto-export interval (#10), the Apps Script URL + shared secret, and the
  * last successful sync time (for the status chip).
  */
-class SettingsRepository(context: Context) {
+class SettingsRepository(context: Context) : SettingsConfigSource {
 
     private val store = context.settingsDataStore
 
@@ -34,7 +38,7 @@ class SettingsRepository(context: Context) {
         val LAST_SYNCED = longPreferencesKey("last_synced_ms")
     }
 
-    val config: Flow<DeviceConfig> = store.data.map { p ->
+    override val config: Flow<DeviceConfig> = store.data.map { p ->
         val rawPrefix = p[Keys.PREFIX] ?: DeviceConfig.DEFAULT_PREFIX
         DeviceConfig(
             devicePrefix = if (ReceiptNumbering.isValidPrefix(rawPrefix)) rawPrefix else DeviceConfig.DEFAULT_PREFIX,

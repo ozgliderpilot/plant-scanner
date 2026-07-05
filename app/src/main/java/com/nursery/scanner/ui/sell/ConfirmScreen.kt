@@ -65,6 +65,10 @@ fun ConfirmScreen(
             style = MaterialTheme.typography.displaySmall,
         )
         Text(
+            "Payment: ${saved.paymentMethod.displayLabel}",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
             "Saved locally · $pendingCount pending",
             style = MaterialTheme.typography.bodyLarge,
         )

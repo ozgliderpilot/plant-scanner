@@ -47,6 +47,7 @@ fun ReceiptDetailScreen(
         ) {
             Text(r.receiptNo, style = MaterialTheme.typography.headlineSmall)
             Text(formatDateTime(r.createdAtEpochMs), style = MaterialTheme.typography.bodyMedium)
+            Text("Payment: ${r.paymentMethod.displayLabel}", style = MaterialTheme.typography.bodyMedium)
             HorizontalDivider(modifier = Modifier.padding(vertical = Dimens.GapSmall))
 
             r.lines.forEach { line ->
