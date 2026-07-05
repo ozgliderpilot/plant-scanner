@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -24,22 +24,25 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import com.nursery.core.Money
 import com.nursery.core.Receipt
 import com.nursery.core.ReceiptList
+import com.nursery.core.ReceiptListItem
 import com.nursery.core.ReceiptPlantSummary
 import com.nursery.scanner.ui.theme.Dimens
 import com.nursery.scanner.util.formatDateTime
+import com.nursery.scanner.util.formatEpochDay
 
 /** Receipts tab: sales history grouped by receipt (decision: tab screen, top/bottom bars from shell). */
 @Composable
 fun ReceiptsScreen(vm: ReceiptsViewModel, onOpen: (Long) -> Unit, modifier: Modifier = Modifier) {
-    val receipts by vm.receipts.collectAsStateWithLifecycle()
+    val items by vm.items.collectAsStateWithLifecycle()
 
-    if (receipts.isEmpty()) {
+    if (items.isEmpty()) {
         Box(modifier.fillMaxSize().padding(Dimens.ScreenPadding), contentAlignment = Alignment.Center) {
             Text("No sales yet.", style = MaterialTheme.typography.bodyLarge)
         }
@@ -51,10 +54,30 @@ fun ReceiptsScreen(vm: ReceiptsViewModel, onOpen: (Long) -> Unit, modifier: Modi
         contentPadding = androidx.compose.foundation.layout.PaddingValues(Dimens.ScreenPadding),
         verticalArrangement = Arrangement.spacedBy(Dimens.Gap),
     ) {
-        items(receipts, key = { it.localId }) { receipt ->
-            ReceiptCard(receipt = receipt, onClick = { onOpen(receipt.localId) })
+        itemsIndexed(items, key = { index, item -> listItemKey(item, index) }) { _, item ->
+            when (item) {
+                is ReceiptListItem.Row -> ReceiptCard(receipt = item.receipt, onClick = { onOpen(item.receipt.localId) })
+                is ReceiptListItem.DayTotal -> DayTotalRow(epochDay = item.epochDay, totalCents = item.totalCents)
+            }
         }
     }
+}
+
+private fun listItemKey(item: ReceiptListItem, index: Int): String =
+    when (item) {
+        is ReceiptListItem.Row -> "receipt-${item.receipt.localId}"
+        is ReceiptListItem.DayTotal -> "day-total-${item.epochDay}-$index"
+    }
+
+@Composable
+private fun DayTotalRow(epochDay: Long, totalCents: Long) {
+    Text(
+        text = "${formatEpochDay(epochDay)} Total: ${Money.formatAud(totalCents)}",
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.End,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
