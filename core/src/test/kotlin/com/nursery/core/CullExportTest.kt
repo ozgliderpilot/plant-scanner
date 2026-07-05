@@ -61,7 +61,7 @@ class CullExportTest {
         val rows = CullExport.buildRows(listOf(known, unknown), ZoneOffset.UTC)
         assertEquals(
             listOf(
-                "PP-1751371200-1", "2026-07-01", "31011", "Acacia pycnantha",
+                "PP-1751371200-1", "2026-07-01T12:00", "31011", "Acacia pycnantha",
                 "Acacia", "pycnantha", "", "Golden Wattle", "Tree",
                 "3", "tubes", "Pest", "aphids",
             ),
@@ -69,7 +69,7 @@ class CullExportTest {
         )
         assertEquals(
             listOf(
-                "PP-1751371200-2", "2026-07-01", "9999999999999", "unknown",
+                "PP-1751371200-2", "2026-07-01T12:00", "9999999999999", "unknown",
                 "", "", "", "", "",
                 "1", "pots", "Dead", "",
             ),

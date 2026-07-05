@@ -27,7 +27,7 @@ class ExportTest {
     @Test fun `one row per line item with computed total and date`() {
         val rows = Export.buildRows(listOf(receipt), ZoneOffset.UTC)
         assertEquals(2, rows.size)
-        assertEquals("2026-06-09", rows[0].isoDate)
+        assertEquals("2026-06-09T10:00", rows[0].isoDate)
         assertEquals(1800, rows[0].lineTotalCents)
         assertEquals(500, rows[1].lineTotalCents)
     }
@@ -36,7 +36,7 @@ class ExportTest {
         val rows = Export.buildRows(listOf(receipt), ZoneOffset.UTC)
         assertEquals(
             listOf(
-                "07-241", "2026-06-09", "1", "2021-0345", "Banksia integrifolia",
+                "07-241", "2026-06-09T10:00", "1", "2021-0345", "Banksia integrifolia",
                 "Banksia", "integrifolia", "", "Coast Banksia", "Shrub",
                 "2", "tubes", "10.00", "10", "18.00",
             ),
@@ -44,7 +44,7 @@ class ExportTest {
         )
         assertEquals(
             listOf(
-                "07-241", "2026-06-09", "2", "9999999999999", "unknown",
+                "07-241", "2026-06-09T10:00", "2", "9999999999999", "unknown",
                 "", "", "", "", "",
                 "1", "pots", "5.00", "0", "5.00",
             ),

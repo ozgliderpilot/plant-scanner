@@ -3,7 +3,7 @@ package com.nursery.core
 import java.time.Instant
 import java.time.ZoneId
 
-/** One spreadsheet row = one line item of one receipt. Includes the transaction date (per spec). */
+/** One spreadsheet row = one line item of one receipt. Includes the transaction date-time (per spec). */
 data class ExportRow(
     val receiptNo: String,
     val isoDate: String,
@@ -37,7 +37,7 @@ object Export {
 
     fun buildRows(receipts: List<Receipt>, zone: ZoneId): List<ExportRow> =
         receipts.flatMap { receipt ->
-            val date = Instant.ofEpochMilli(receipt.createdAtEpochMs).atZone(zone).toLocalDate().toString()
+            val date = Instant.ofEpochMilli(receipt.createdAtEpochMs).atZone(zone).toLocalDateTime().toString()
             receipt.lines.map { line ->
                 ExportRow(
                     receiptNo = receipt.receiptNo,

@@ -31,7 +31,7 @@ object CullExport {
         culls.map { cull ->
             CullExportRow(
                 cullId = cull.cullNo,
-                isoDate = Instant.ofEpochMilli(cull.createdAtEpochMs).atZone(zone).toLocalDate().toString(),
+                isoDate = Instant.ofEpochMilli(cull.createdAtEpochMs).atZone(zone).toLocalDateTime().toString(),
                 accession = cull.accession,
                 name = cull.name,
                 genus = cull.genus,
