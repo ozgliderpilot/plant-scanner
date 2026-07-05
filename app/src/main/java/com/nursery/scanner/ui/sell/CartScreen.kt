@@ -110,6 +110,7 @@ fun CartScreen(
                 options = PaymentMethod.entries,
                 selected = ui.paymentMethod,
                 onSelect = vm::setPaymentMethod,
+                enabled = !ui.isSaving,
             )
 
             BigButton(
@@ -117,11 +118,12 @@ fun CartScreen(
                 onClick = onScanAnother,
                 leadingIcon = Icons.Filled.Add,
                 style = BigButtonStyle.Secondary,
+                enabled = !ui.isSaving,
             )
             BigButton(
                 text = "Finish & save",
                 onClick = { vm.finishAndSave() },
-                enabled = ui.lines.isNotEmpty(),
+                enabled = ui.lines.isNotEmpty() && !ui.isSaving,
             )
         }
     }

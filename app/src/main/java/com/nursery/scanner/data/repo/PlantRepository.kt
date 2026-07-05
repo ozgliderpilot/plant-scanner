@@ -10,14 +10,18 @@ import com.nursery.scanner.data.remote.SheetsClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+interface PlantBookSource {
+    val plantBook: Flow<PlantBook>
+}
+
 /** The cached plant list: read offline for every scan, refreshed on an explicit manual pull. */
 class PlantRepository(
     private val plantDao: PlantDao,
     private val sheets: SheetsClient,
-) {
+) : PlantBookSource {
     val plants: Flow<List<Plant>> = plantDao.observeAll().map { list -> list.map { it.toCore() } }
 
-    val plantBook: Flow<PlantBook> = plants.map { PlantBook(it) }
+    override val plantBook: Flow<PlantBook> = plants.map { PlantBook(it) }
 
     val count: Flow<Int> = plantDao.observeCount()
 

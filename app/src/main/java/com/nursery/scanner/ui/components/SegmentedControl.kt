@@ -26,6 +26,7 @@ fun SegmentedControl(
     selected: PaymentMethod,
     onSelect: (PaymentMethod) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -41,6 +42,7 @@ fun SegmentedControl(
             if (isSelected) {
                 Button(
                     onClick = { onSelect(option) },
+                    enabled = enabled,
                     shape = shape,
                     modifier = btnModifier,
                 ) {
@@ -49,6 +51,7 @@ fun SegmentedControl(
             } else {
                 OutlinedButton(
                     onClick = { onSelect(option) },
+                    enabled = enabled,
                     shape = shape,
                     modifier = btnModifier,
                 ) {
