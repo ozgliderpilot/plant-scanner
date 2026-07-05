@@ -31,9 +31,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nursery.core.LineItem
 import com.nursery.core.Money
+import com.nursery.core.PaymentMethod
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.components.ScreenHeader
+import com.nursery.scanner.ui.components.SegmentedControl
 import com.nursery.scanner.ui.theme.Dimens
 
 /**
@@ -102,6 +104,13 @@ fun CartScreen(
                     style = MaterialTheme.typography.headlineMedium,
                 )
             }
+
+            Text("Payment method", style = MaterialTheme.typography.titleMedium)
+            SegmentedControl(
+                options = PaymentMethod.entries,
+                selected = ui.paymentMethod,
+                onSelect = vm::setPaymentMethod,
+            )
 
             BigButton(
                 text = "Scan another",

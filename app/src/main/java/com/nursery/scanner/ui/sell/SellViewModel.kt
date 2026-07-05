@@ -3,6 +3,7 @@ package com.nursery.scanner.ui.sell
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nursery.core.LineItem
+import com.nursery.core.PaymentMethod
 import com.nursery.core.Money
 import com.nursery.core.Plant
 import com.nursery.core.PlantBook
@@ -69,6 +70,7 @@ data class SellUiState(
     val draft: LineDraft? = null,
     val notFoundCode: String? = null,
     val saved: Receipt? = null,
+    val paymentMethod: PaymentMethod = PaymentMethod.CARD,
 ) {
     val totalCents: Long get() = Money.receiptTotalCents(lines)
     val isEmpty: Boolean get() = lines.isEmpty()
@@ -182,6 +184,8 @@ class SellViewModel(
         _ui.update { it.copy(lines = lines) }
     }
 
+    fun setPaymentMethod(method: PaymentMethod) = _ui.update { it.copy(paymentMethod = method) }
+
     /** ③ -> ④ Save the receipt locally as SAVED (pending export). */
     fun finishAndSave() {
         if (_ui.value.lines.isEmpty() || _ui.value.saved != null || isSaving) return
@@ -189,7 +193,11 @@ class SellViewModel(
         viewModelScope.launch {
             try {
                 val config = settings.config.first()
-                val receipt = receiptRepo.saveReceipt(_ui.value.lines, config)
+                val receipt = receiptRepo.saveReceipt(
+                    _ui.value.lines,
+                    config,
+                    _ui.value.paymentMethod,
+                )
                 _ui.update { it.copy(saved = receipt) }
             } finally {
                 isSaving = false

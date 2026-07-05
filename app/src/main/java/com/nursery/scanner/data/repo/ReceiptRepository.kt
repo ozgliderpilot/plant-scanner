@@ -2,6 +2,7 @@ package com.nursery.scanner.data.repo
 
 import com.nursery.core.DeviceConfig
 import com.nursery.core.LineItem
+import com.nursery.core.PaymentMethod
 import com.nursery.core.Receipt
 import com.nursery.core.ReceiptNumbering
 import com.nursery.core.ReceiptStatus
@@ -29,7 +30,11 @@ class ReceiptRepository(
      * Allocate the next `PP-NNN` number, save the receipt + lines as SAVED (pending export).
      * Returns the persisted receipt.
      */
-    suspend fun saveReceipt(lines: List<LineItem>, config: DeviceConfig): Receipt {
+    suspend fun saveReceipt(
+        lines: List<LineItem>,
+        config: DeviceConfig,
+        paymentMethod: PaymentMethod = PaymentMethod.CARD,
+    ): Receipt {
         val createdAt = now()
         val todayEpochDay = Instant.ofEpochMilli(createdAt).atZone(zone).toLocalDate().toEpochDay()
         val seq = settings.nextReceiptSeq(todayEpochDay)
@@ -38,6 +43,7 @@ class ReceiptRepository(
             receiptNo = receiptNo,
             createdAtEpochMs = createdAt,
             status = ReceiptStatus.SAVED.name,
+            paymentMethod = paymentMethod.name,
         )
         val stamped = lines.mapIndexed { index, line -> line.copy(itemSeq = index + 1) }
         val id = receiptDao.saveReceipt(header, stamped.map { it.toEntity(0) })
@@ -47,6 +53,7 @@ class ReceiptRepository(
             createdAtEpochMs = createdAt,
             status = ReceiptStatus.SAVED,
             lines = stamped,
+            paymentMethod = paymentMethod,
         )
     }
 

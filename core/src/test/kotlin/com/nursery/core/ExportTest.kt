@@ -38,7 +38,7 @@ class ExportTest {
             listOf(
                 "07-241", "2026-06-09T10:00", "1", "2021-0345", "Banksia integrifolia",
                 "Banksia", "integrifolia", "", "Coast Banksia", "Shrub",
-                "2", "tubes", "10.00", "10", "18.00",
+                "2", "tubes", "10.00", "10", "18.00", "card",
             ),
             Export.rowAsStrings(rows[0]),
         )
@@ -46,18 +46,28 @@ class ExportTest {
             listOf(
                 "07-241", "2026-06-09T10:00", "2", "9999999999999", "unknown",
                 "", "", "", "", "",
-                "1", "pots", "5.00", "0", "5.00",
+                "1", "pots", "5.00", "0", "5.00", "card",
             ),
             Export.rowAsStrings(rows[1]),
         )
     }
 
-    @Test fun `header includes taxonomic columns after name`() {
+    @Test fun `payment_method is duplicated on every line row from the receipt`() {
+        val cash = receipt.copy(paymentMethod = PaymentMethod.CASH)
+        val rows = Export.buildRows(listOf(cash), ZoneOffset.UTC)
+        assertEquals(2, rows.size)
+        assertEquals(PaymentMethod.CASH, rows[0].paymentMethod)
+        assertEquals(PaymentMethod.CASH, rows[1].paymentMethod)
+        assertEquals("cash", Export.rowAsStrings(rows[0]).last())
+        assertEquals("cash", Export.rowAsStrings(rows[1]).last())
+    }
+
+    @Test fun `header includes payment_method after line_total`() {
         assertEquals(
             listOf(
                 "receipt", "date", "item_seq", "accession", "name",
                 "genus", "species", "cultivar", "common_name", "group",
-                "qty", "unit", "unit_price", "discount_pct", "line_total",
+                "qty", "unit", "unit_price", "discount_pct", "line_total", "payment_method",
             ),
             Export.HEADER,
         )

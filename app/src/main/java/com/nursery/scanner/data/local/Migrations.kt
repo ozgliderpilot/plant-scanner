@@ -65,3 +65,13 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         db.execSQL("ALTER TABLE culls ADD COLUMN commonName TEXT NOT NULL DEFAULT ''")
     }
 }
+
+/**
+ * v6 -> v7: add receipt-level payment method (issue #56). Additive only — existing receipts default
+ * to card.
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE receipts ADD COLUMN paymentMethod TEXT NOT NULL DEFAULT 'CARD'")
+    }
+}

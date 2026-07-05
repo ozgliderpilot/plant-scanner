@@ -65,4 +65,5 @@ data class Receipt(
     val createdAtEpochMs: Long,
     val status: ReceiptStatus,
     val lines: List<LineItem>,
+    val paymentMethod: PaymentMethod = PaymentMethod.CARD,
 )
