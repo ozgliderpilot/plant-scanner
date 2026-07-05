@@ -1,12 +1,6 @@
 {
   "version": 1,
   "skills": {
-    "implement": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "skillPath": "skills/engineering/implement/SKILL.md",
-      "computedHash": "5eedab2e36a68278662484e8e243624fe0bb74040299aa6c8a525feb65b0365c"
-    },
     "tdd": {
       "source": "mattpocock/skills",
       "sourceType": "github",
