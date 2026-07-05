@@ -151,13 +151,33 @@ jobs:
 
   mark-cursor-pr-ready:
     needs: ci-success
-    if: |
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.user.login == 'cursor[bot]' &&
-      github.event.pull_request.draft == true
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Mark Cursor agent PR ready for review
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: gh pr ready "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}"
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          EVENT_AUTHOR: ${{ github.event.pull_request.user.login }}
+          EVENT_DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          set -euo pipefail
+
+          echo "event author: $EVENT_AUTHOR"
+          echo "event draft: $EVENT_DRAFT"
+
+          if [[ "$EVENT_AUTHOR" != "cursor[bot]" ]]; then
+            echo "Skipping: event author is not cursor[bot]"
+            exit 0
+          fi
+
+          if [[ "$EVENT_DRAFT" != "true" ]]; then
+            echo "Skipping: event draft is not true"
+            exit 0
+          fi
+
+          live="$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '{user: .user.login, draft: .draft}')"
+          echo "live PR: $live"
+
+          gh pr ready "$PR_NUMBER" --repo "$REPO"
