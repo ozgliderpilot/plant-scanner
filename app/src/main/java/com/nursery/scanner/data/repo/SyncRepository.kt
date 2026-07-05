@@ -140,7 +140,7 @@ class SyncRepository(
     }
 
     private suspend fun purgeRetained() {
-        val cutoff = now() - Retention.RETENTION_MS
+        val cutoff = Retention.purgeCutoffEpochMs(now(), zone)
         receiptDao.deleteExportedOlderThan(ReceiptStatus.EXPORTED.name, cutoff)
         cullDao.deleteExportedOlderThan(CullStatus.EXPORTED.name, cutoff)
     }
