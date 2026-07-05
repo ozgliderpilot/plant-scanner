@@ -91,14 +91,15 @@ Single-context: `CONTEXT.md` + `docs/adr/`. See [`docs/agents/domain.md`](./docs
 
 Toolchain is preinstalled in the VM snapshot: JDK 21, Node 22, a system `gradle` 8.9 (on `PATH`,
 used by `core/`), and the Android SDK at `~/android-sdk` (platform 34 + build-tools 35). The update
-script only refreshes `backend/` npm deps; everything else persists in the snapshot.
+script refreshes `backend/` npm deps and (re)writes the git-ignored `local.properties` with
+`sdk.dir=$HOME/android-sdk`; everything else persists in the snapshot.
 
 - **`core/`** — `cd core && gradle test` (system gradle, not the wrapper). Downloads deps on first run.
 - **`backend/`** — `node --test backend/test/logic.test.js`. npm deps (`@google/clasp`) are only for
   deploy, not for the tests.
 - **`app/`** — `./gradlew :app:assembleQaDebug` builds the APK (`app/build/outputs/apk/qa/debug/`).
-  Needs a `local.properties` with `sdk.dir=$HOME/android-sdk` (already present in the snapshot; not
-  committed). The committed `gradlew` is not executable — run `chmod +x gradlew` or use `sh gradlew`.
+ Needs a `local.properties` with `sdk.dir=$HOME/android-sdk` (git-ignored; the update script writes
+ it on startup). The committed `gradlew` is not executable — run `chmod +x gradlew` or use `sh gradlew`.
   The Kotlin compile daemon may fail to start in this VM (memory-mapped file limits) and fall back to
   "Compile without Kotlin daemon" — the build still succeeds; ignore that warning.
 - **Running the app GUI is not possible here** — no `/dev/kvm`, so an Android emulator can't run.
