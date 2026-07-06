@@ -151,7 +151,11 @@ jobs:
 
   mark-cursor-pr-ready:
     needs: ci-success
-    if: github.event_name == 'pull_request'
+    if: |
+      always() &&
+      !cancelled() &&
+      github.event_name == 'pull_request' &&
+      needs.ci-success.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Mark Cursor agent PR ready for review
