@@ -11,17 +11,31 @@ class ReceiptListTest {
 
     private val zone = ZoneId.of("UTC")
 
-    private fun receipt(id: Long, status: ReceiptStatus, createdAt: Long, unitPriceCents: Long = 0) =
-        Receipt(
-            localId = id,
-            receiptNo = "PP-$id",
-            createdAtEpochMs = createdAt,
-            status = status,
-            lines = if (unitPriceCents == 0L) {
-                emptyList()
-            } else {
-                listOf(LineItem("A1", "Test", qty = 1, unitPriceCents = unitPriceCents, discountPct = 0))
-            },
+    private fun receipt(
+        id: Long,
+        status: ReceiptStatus,
+        createdAt: Long,
+        unitPriceCents: Long = 0,
+        paymentMethod: PaymentMethod = PaymentMethod.CARD,
+    ) = Receipt(
+        localId = id,
+        receiptNo = "PP-$id",
+        createdAtEpochMs = createdAt,
+        status = status,
+        lines = if (unitPriceCents == 0L) {
+            emptyList()
+        } else {
+            listOf(LineItem("A1", "Test", qty = 1, unitPriceCents = unitPriceCents, discountPct = 0))
+        },
+        paymentMethod = paymentMethod,
+    )
+
+    private fun dayTotal(epochDay: Long, totalCents: Long, cashCents: Long = 0, cardCents: Long = totalCents) =
+        ReceiptListItem.DayTotal(
+            epochDay = epochDay,
+            totalCents = totalCents,
+            cashCents = cashCents,
+            cardCents = cardCents,
         )
 
     private fun epochMs(year: Int, month: Int, day: Int, hour: Int = 12): Long =
@@ -76,9 +90,9 @@ class ReceiptListTest {
         assertEquals(
             listOf(
                 ReceiptListItem.Row(a),
-                ReceiptListItem.DayTotal(epochDay = LocalDate.of(2026, 7, 4).toEpochDay(), totalCents = 5000),
+                dayTotal(epochDay = LocalDate.of(2026, 7, 4).toEpochDay(), totalCents = 5000),
                 ReceiptListItem.Row(b),
-                ReceiptListItem.DayTotal(epochDay = LocalDate.of(2026, 7, 3).toEpochDay(), totalCents = 7550),
+                dayTotal(epochDay = LocalDate.of(2026, 7, 3).toEpochDay(), totalCents = 7550),
             ),
             items,
         )
@@ -94,7 +108,7 @@ class ReceiptListTest {
             listOf(
                 ReceiptListItem.Row(newer),
                 ReceiptListItem.Row(older),
-                ReceiptListItem.DayTotal(epochDay = LocalDate.of(2026, 7, 3).toEpochDay(), totalCents = 3050),
+                dayTotal(epochDay = LocalDate.of(2026, 7, 3).toEpochDay(), totalCents = 3050),
             ),
             items,
         )
@@ -115,9 +129,9 @@ class ReceiptListTest {
         assertEquals(
             listOf(
                 ReceiptListItem.Row(receipt(1, ReceiptStatus.EXPORTED, early, unitPriceCents = 100)),
-                ReceiptListItem.DayTotal(epochDay = LocalDate.of(2026, 7, 4).toEpochDay(), totalCents = 100),
+                dayTotal(epochDay = LocalDate.of(2026, 7, 4).toEpochDay(), totalCents = 100),
                 ReceiptListItem.Row(receipt(2, ReceiptStatus.EXPORTED, late, unitPriceCents = 200)),
-                ReceiptListItem.DayTotal(epochDay = LocalDate.of(2026, 7, 3).toEpochDay(), totalCents = 200),
+                dayTotal(epochDay = LocalDate.of(2026, 7, 3).toEpochDay(), totalCents = 200),
             ),
             items,
         )
@@ -136,9 +150,49 @@ class ReceiptListTest {
             listOf(
                 ReceiptListItem.Row(pending),
                 ReceiptListItem.Row(exported),
-                ReceiptListItem.DayTotal(epochDay = LocalDate.of(2026, 7, 3).toEpochDay(), totalCents = 4000),
+                dayTotal(epochDay = LocalDate.of(2026, 7, 3).toEpochDay(), totalCents = 4000),
             ),
             items,
         )
+    }
+
+    @Test fun `withDayTotals breaks down cash and card on a mixed day`() {
+        val july3 = epochMs(2026, 7, 3)
+        val cashSale = receipt(1, ReceiptStatus.EXPORTED, july3, unitPriceCents = 4000, paymentMethod = PaymentMethod.CASH)
+        val cardSale = receipt(2, ReceiptStatus.EXPORTED, july3, unitPriceCents = 8550, paymentMethod = PaymentMethod.CARD)
+        val items = ReceiptList.withDayTotals(ReceiptList.grouped(listOf(cardSale, cashSale)), zone)
+        assertEquals(
+            listOf(
+                ReceiptListItem.Row(cardSale),
+                ReceiptListItem.Row(cashSale),
+                dayTotal(
+                    epochDay = LocalDate.of(2026, 7, 3).toEpochDay(),
+                    totalCents = 12550,
+                    cashCents = 4000,
+                    cardCents = 8550,
+                ),
+            ),
+            items,
+        )
+    }
+
+    @Test fun `withDayTotals shows zero cash when all sales are card`() {
+        val july3 = epochMs(2026, 7, 3)
+        val cardSale = receipt(1, ReceiptStatus.EXPORTED, july3, unitPriceCents = 5000)
+        val items = ReceiptList.withDayTotals(ReceiptList.grouped(listOf(cardSale)), zone)
+        val total = items.filterIsInstance<ReceiptListItem.DayTotal>().single()
+        assertEquals(5000, total.totalCents)
+        assertEquals(0, total.cashCents)
+        assertEquals(5000, total.cardCents)
+    }
+
+    @Test fun `withDayTotals shows zero card when all sales are cash`() {
+        val july3 = epochMs(2026, 7, 3)
+        val cashSale = receipt(1, ReceiptStatus.EXPORTED, july3, unitPriceCents = 5000, paymentMethod = PaymentMethod.CASH)
+        val items = ReceiptList.withDayTotals(ReceiptList.grouped(listOf(cashSale)), zone)
+        val total = items.filterIsInstance<ReceiptListItem.DayTotal>().single()
+        assertEquals(5000, total.totalCents)
+        assertEquals(5000, total.cashCents)
+        assertEquals(0, total.cardCents)
     }
 }
