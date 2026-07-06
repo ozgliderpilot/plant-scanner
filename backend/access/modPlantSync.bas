@@ -416,7 +416,7 @@ Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
         ElseIf CountBatchMatches_(db, accession) = 1 Then
             ' A recognized unit resolving to EXACTLY ONE batch is deducted and ledgered "Synced".
             If ApplyDeduction_(db, receipt, itemSeq, accession, unit, qty) Then
-                marks.Add MarkJson_(receipt, itemSeq, "Synced")
+                marks.Add MarkJson_(receipt, itemSeq, "Synced", LookupSpeciesFields_(db, accession))
             End If
             ' transaction failed -> not ledgered, left Pending, retried next run
         Else
@@ -489,7 +489,7 @@ Private Sub ApplyPendingCulls_(ByVal url As String, ByVal secret As String)
             End If
         ElseIf CountBatchMatches_(db, accession) = 1 Then
             If ApplyCullDeduction_(db, cullId, accession, unit, qty) Then
-                marks.Add CullMarkJson_(cullId, "Synced")
+                marks.Add CullMarkJson_(cullId, "Synced", LookupSpeciesFields_(db, accession))
             End If
         Else
             If ApplyCullNoMatch_(db, cullId) Then
@@ -641,9 +641,11 @@ Private Sub CullLedgerInsert_(ByRef db As DAO.Database, ByVal cullId As String, 
     qd.Execute dbFailOnError
 End Sub
 
-Private Function CullMarkJson_(ByVal cullId As String, ByVal status As String) As String
+Private Function CullMarkJson_(ByVal cullId As String, ByVal status As String, _
+                               Optional ByVal enrich As Variant) As String
     CullMarkJson_ = "{""cull_id"":""" & JsonEscape(cullId) & """," & _
-                    """status"":""" & JsonEscape(status) & """}"
+                    """status"":""" & JsonEscape(status) & """" & _
+                    PlantEnrichJsonSuffix_(enrich) & "}"
 End Function
 
 Private Function ParsePendingCulls_(ByVal body As String) As Collection
@@ -882,11 +884,81 @@ Private Sub LedgerInsert_(ByRef db As DAO.Database, ByVal receipt As String, _
 End Sub
 
 ' Build one {"receipt":..,"item_seq":..,"status":..} object for the markSalesSynced keys array.
+' Optional enrich is a Variant array from LookupSpeciesFields_: (name, genus, species, cultivar,
+' common_name, group). Omitted/Empty -> status-only payload (backward compatible).
 Private Function MarkJson_(ByVal receipt As String, ByVal itemSeq As Long, _
-                           ByVal status As String) As String
+                           ByVal status As String, Optional ByVal enrich As Variant) As String
     MarkJson_ = "{""receipt"":""" & JsonEscape(receipt) & """," & _
                 """item_seq"":" & itemSeq & "," & _
-                """status"":""" & JsonEscape(status) & """}"
+                """status"":""" & JsonEscape(status) & """" & _
+                PlantEnrichJsonSuffix_(enrich) & "}"
+End Function
+
+' Compose a display name from Species columns — same rules as parsePlants/composePlantName in shared.js.
+Private Function ComposePlantName_(ByVal genus As String, ByVal species As String, _
+                                   ByVal cultivar As String, ByVal commonName As String) As String
+    Dim base As String, cv As String
+    base = Trim$(genus)
+    If Len(Trim$(species)) > 0 Then
+        If Len(base) > 0 Then base = base & " "
+        base = base & Trim$(species)
+    End If
+    cv = Trim$(cultivar)
+    If Len(cv) > 0 Then base = Trim$(base & " '" & cv & "'")
+    If Len(base) = 0 Then base = Trim$(commonName)
+    ComposePlantName_ = base
+End Function
+
+' Look up plant metadata from Batches joined to Species for a unique numeric accession.
+' Returns Empty when absent; otherwise Array(name, genus, species, cultivar, common_name, group).
+Private Function LookupSpeciesFields_(ByRef db As DAO.Database, ByVal accession As String) As Variant
+    Dim qd As DAO.QueryDef, rs As DAO.Recordset
+    Dim genus As String, species As String, cultivar As String
+    Dim commonName As String, plantType As String
+
+    If Not IsNumeric(accession) Then
+        LookupSpeciesFields_ = Empty
+        Exit Function
+    End If
+
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pAcc Double; " & _
+        "SELECT s.[Genus], s.[Species], s.[Cultivar], s.[Common Name], s.[Plant Type] " & _
+        "FROM Batches AS b INNER JOIN Species AS s ON b.[Id No] = s.[Id No] " & _
+        "WHERE b.[Ac Number]=[pAcc];")
+    qd.Parameters("pAcc").Value = CDbl(accession)
+    Set rs = qd.OpenRecordset(dbOpenSnapshot)
+    If rs.EOF Then
+        LookupSpeciesFields_ = Empty
+    Else
+        genus = Nz(rs![Genus], "")
+        species = Nz(rs![Species], "")
+        cultivar = Nz(rs![Cultivar], "")
+        commonName = Nz(rs![Common Name], "")
+        plantType = Nz(rs![Plant Type], "")
+        LookupSpeciesFields_ = Array( _
+            ComposePlantName_(genus, species, cultivar, commonName), _
+            genus, species, cultivar, commonName, plantType)
+    End If
+    rs.Close
+    Set rs = Nothing
+End Function
+
+' Append optional plant-field JSON properties from LookupSpeciesFields_ output.
+Private Function PlantEnrichJsonSuffix_(Optional ByVal enrich As Variant) As String
+    Dim s As String
+    If IsMissing(enrich) Or IsEmpty(enrich) Then
+        PlantEnrichJsonSuffix_ = ""
+        Exit Function
+    End If
+    s = ""
+    If Len(CStr(enrich(0))) > 0 Then s = s & ",""name"":""" & JsonEscape(CStr(enrich(0))) & """"
+    If Len(CStr(enrich(1))) > 0 Then s = s & ",""genus"":""" & JsonEscape(CStr(enrich(1))) & """"
+    If Len(CStr(enrich(2))) > 0 Then s = s & ",""species"":""" & JsonEscape(CStr(enrich(2))) & """"
+    If Len(CStr(enrich(3))) > 0 Then s = s & ",""cultivar"":""" & JsonEscape(CStr(enrich(3))) & """"
+    If Len(CStr(enrich(4))) > 0 Then s = s & ",""common_name"":""" & JsonEscape(CStr(enrich(4))) & """"
+    If Len(CStr(enrich(5))) > 0 Then s = s & ",""group"":""" & JsonEscape(CStr(enrich(5))) & """"
+    PlantEnrichJsonSuffix_ = s
 End Function
 
 ' Parse the pendingSales response into a Collection of Variant arrays Array(receipt, item_seq,

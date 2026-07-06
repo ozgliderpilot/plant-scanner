@@ -1,10 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const {
-  isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey,
-  accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
+  isAuthorized, emptyToNull, parsePlants, composePlantName, filterNewRows, planPlantReplace,
+  findRowByKey, accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
   selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction,
-  validateAppendCullsNotes,
+  validateAppendCullsNotes, applyMarksToValues,
 } = require('../shared.js');
 
 test('isAuthorized accepts the right secret only', () => {
@@ -376,6 +376,103 @@ test('resolveSalesMarks on empty keys or empty sheet returns []', () => {
   assert.deepStrictEqual(resolveSalesMarks([SALES_HEADER], [{ receipt: 'x', item_seq: 1, status: 'Synced' }]), []);
   assert.deepStrictEqual(resolveSalesMarks([SALES_HEADER, salesRow('PP-1-1', '', 1, '', '', 0, '', 0, 0, 0, 'Pending')], []), []);
   assert.deepStrictEqual(resolveSalesMarks(null, null), []);
+});
+
+test('composePlantName matches parsePlants name rules', () => {
+  assert.strictEqual(composePlantName('Acacia', 'pycnantha', '', 'Golden Wattle'), 'Acacia pycnantha');
+  assert.strictEqual(composePlantName('Banksia', 'integrifolia', 'Roller Coaster', ''), "Banksia integrifolia 'Roller Coaster'");
+  assert.strictEqual(composePlantName('', '', '', 'Mystery Plant'), 'Mystery Plant');
+});
+
+test('resolveSalesMarks carries optional plant enrichment fields from keys', () => {
+  const values = [SALES_HEADER, salesRow('PP-1-1', '2026-06-23', 1, '31011', 'unknown', 2, 'pots', 500, 0, 1000, 'Pending')];
+  assert.deepStrictEqual(
+    resolveSalesMarks(values, [{
+      receipt: 'PP-1-1', item_seq: 1, status: 'Synced',
+      name: 'Acacia pycnantha', genus: 'Acacia', species: 'pycnantha',
+      cultivar: '', common_name: 'Golden Wattle', group: 'Tree',
+    }]),
+    [{
+      rowIndex: 1, status: 'Synced',
+      enrichment: {
+        name: 'Acacia pycnantha', genus: 'Acacia', species: 'pycnantha',
+        common_name: 'Golden Wattle', group: 'Tree',
+      },
+    }],
+  );
+});
+
+test('applyMarksToValues enriches unknown sales rows when enrichment fields are present', () => {
+  const values = [
+    SALES_HEADER,
+    salesRow('PP-1-1', '2026-06-23', 1, '31011', 'unknown', 2, 'pots', 500, 0, 1000, 'Pending'),
+  ];
+  const marks = resolveSalesMarks(values, [{
+    receipt: 'PP-1-1', item_seq: 1, status: 'Synced',
+    name: 'Acacia pycnantha', genus: 'Acacia', species: 'pycnantha',
+    common_name: 'Golden Wattle', group: 'Tree',
+  }]);
+  const out = applyMarksToValues(values, marks);
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('sync_status')], 'Synced');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('name')], 'Acacia pycnantha');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('genus')], 'Acacia');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('species')], 'pycnantha');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('common_name')], 'Golden Wattle');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('group')], 'Tree');
+});
+
+test('applyMarksToValues does not overwrite a non-unknown name', () => {
+  const values = [
+    SALES_HEADER,
+    salesRow('PP-1-1', '2026-06-23', 1, '31011', 'Acacia', 2, 'pots', 500, 0, 1000, 'Pending'),
+  ];
+  const marks = resolveSalesMarks(values, [{
+    receipt: 'PP-1-1', item_seq: 1, status: 'Synced',
+    name: 'Should Not Apply', genus: 'X', species: 'y',
+  }]);
+  const out = applyMarksToValues(values, marks);
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('sync_status')], 'Synced');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('name')], 'Acacia');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('genus')], '');
+});
+
+test('applyMarksToValues treats name unknown case-insensitively', () => {
+  const values = [
+    SALES_HEADER,
+    salesRow('PP-1-1', '2026-06-23', 1, '31011', '  UNKNOWN  ', 2, 'pots', 500, 0, 1000, 'Pending'),
+  ];
+  const marks = resolveSalesMarks(values, [{
+    receipt: 'PP-1-1', item_seq: 1, status: 'Synced', name: 'Resolved',
+  }]);
+  const out = applyMarksToValues(values, marks);
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('name')], 'Resolved');
+});
+
+test('applyMarksToValues is backward compatible without enrichment fields', () => {
+  const values = [
+    SALES_HEADER,
+    salesRow('PP-1-1', '2026-06-23', 1, '31011', 'unknown', 2, 'pots', 500, 0, 1000, 'Pending'),
+  ];
+  const marks = resolveSalesMarks(values, [{ receipt: 'PP-1-1', item_seq: 1, status: 'Synced' }]);
+  const out = applyMarksToValues(values, marks);
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('sync_status')], 'Synced');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('name')], 'unknown');
+});
+
+test('applyMarksToValues enriches unknown cull rows', () => {
+  const values = [
+    CULLS_SHEET_HEADER,
+    ['PP-1-1', '2026-07-01', '31011', 'unknown', '', '', '', '', '', 1, 'tubes', 'Dead', '', 'Pending'],
+  ];
+  const marks = resolveCullMarks(values, [{
+    cull_id: 'PP-1-1', status: 'Synced',
+    name: 'Acacia pycnantha', genus: 'Acacia', species: 'pycnantha', group: 'Tree',
+  }]);
+  const out = applyMarksToValues(values, marks);
+  assert.strictEqual(out[1][CULLS_SHEET_HEADER.indexOf('sync_status')], 'Synced');
+  assert.strictEqual(out[1][CULLS_SHEET_HEADER.indexOf('name')], 'Acacia pycnantha');
+  assert.strictEqual(out[1][CULLS_SHEET_HEADER.indexOf('genus')], 'Acacia');
+  assert.strictEqual(out[1][CULLS_SHEET_HEADER.indexOf('group')], 'Tree');
 });
 
 const CULLS_HEADER = [
