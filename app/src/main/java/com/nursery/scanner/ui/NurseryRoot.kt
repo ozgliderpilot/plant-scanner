@@ -19,14 +19,14 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nursery.scanner.di.AppContainer
 import com.nursery.scanner.ui.components.NurseryBottomBar
-import com.nursery.scanner.ui.components.NurseryTopBar
 import com.nursery.scanner.ui.cull.CullScanScreen
 import com.nursery.scanner.ui.cull.CullSuccessScreen
 import com.nursery.scanner.ui.cull.CullViewModel
 import com.nursery.scanner.ui.cull.EnterInfoScreen
 import com.nursery.scanner.ui.culls.CullListScreen
 import com.nursery.scanner.ui.culls.CullListViewModel
-import com.nursery.scanner.ui.home.HomeScreen
+import com.nursery.scanner.ui.history.HistoryScreen
+import com.nursery.scanner.ui.home.ActionsTabScreen
 import com.nursery.scanner.ui.nav.Routes
 import com.nursery.scanner.ui.nav.TabRoutes
 import com.nursery.scanner.ui.plants.PlantListScreen
@@ -41,7 +41,6 @@ import com.nursery.scanner.ui.sell.ScanScreen
 import com.nursery.scanner.ui.sell.SellViewModel
 import com.nursery.scanner.ui.settings.SettingsScreen
 import com.nursery.scanner.ui.settings.SettingsViewModel
-import com.nursery.scanner.ui.sync.SyncScreen
 import com.nursery.scanner.ui.sync.SyncViewModel
 import com.nursery.scanner.ui.theme.NurseryTheme
 
@@ -51,15 +50,12 @@ fun NurseryRoot(container: AppContainer) {
         val navController = rememberNavController()
         val backStackEntry by navController.currentBackStackEntryAsState()
         val route = backStackEntry?.destination?.route
-        val showBars = route in TabRoutes
+        val showBottomBar = route in TabRoutes
         val syncState by container.syncRepository.state.collectAsStateWithLifecycle()
 
         Scaffold(
-            topBar = {
-                if (showBars) NurseryTopBar(titleFor(route), syncState, System.currentTimeMillis())
-            },
             bottomBar = {
-                if (showBars) {
+                if (showBottomBar) {
                     NurseryBottomBar(currentRoute = route) { dest ->
                         navController.navigate(dest) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -70,35 +66,45 @@ fun NurseryRoot(container: AppContainer) {
                 }
             },
         ) { padding ->
-            NurseryNavHost(navController, container, Modifier.padding(padding))
+            NurseryNavHost(navController, container, syncState.online, Modifier.padding(padding))
         }
     }
-}
-
-private fun titleFor(route: String?): String = when (route) {
-    Routes.RECEIPTS -> "Receipts"
-    Routes.SYNC -> "Sync"
-    else -> "Nursery"
 }
 
 @Composable
 private fun NurseryNavHost(
     navController: NavHostController,
     container: AppContainer,
+    online: Boolean,
     modifier: Modifier = Modifier,
 ) {
     NavHost(navController = navController, startDestination = Routes.ACTIONS, modifier = modifier) {
 
         composable(Routes.ACTIONS) {
-            HomeScreen(
+            ActionsTabScreen(
+                online = online,
                 onSell = { navController.navigate(Routes.SELL_GRAPH) },
                 onCull = { navController.navigate(Routes.CULL_GRAPH) },
             )
         }
 
+        composable(Routes.HISTORY) {
+            val vm: SyncViewModel = viewModel(factory = container.viewModelFactory)
+            HistoryScreen(
+                vm = vm,
+                onViewReceipts = { navController.navigate(Routes.RECEIPTS) },
+                onViewCulls = { navController.navigate(Routes.CULLS) },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+            )
+        }
+
         composable(Routes.RECEIPTS) {
             val vm: ReceiptsViewModel = viewModel(factory = container.viewModelFactory)
-            ReceiptsScreen(vm, onOpen = { id -> navController.navigate(Routes.receiptDetail(id)) })
+            ReceiptsScreen(
+                vm = vm,
+                onOpen = { id -> navController.navigate(Routes.receiptDetail(id)) },
+                onBack = { navController.popBackStack() },
+            )
         }
 
         composable(
@@ -110,24 +116,23 @@ private fun NurseryNavHost(
             ReceiptDetailScreen(vm, receiptId = id, onBack = { navController.popBackStack() })
         }
 
-        composable(Routes.SYNC) {
-            val vm: SyncViewModel = viewModel(factory = container.viewModelFactory)
-            SyncScreen(
-                vm,
-                onSettings = { navController.navigate(Routes.SETTINGS) },
-                onViewPlants = { navController.navigate(Routes.PLANTS) },
-                onViewCulls = { navController.navigate(Routes.CULLS) },
+        composable(Routes.PLANTS) {
+            val plantVm: PlantListViewModel = viewModel(factory = container.viewModelFactory)
+            val syncVm: SyncViewModel = viewModel(factory = container.viewModelFactory)
+            val syncState by syncVm.state.collectAsStateWithLifecycle()
+            val config by syncVm.config.collectAsStateWithLifecycle()
+            PlantListScreen(
+                vm = plantVm,
+                syncState = syncState,
+                isTabRoot = true,
+                canUpdate = syncState.online && !syncState.isBusy && config.isComplete,
+                onUpdate = { syncVm.updatePlantList() },
             )
         }
 
         composable(Routes.CULLS) {
             val vm: CullListViewModel = viewModel(factory = container.viewModelFactory)
             CullListScreen(vm, onBack = { navController.popBackStack() })
-        }
-
-        composable(Routes.PLANTS) {
-            val vm: PlantListViewModel = viewModel(factory = container.viewModelFactory)
-            PlantListScreen(vm, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.SETTINGS) {

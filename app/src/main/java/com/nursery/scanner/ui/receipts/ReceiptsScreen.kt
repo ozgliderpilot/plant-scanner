@@ -33,31 +33,41 @@ import com.nursery.core.Receipt
 import com.nursery.core.ReceiptList
 import com.nursery.core.ReceiptListItem
 import com.nursery.core.ReceiptPlantSummary
+import com.nursery.scanner.ui.components.ScreenHeader
 import com.nursery.scanner.ui.theme.Dimens
 import com.nursery.scanner.util.formatDateTime
 import com.nursery.scanner.util.formatEpochDay
 
-/** Receipts tab: sales history grouped by receipt (decision: tab screen, top/bottom bars from shell). */
+/** Receipts list: sales history grouped by receipt. Sub-screen from History shows a back header. */
 @Composable
-fun ReceiptsScreen(vm: ReceiptsViewModel, onOpen: (Long) -> Unit, modifier: Modifier = Modifier) {
+fun ReceiptsScreen(
+    vm: ReceiptsViewModel,
+    onOpen: (Long) -> Unit,
+    onBack: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
     val items by vm.items.collectAsStateWithLifecycle()
 
-    if (items.isEmpty()) {
-        Box(modifier.fillMaxSize().padding(Dimens.ScreenPadding), contentAlignment = Alignment.Center) {
-            Text("No sales yet.", style = MaterialTheme.typography.bodyLarge)
-        }
-        return
-    }
+    Column(modifier = modifier.fillMaxSize()) {
+        onBack?.let { ScreenHeader(title = "Receipts", onBack = it) }
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(Dimens.ScreenPadding),
-        verticalArrangement = Arrangement.spacedBy(Dimens.Gap),
-    ) {
-        itemsIndexed(items, key = { index, item -> listItemKey(item, index) }) { _, item ->
-            when (item) {
-                is ReceiptListItem.Row -> ReceiptCard(receipt = item.receipt, onClick = { onOpen(item.receipt.localId) })
-                is ReceiptListItem.DayTotal -> DayTotalRow(epochDay = item.epochDay, totalCents = item.totalCents)
+        if (items.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(Dimens.ScreenPadding), contentAlignment = Alignment.Center) {
+                Text("No sales yet.", style = MaterialTheme.typography.bodyLarge)
+            }
+            return@Column
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(Dimens.ScreenPadding),
+            verticalArrangement = Arrangement.spacedBy(Dimens.Gap),
+        ) {
+            itemsIndexed(items, key = { index, item -> listItemKey(item, index) }) { _, item ->
+                when (item) {
+                    is ReceiptListItem.Row -> ReceiptCard(receipt = item.receipt, onClick = { onOpen(item.receipt.localId) })
+                    is ReceiptListItem.DayTotal -> DayTotalRow(epochDay = item.epochDay, totalCents = item.totalCents)
+                }
             }
         }
     }

@@ -49,3 +49,35 @@ fun StatusChip(state: SyncState, now: Long, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** Actions-tab connectivity only: Online / Offline with cloud icon — no pending count. */
+@Composable
+fun ConnectivityChip(online: Boolean, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val label: String
+    val icon: ImageVector
+    val bg: Color
+    val fg: Color
+    if (online) {
+        label = "Online"
+        icon = Icons.Filled.CloudDone
+        bg = scheme.primaryContainer
+        fg = scheme.onPrimaryContainer
+    } else {
+        label = "Offline"
+        icon = Icons.Filled.CloudOff
+        bg = scheme.errorContainer
+        fg = scheme.onErrorContainer
+    }
+
+    Surface(shape = RoundedCornerShape(50), color = bg, contentColor = fg, modifier = modifier) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text(label, style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}

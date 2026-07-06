@@ -20,21 +20,45 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.nursery.core.Plant
 import com.nursery.core.PlantStock
+import com.nursery.scanner.data.repo.SyncState
 import com.nursery.scanner.ui.components.ScreenHeader
+import com.nursery.scanner.ui.components.SyncTabHeader
 import com.nursery.scanner.ui.theme.Dimens
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /**
- * Full-screen, scrollable, read-only list of the cached plants with a single search box that
- * filters across all fields. Reached from the Sync tab; works offline (it only reads the cache).
+ * Scrollable, read-only plant list with search. As a bottom-tab root it shows an import header
+ * with manual ↻; as a sub-screen it shows a back header instead.
  */
 @Composable
-fun PlantListScreen(vm: PlantListViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun PlantListScreen(
+    vm: PlantListViewModel,
+    syncState: SyncState,
+    isTabRoot: Boolean,
+    canUpdate: Boolean,
+    onUpdate: () -> Unit,
+    onBack: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
     val query by vm.query.collectAsStateWithLifecycle()
     val plants by vm.plants.collectAsStateWithLifecycle()
+    val now = System.currentTimeMillis()
 
     Column(modifier = modifier.fillMaxSize()) {
-        ScreenHeader(title = "Plants", onBack = onBack)
+        if (isTabRoot) {
+            SyncTabHeader(
+                title = "Plants",
+                lastUpdatedMs = syncState.lastPlantListUpdateMs,
+                now = now,
+                online = syncState.online,
+                isBusy = syncState.isBusy,
+                canSync = canUpdate,
+                onSync = onUpdate,
+            )
+        } else {
+            onBack?.let { ScreenHeader(title = "Plants", onBack = it) }
+        }
+
         OutlinedTextField(
             value = query,
             onValueChange = vm::setQuery,
@@ -45,9 +69,11 @@ fun PlantListScreen(vm: PlantListViewModel, onBack: () -> Unit, modifier: Modifi
                 .padding(horizontal = Dimens.ScreenPadding, vertical = Dimens.GapSmall),
         )
         when {
-            // Blank query returns the whole cache, so empty-here-with-blank means nothing is cached.
             plants.isEmpty() && query.isBlank() ->
-                EmptyMessage("No plants cached — tap Update plant list on the Sync screen.")
+                EmptyMessage(
+                    if (isTabRoot) "No plants cached — tap ↻ above to update."
+                    else "No plants cached.",
+                )
             plants.isEmpty() ->
                 EmptyMessage("No plants match “${query.trim()}”.")
             else ->
@@ -71,7 +97,6 @@ private fun PlantRow(plant: Plant) {
             plant.group?.takeIf { it.isNotBlank() }?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium)
             }
-            // Per-accession counts: non-zero only, fixed order T · P · M · St (empty -> omitted).
             PlantStock.summary(plant).takeIf { it.isNotEmpty() }?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium)
             }

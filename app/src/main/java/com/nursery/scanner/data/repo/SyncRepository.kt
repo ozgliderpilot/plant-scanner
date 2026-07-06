@@ -28,6 +28,7 @@ import java.time.ZoneId
 data class SyncState(
     val pendingCount: Int = 0,
     val lastSyncedMs: Long? = null,
+    val lastPlantListUpdateMs: Long? = null,
     val online: Boolean = false,
     val isBusy: Boolean = false,
     val lastError: String? = null,
@@ -67,16 +68,22 @@ class SyncRepository(
     private val cloudMutex = Mutex()
 
     val state: StateFlow<SyncState> = combine(
-        receiptDao.observePendingCount(ReceiptStatus.SAVED.name),
-        cullDao.observePendingCount(CullStatus.PENDING.name),
-        settings.lastSyncedMs,
-        connectivity.online,
+        combine(
+            receiptDao.observePendingCount(ReceiptStatus.SAVED.name),
+            cullDao.observePendingCount(CullStatus.PENDING.name),
+            settings.lastSyncedMs,
+            settings.lastPlantListUpdateMs,
+            connectivity.online,
+        ) { salesPending, cullsPending, lastSynced, lastPlantListUpdate, online ->
+            Quint(salesPending, cullsPending, lastSynced, lastPlantListUpdate, online)
+        },
         transient,
-    ) { salesPending, cullsPending, lastSynced, online, t ->
+    ) { q, t ->
         SyncState(
-            pendingCount = salesPending + cullsPending,
-            lastSyncedMs = lastSynced,
-            online = online,
+            pendingCount = q.salesPending + q.cullsPending,
+            lastSyncedMs = q.lastSynced,
+            lastPlantListUpdateMs = q.lastPlantListUpdate,
+            online = q.online,
             isBusy = t.busy,
             lastError = t.error,
         )
@@ -152,7 +159,10 @@ class SyncRepository(
         val result = plants.updateFromCloud(config)
         transient.update { it.copy(busy = false) }
         result.fold(
-            onSuccess = { SyncResult.Done(it) },
+            onSuccess = {
+                settings.setLastPlantListUpdate(now())
+                SyncResult.Done(it)
+            },
             onFailure = { e ->
                 transient.update { it.copy(error = e.message) }
                 SyncResult.Error(e.message ?: "Update failed")
@@ -163,4 +173,12 @@ class SyncRepository(
     val plantCount: Flow<Int> get() = plants.count
 
     private data class TransientState(val busy: Boolean = false, val error: String? = null)
+
+    private data class Quint(
+        val salesPending: Int,
+        val cullsPending: Int,
+        val lastSynced: Long?,
+        val lastPlantListUpdate: Long?,
+        val online: Boolean,
+    )
 }
