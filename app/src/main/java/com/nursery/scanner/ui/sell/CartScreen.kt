@@ -3,8 +3,10 @@ package com.nursery.scanner.ui.sell
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -86,45 +88,51 @@ fun CartScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(Dimens.ScreenPadding),
-            verticalArrangement = Arrangement.spacedBy(Dimens.Gap),
         ) {
             if (ui.lines.isEmpty()) {
                 Text("No items yet — scan a plant to start.", style = MaterialTheme.typography.bodyLarge)
+                Spacer(Modifier.height(Dimens.Gap))
             } else {
-                ui.lines.forEachIndexed { index, line ->
-                    LineRow(
-                        line = line,
-                        onEdit = { vm.beginEdit(index); onEditLine() },
-                        onRemove = { vm.removeLine(index) },
+                Column(verticalArrangement = Arrangement.spacedBy(Dimens.Gap)) {
+                    ui.lines.forEachIndexed { index, line ->
+                        LineRow(
+                            line = line,
+                            onEdit = { vm.beginEdit(index); onEditLine() },
+                            onRemove = { vm.removeLine(index) },
+                        )
+                    }
+                    HorizontalDivider()
+                    Text(
+                        "Total: ${Money.formatAud(ui.totalCents)}",
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                    Text("How will they pay?", style = MaterialTheme.typography.titleMedium)
+                    SegmentedControl(
+                        options = PaymentMethod.entries,
+                        selected = ui.paymentMethod,
+                        onSelect = vm::setPaymentMethod,
+                        enabled = !ui.isSaving,
                     )
                 }
+                Spacer(Modifier.height(32.dp))
                 HorizontalDivider()
-                Text(
-                    "Total: ${Money.formatAud(ui.totalCents)}",
-                    style = MaterialTheme.typography.headlineMedium,
-                )
+                Spacer(Modifier.height(Dimens.Gap))
             }
 
-            Text("Payment method", style = MaterialTheme.typography.titleMedium)
-            SegmentedControl(
-                options = PaymentMethod.entries,
-                selected = ui.paymentMethod,
-                onSelect = vm::setPaymentMethod,
-                enabled = !ui.isSaving,
-            )
-
-            BigButton(
-                text = "Scan another",
-                onClick = onScanAnother,
-                leadingIcon = Icons.Filled.Add,
-                style = BigButtonStyle.Secondary,
-                enabled = !ui.isSaving,
-            )
-            BigButton(
-                text = "Finish & save",
-                onClick = { vm.finishAndSave() },
-                enabled = ui.lines.isNotEmpty() && !ui.isSaving,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.Gap)) {
+                BigButton(
+                    text = "Scan another",
+                    onClick = onScanAnother,
+                    leadingIcon = Icons.Filled.Add,
+                    style = BigButtonStyle.Secondary,
+                    enabled = !ui.isSaving,
+                )
+                BigButton(
+                    text = "Finish & save",
+                    onClick = { vm.finishAndSave() },
+                    enabled = ui.lines.isNotEmpty() && !ui.isSaving,
+                )
+            }
         }
     }
 }
