@@ -204,7 +204,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             SHORT=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
 
             adb wait-for-device
