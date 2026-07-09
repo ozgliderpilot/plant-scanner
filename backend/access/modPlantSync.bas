@@ -263,7 +263,9 @@ Public Sub SalesInSelfTest()
         ledStatus = LedgerStatus_(db, receipt, itemSeq)
         If Len(ledStatus) > 0 Then
             Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " " & unit & " x" & qty & _
-                        " -> already ledgered '" & ledStatus & "' (would re-flip only)"
+                        " -> already ledgered '" & ledStatus & "'" & _
+                        IIf(ledStatus = "Synced" And NeedsPlantEnrichment_(plantName), _
+                            " (would re-flip + enrich)", " (would re-flip only)")
         ElseIf Not IsSellUnit_(unit) Then
             Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " unit=[" & unit & "]" & _
                         " -> NoMatch (unrecognized/blank unit)"
@@ -344,7 +346,9 @@ Public Sub CullsInSelfTest()
 
         ledStatus = CullLedgerStatus_(db, cullId)
         If Len(ledStatus) > 0 Then
-            Debug.Print "  " & cullId & " acc=" & accession & " -> already ledgered '" & ledStatus & "'"
+            Debug.Print "  " & cullId & " acc=" & accession & " -> already ledgered '" & ledStatus & "'" & _
+                        IIf(ledStatus = "Synced" And NeedsPlantEnrichment_(plantName), _
+                            " (would re-flip + enrich)", " (would re-flip only)")
         ElseIf IsStockPlantCull_(notes, unit) Then
             Debug.Print "  " & cullId & " acc=" & accession & " notes=[" & notes & "] -> StockPlant (skip)"
         ElseIf Not IsSellUnit_(unit) Then
@@ -415,7 +419,13 @@ Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
         If Len(ledStatus) > 0 Then
             ' Already applied locally (Synced or NoMatch). Re-flip the Sheet only (a prior
             ' markSalesSynced may have failed); the ledger is the authority, so we NEVER re-apply.
-            marks.Add MarkJson_(receipt, itemSeq, ledStatus)
+            ' If the prior mark failed after a Synced deduct, also retry enrichment when the Sheet
+            ' row still needs it — otherwise sync_status recovers but name stays "unknown" forever.
+            If ledStatus = "Synced" And NeedsPlantEnrichment_(plantName) Then
+                marks.Add MarkJson_(receipt, itemSeq, ledStatus, LookupSpeciesFields_(db, accession))
+            Else
+                marks.Add MarkJson_(receipt, itemSeq, ledStatus)
+            End If
         ElseIf Not IsSellUnit_(unit) Then
             ' Unrecognized or blank unit -> NoMatch, no stock moved (never guessed).
             If ApplyNoMatch_(db, receipt, itemSeq) Then
@@ -496,7 +506,13 @@ Private Sub ApplyPendingCulls_(ByVal url As String, ByVal secret As String)
 
         ledStatus = CullLedgerStatus_(db, cullId)
         If Len(ledStatus) > 0 Then
-            marks.Add CullMarkJson_(cullId, ledStatus)
+            ' Same re-flip enrichment as sales-in: recover plant fields if a prior markCullsSynced
+            ' failed after a Synced deduct left the Sheet name still unknown/blank.
+            If ledStatus = "Synced" And NeedsPlantEnrichment_(plantName) Then
+                marks.Add CullMarkJson_(cullId, ledStatus, LookupSpeciesFields_(db, accession))
+            Else
+                marks.Add CullMarkJson_(cullId, ledStatus)
+            End If
         ElseIf IsStockPlantCull_(notes, unit) Then
             If ApplyCullStockPlant_(db, cullId) Then
                 marks.Add CullMarkJson_(cullId, "StockPlant")
