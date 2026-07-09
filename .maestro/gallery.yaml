@@ -24,6 +24,8 @@ appId: com.nursery.scanner.test
 - tapOn: "Add to receipt"
 - takeScreenshot: 05-sell-cart
 - tapOn: "Finish & save"
+# Wait for async finishAndSave → ConfirmScreen (cart stays up until persist completes).
+- assertVisible: "Total to collect"
 - takeScreenshot: 06-sell-confirm
 - tapOn: "Done"
 - tapOn: "History"

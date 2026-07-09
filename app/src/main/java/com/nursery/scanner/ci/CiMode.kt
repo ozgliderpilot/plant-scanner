@@ -28,11 +28,17 @@ object CiMode {
     internal var activator: (suspend (AppContainer) -> Unit)? = null
 
     /**
-     * Called from [com.nursery.scanner.MainActivity] on cold start. Activates only when the launch
-     * intent carries [EXTRA_CI_MODE] and a qaDebug activator is registered.
+     * Called from [com.nursery.scanner.MainActivity] on cold start. Activates when the launch
+     * intent carries [EXTRA_CI_MODE] and a qaDebug activator is registered; otherwise clears
+     * process-wide CI flags so a normal relaunch after CI does not keep placeholder/export gating.
      */
     suspend fun onColdStart(container: AppContainer, intent: Intent?) {
-        if (intent == null || !intent.hasCiModeExtra()) return
+        if (intent == null || !intent.hasCiModeExtra()) {
+            active = false
+            useCameraPlaceholder = false
+            skipCameraPermission = false
+            return
+        }
         activator?.invoke(container)
     }
 
