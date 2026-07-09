@@ -229,7 +229,7 @@ End Sub
 Public Sub SalesInSelfTest()
     Dim url As String, secret As String, body As String
     Dim sales As Collection, row As Variant, db As DAO.Database
-    Dim i As Long, receipt As String, accession As String, unit As String, ledStatus As String
+    Dim i As Long, receipt As String, accession As String, unit As String, plantName As String, ledStatus As String
     Dim itemSeq As Long, qty As Long, matches As Long
 
     url = Environ$(ENV_URL)
@@ -258,6 +258,7 @@ Public Sub SalesInSelfTest()
         accession = CStr(row(2))
         qty = row(3)
         unit = LCase$(Trim$(CStr(row(4))))
+        plantName = CStr(row(5))
 
         ledStatus = LedgerStatus_(db, receipt, itemSeq)
         If Len(ledStatus) > 0 Then
@@ -271,7 +272,9 @@ Public Sub SalesInSelfTest()
             Select Case matches
                 Case 1
                     Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " " & unit & " x" & qty & _
-                                " -> would deduct (1 batch match)"
+                                " name=[" & plantName & "]" & _
+                                IIf(NeedsPlantEnrichment_(plantName), " -> would deduct + enrich", _
+                                    " -> would deduct (status only)")
                 Case 0
                     Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & _
                                 " -> NoMatch (no batch / non-numeric accession)"
@@ -307,7 +310,8 @@ End Sub
 Public Sub CullsInSelfTest()
     Dim url As String, secret As String, body As String
     Dim culls As Collection, row As Variant, db As DAO.Database
-    Dim i As Long, cullId As String, accession As String, unit As String, notes As String, ledStatus As String
+    Dim i As Long, cullId As String, accession As String, unit As String, notes As String
+    Dim plantName As String, ledStatus As String
     Dim qty As Long, matches As Long
 
     url = Environ$(ENV_URL)
@@ -336,6 +340,7 @@ Public Sub CullsInSelfTest()
         qty = row(2)
         unit = LCase$(Trim$(CStr(row(3))))
         notes = CStr(row(4))
+        plantName = CStr(row(5))
 
         ledStatus = CullLedgerStatus_(db, cullId)
         If Len(ledStatus) > 0 Then
@@ -349,7 +354,9 @@ Public Sub CullsInSelfTest()
             Select Case matches
                 Case 1
                     Debug.Print "  " & cullId & " acc=" & accession & " " & unit & " x" & qty & _
-                                " -> would deduct (1 batch match)"
+                                " name=[" & plantName & "]" & _
+                                IIf(NeedsPlantEnrichment_(plantName), " -> would deduct + enrich", _
+                                    " -> would deduct (status only)")
                 Case 0
                     Debug.Print "  " & cullId & " acc=" & accession & " -> NoMatch (no batch)"
                 Case Else
@@ -383,7 +390,7 @@ Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
     Dim body As String, payload As String
     Dim sales As Collection, marks As Collection, row As Variant
     Dim i As Long
-    Dim receipt As String, accession As String, unit As String, ledStatus As String
+    Dim receipt As String, accession As String, unit As String, plantName As String, ledStatus As String
     Dim itemSeq As Long, qty As Long
 
     Set db = CurrentDb
@@ -402,6 +409,7 @@ Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
         accession = CStr(row(2))
         qty = row(3)
         unit = LCase$(Trim$(CStr(row(4))))
+        plantName = CStr(row(5))
 
         ledStatus = LedgerStatus_(db, receipt, itemSeq)
         If Len(ledStatus) > 0 Then
@@ -415,8 +423,16 @@ Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
             End If
         ElseIf CountBatchMatches_(db, accession) = 1 Then
             ' A recognized unit resolving to EXACTLY ONE batch is deducted and ledgered "Synced".
+            ' Species lookup only when the Sheet row still needs enrichment. Skip when name is
+            ' already resolved (saves a Batches⋈Species query and keeps the mark payload small).
+            ' Blank/missing name (older pendingSales without the field) still looks up — safe under
+            ' staggered deploy; Apps Script refuses to overwrite non-unknown rows anyway.
             If ApplyDeduction_(db, receipt, itemSeq, accession, unit, qty) Then
-                marks.Add MarkJson_(receipt, itemSeq, "Synced", LookupSpeciesFields_(db, accession))
+                If NeedsPlantEnrichment_(plantName) Then
+                    marks.Add MarkJson_(receipt, itemSeq, "Synced", LookupSpeciesFields_(db, accession))
+                Else
+                    marks.Add MarkJson_(receipt, itemSeq, "Synced")
+                End If
             End If
             ' transaction failed -> not ledgered, left Pending, retried next run
         Else
@@ -456,7 +472,8 @@ Private Sub ApplyPendingCulls_(ByVal url As String, ByVal secret As String)
     Dim body As String, payload As String
     Dim culls As Collection, marks As Collection, row As Variant
     Dim i As Long
-    Dim cullId As String, accession As String, unit As String, notes As String, ledStatus As String
+    Dim cullId As String, accession As String, unit As String, notes As String
+    Dim plantName As String, ledStatus As String
     Dim qty As Long
 
     Set db = CurrentDb
@@ -475,6 +492,7 @@ Private Sub ApplyPendingCulls_(ByVal url As String, ByVal secret As String)
         qty = row(2)
         unit = LCase$(Trim$(CStr(row(3))))
         notes = CStr(row(4))
+        plantName = CStr(row(5))
 
         ledStatus = CullLedgerStatus_(db, cullId)
         If Len(ledStatus) > 0 Then
@@ -488,8 +506,13 @@ Private Sub ApplyPendingCulls_(ByVal url As String, ByVal secret As String)
                 marks.Add CullMarkJson_(cullId, "NoMatch")
             End If
         ElseIf CountBatchMatches_(db, accession) = 1 Then
+            ' Species lookup only when the Sheet row still needs enrichment (same gate as sales-in).
             If ApplyCullDeduction_(db, cullId, accession, unit, qty) Then
-                marks.Add CullMarkJson_(cullId, "Synced", LookupSpeciesFields_(db, accession))
+                If NeedsPlantEnrichment_(plantName) Then
+                    marks.Add CullMarkJson_(cullId, "Synced", LookupSpeciesFields_(db, accession))
+                Else
+                    marks.Add CullMarkJson_(cullId, "Synced")
+                End If
             End If
         Else
             If ApplyCullNoMatch_(db, cullId) Then
@@ -671,7 +694,8 @@ Private Function ParsePendingCulls_(ByVal body As String) As Collection
             JsonStr_(obj, "accession"), _
             CLng(Val(JsonNum_(obj, "qty"))), _
             JsonStr_(obj, "unit"), _
-            JsonStr_(obj, "notes"))
+            JsonStr_(obj, "notes"), _
+            JsonStr_(obj, "name"))
     Next i
 Done:
     Set ParsePendingCulls_ = result
@@ -909,6 +933,14 @@ Private Function ComposePlantName_(ByVal genus As String, ByVal species As Strin
     ComposePlantName_ = base
 End Function
 
+' True when Access should look up Species for this Sheet row: name is the unknown sentinel, or
+' blank/missing (older pending* payloads without "name" — still enrich so staggered deploy is safe).
+Private Function NeedsPlantEnrichment_(ByVal plantName As String) As Boolean
+    Dim n As String
+    n = LCase$(Trim$(plantName))
+    NeedsPlantEnrichment_ = (Len(n) = 0 Or n = "unknown")
+End Function
+
 ' Look up plant metadata from Batches joined to Species for a unique numeric accession.
 ' Returns Empty when absent; otherwise Array(name, genus, species, cultivar, common_name, group).
 Private Function LookupSpeciesFields_(ByRef db As DAO.Database, ByVal accession As String) As Variant
@@ -962,10 +994,12 @@ Private Function PlantEnrichJsonSuffix_(Optional ByVal enrich As Variant) As Str
 End Function
 
 ' Parse the pendingSales response into a Collection of Variant arrays Array(receipt, item_seq,
-' accession, qty, unit). We control the response shape (Code.gs handlePendingSales_ -> selectPendingSales
-' in shared.js), so each element is a FLAT JSON object {"receipt":..,..,"unit":..} with no nested braces,
+' accession, qty, unit, name). We control the response shape (Code.gs handlePendingSales_ -> selectPendingSales
+' in shared.js), so each element is a FLAT JSON object {"receipt":..,..,"name":..} with no nested braces,
 ' and the identifiers never contain '{' '}' or ']'. So: slice out the "sales":[ ... ] array text, then
 ' match each {...} object and pull its fields by name (order-independent). Anything else -> empty.
+' Missing "name" (older Apps Script) yields "" — NeedsPlantEnrichment_ still looks up in that case
+' so Access can be deployed before Apps Script without losing unknown-row enrichment.
 Private Function ParsePendingSales_(ByVal body As String) As Collection
     Dim result As New Collection
     Dim p As Long, q As Long, inner As String
@@ -989,7 +1023,8 @@ Private Function ParsePendingSales_(ByVal body As String) As Collection
             CLng(Val(JsonNum_(obj, "item_seq"))), _
             JsonStr_(obj, "accession"), _
             CLng(Val(JsonNum_(obj, "qty"))), _
-            JsonStr_(obj, "unit"))
+            JsonStr_(obj, "unit"), _
+            JsonStr_(obj, "name"))
     Next i
 Done:
     Set ParsePendingSales_ = result

@@ -274,7 +274,7 @@ test('selectPendingSales returns [] for an empty or header-only sheet', () => {
   assert.deepStrictEqual(selectPendingSales([SALES_HEADER]), []);
 });
 
-test('selectPendingSales selects only Pending rows, shaped {receipt,item_seq,accession,qty,unit}', () => {
+test('selectPendingSales selects only Pending rows, shaped {receipt,item_seq,accession,qty,unit,name}', () => {
   const values = [
     SALES_HEADER,
     salesRow('PP-1700000000-1', '2026-06-23', 1, '31011', 'Acacia', 2, 'pots', 500, 0, 1000, 'Pending'),
@@ -283,8 +283,8 @@ test('selectPendingSales selects only Pending rows, shaped {receipt,item_seq,acc
     salesRow('PP-1700000000-4', '2026-06-23', 4, '16726', 'Hardenbergia', 3, 'pots', 200, 0, 600, 'Pending'),
   ];
   assert.deepStrictEqual(selectPendingSales(values), [
-    { receipt: 'PP-1700000000-1', item_seq: 1, accession: '31011', qty: 2, unit: 'pots' },
-    { receipt: 'PP-1700000000-4', item_seq: 4, accession: '16726', qty: 3, unit: 'pots' },
+    { receipt: 'PP-1700000000-1', item_seq: 1, accession: '31011', qty: 2, unit: 'pots', name: 'Acacia' },
+    { receipt: 'PP-1700000000-4', item_seq: 4, accession: '16726', qty: 3, unit: 'pots', name: 'Hardenbergia' },
   ]);
 });
 
@@ -308,10 +308,20 @@ test('selectPendingSales parses item_seq/qty as numbers and keeps receipt/access
 });
 
 test('selectPendingSales tolerates reordered columns and a missing data column', () => {
-  const header = ['sync_status', 'item_seq', 'receipt', 'accession', 'qty']; // no unit column
+  const header = ['sync_status', 'item_seq', 'receipt', 'accession', 'qty']; // no unit/name columns
   const values = [header, ['Pending', 2, 'PP-5-2', '8250', 4]];
   assert.deepStrictEqual(selectPendingSales(values), [
-    { receipt: 'PP-5-2', item_seq: 2, accession: '8250', qty: 4, unit: '' },
+    { receipt: 'PP-5-2', item_seq: 2, accession: '8250', qty: 4, unit: '', name: '' },
+  ]);
+});
+
+test('selectPendingSales carries unknown name for Access enrichment gating', () => {
+  const values = [
+    SALES_HEADER,
+    salesRow('PP-9-1', '2026-06-23', 1, '31011', 'unknown', 1, 'pots', 500, 0, 500, 'Pending'),
+  ];
+  assert.deepStrictEqual(selectPendingSales(values), [
+    { receipt: 'PP-9-1', item_seq: 1, accession: '31011', qty: 1, unit: 'pots', name: 'unknown' },
   ]);
 });
 
@@ -503,7 +513,7 @@ test('selectPendingCulls returns [] for an empty or header-only sheet', () => {
   assert.deepStrictEqual(selectPendingCulls([CULLS_SHEET_HEADER]), []);
 });
 
-test('selectPendingCulls selects only Pending rows, shaped {cull_id,accession,qty,unit,notes}', () => {
+test('selectPendingCulls selects only Pending rows, shaped {cull_id,accession,qty,unit,notes,name}', () => {
   const values = [
     CULLS_SHEET_HEADER,
     ['PP-1-1', '2026-07-01', '31011', 'Acacia', '', '', '', '', 'Tree', 2, 'tubes', 'Dead', '', 'Pending'],
@@ -511,8 +521,8 @@ test('selectPendingCulls selects only Pending rows, shaped {cull_id,accession,qt
     ['PP-1-3', '2026-07-01', '9000', 'Grevillea', '', '', '', '', '', 1, 'misc', 'Other', '', 'Pending'],
   ];
   assert.deepStrictEqual(selectPendingCulls(values), [
-    { cull_id: 'PP-1-1', accession: '31011', qty: 2, unit: 'tubes', notes: '' },
-    { cull_id: 'PP-1-3', accession: '9000', qty: 1, unit: 'misc', notes: '' },
+    { cull_id: 'PP-1-1', accession: '31011', qty: 2, unit: 'tubes', notes: '', name: 'Acacia' },
+    { cull_id: 'PP-1-3', accession: '9000', qty: 1, unit: 'misc', notes: '', name: 'Grevillea' },
   ]);
 });
 
@@ -522,7 +532,17 @@ test('selectPendingCulls carries notes for stock-plant routing', () => {
     ['PP-2-1', '2026-07-01', '16726', 'Hardenbergia', '', '', '', '', '', 1, 'pots', 'Dead', 'Stock plant', 'Pending'],
   ];
   assert.deepStrictEqual(selectPendingCulls(values), [
-    { cull_id: 'PP-2-1', accession: '16726', qty: 1, unit: 'pots', notes: 'Stock plant' },
+    { cull_id: 'PP-2-1', accession: '16726', qty: 1, unit: 'pots', notes: 'Stock plant', name: 'Hardenbergia' },
+  ]);
+});
+
+test('selectPendingCulls carries unknown name for Access enrichment gating', () => {
+  const values = [
+    CULLS_SHEET_HEADER,
+    ['PP-3-1', '2026-07-01', '31011', 'unknown', '', '', '', '', '', 1, 'tubes', 'Dead', '', 'Pending'],
+  ];
+  assert.deepStrictEqual(selectPendingCulls(values), [
+    { cull_id: 'PP-3-1', accession: '31011', qty: 1, unit: 'tubes', notes: '', name: 'unknown' },
   ]);
 });
 

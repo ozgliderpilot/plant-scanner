@@ -234,7 +234,8 @@ function salesRowKey(receipt, itemSeq) {
  * Backing logic for the `pendingSales` action: select the reverse-sync work set from the raw "Sales"
  * sheet values (row 0 = header). Returns every row whose `sync_status` is exactly "Pending" (trimmed,
  * case-insensitive), shaped as the minimal object the Access sales-in phase consumes:
- * `{receipt, item_seq, accession, qty, unit}`.
+ * `{receipt, item_seq, accession, qty, unit, name}`. `name` lets Access skip Species lookup/enrichment
+ * for rows that are already resolved (only `unknown` needs backfill).
  *
  * Columns are resolved by header name, so reordered / extra columns are tolerated and a missing data
  * column yields a default ('' for strings, 0 for numbers). A header-only or empty sheet, or one with no
@@ -251,6 +252,7 @@ function selectPendingSales(values) {
   var iAcc = salesColIndex(header, 'accession');
   var iQty = salesColIndex(header, 'qty');
   var iUnit = salesColIndex(header, 'unit');
+  var iName = salesColIndex(header, 'name');
 
   var out = [];
   for (var r = 1; r < values.length; r++) {
@@ -261,7 +263,8 @@ function selectPendingSales(values) {
       item_seq: rowNum(row, iSeq),
       accession: rowStr(row, iAcc),
       qty: rowNum(row, iQty),
-      unit: rowStr(row, iUnit)
+      unit: rowStr(row, iUnit),
+      name: rowStr(row, iName)
     });
   }
   return out;
@@ -335,7 +338,8 @@ function cullRowKey(cullId) {
  * Backing logic for the `pendingCulls` action: select the reverse-sync work set from the raw "Culls"
  * sheet values (row 0 = header). Returns every row whose `sync_status` is exactly "Pending" (trimmed,
  * case-insensitive), shaped as the minimal object the Access culls-in phase consumes:
- * `{cull_id, accession, qty, unit, notes}`.
+ * `{cull_id, accession, qty, unit, notes, name}`. `name` lets Access skip Species lookup/enrichment
+ * for rows that are already resolved (only `unknown` needs backfill).
  *
  * Columns are resolved by header name, so reordered / extra columns are tolerated and a missing data
  * column yields a default ('' for strings, 0 for numbers). A header-only or empty sheet, or one with no
@@ -351,6 +355,7 @@ function selectPendingCulls(values) {
   var iQty = salesColIndex(header, 'qty');
   var iUnit = salesColIndex(header, 'unit');
   var iNotes = salesColIndex(header, 'notes');
+  var iName = salesColIndex(header, 'name');
 
   var out = [];
   for (var r = 1; r < values.length; r++) {
@@ -362,6 +367,7 @@ function selectPendingCulls(values) {
       qty: rowNum(row, iQty),
       unit: rowStr(row, iUnit),
       notes: rowStr(row, iNotes),
+      name: rowStr(row, iName),
     });
   }
   return out;
