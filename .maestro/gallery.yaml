@@ -1,0 +1,34 @@
+appId: com.nursery.scanner.test
+---
+# Volunteer-critical gallery walk (#72). Text selectors first.
+# Launch with CI mode so seed-once + camera placeholder run before the first frame.
+- launchApp:
+    clearState: true
+    arguments:
+      com.nursery.scanner.CI_MODE: true
+- takeScreenshot: 01-actions
+- tapOn: "Plants"
+- takeScreenshot: 02-plants
+- tapOn: "Actions"
+- tapOn: "Sell plants"
+- takeScreenshot: 03-sell-scan
+- tapOn: "Type number instead"
+- tapOn:
+    text: "Accession number"
+- inputText: "1001"
+- tapOn: "Find"
+- takeScreenshot: 04-sell-line
+- tapOn:
+    text: "Unit price ($)"
+- inputText: "5.00"
+- tapOn: "Add to receipt"
+- takeScreenshot: 05-sell-cart
+- tapOn: "Finish & save"
+- takeScreenshot: 06-sell-confirm
+- tapOn: "Done"
+- tapOn: "History"
+- tapOn: "View Receipts"
+- takeScreenshot: 07-receipts
+- back
+- tapOn: "View Culled"
+- takeScreenshot: 08-culls

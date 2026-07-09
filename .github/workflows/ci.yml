@@ -43,6 +43,9 @@ jobs:
               - 'gradlew'
               - 'gradlew.bat'
               - '.github/workflows/ci.yml'
+              - '.maestro/**'
+              - '.github/scripts/screenshots/**'
+              - '.github/workflows/screenshots-cleanup.yml'
 
   core:
     needs: changes
@@ -109,6 +112,143 @@ jobs:
 
       - name: Build qa debug APK
         run: ./gradlew :app:assembleQaDebug --stacktrace
+
+      - name: Upload QA debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-debug-apk
+          path: app/build/outputs/apk/qa/debug/app-qa-debug.apk
+          retention-days: 5
+
+  # Soft gallery job (#72): may go red on emulator/Maestro failure but is NOT in ci-success.
+  app-screenshots:
+    needs: [changes, app]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.app == 'true' &&
+      needs.app.result == 'success'
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MAESTRO_VERSION: "1.39.9"
+    steps:
+      - name: Skip fork PRs
+        id: gate
+        run: |
+          if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            echo "Fork PRs cannot write ci-screenshots or post gallery comments; skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      - name: Enable KVM
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/setup-java@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: AVD cache
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ runner.os }}-api30-x86_64-default-pixel6
+
+      - name: Download QA debug APK
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: qa-debug-apk
+          path: apk
+
+      - name: Install Maestro CLI
+        if: steps.gate.outputs.run == 'true'
+        env:
+          # Installer reads MAESTRO_VERSION (bump only in deliberate PRs).
+          MAESTRO_VERSION: ${{ env.MAESTRO_VERSION }}
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          "$HOME/.maestro/bin/maestro" --version
+
+      - name: Make screenshot scripts executable
+        if: steps.gate.outputs.run == 'true'
+        run: chmod +x .github/scripts/screenshots/*.sh
+
+      - name: Run emulator + Maestro gallery
+        if: steps.gate.outputs.run == 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: default
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            SHORT=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+
+            adb wait-for-device
+            adb shell "settings put system system_locales en-AU; setprop persist.sys.locale en-AU; setprop persist.sys.country AU; setprop persist.sys.language en"
+            adb shell am broadcast -a android.intent.action.LOCALE_CHANGED || true
+            # Soft reboot of zygote locale is unreliable; stop/start package so Compose picks en-AU.
+            adb shell pm grant com.nursery.scanner.test android.permission.CAMERA || true
+
+            adb install -r apk/app-qa-debug.apk
+
+            mkdir -p maestro-out gallery
+            # Maestro launches with CI_MODE (see .maestro/gallery.yaml). May exit non-zero on
+            # mid-flow failure; still normalize partial captures.
+            set +e
+            maestro test --output maestro-out .maestro/gallery.yaml
+            MAESTRO_EXIT=$?
+            set -e
+
+            .github/scripts/screenshots/normalize-screenshots.sh maestro-out gallery "$SHORT"
+
+            # Publish + comment even on partial success (manifest may be non-empty).
+            if [[ -s gallery/manifest.txt ]]; then
+              .github/scripts/screenshots/publish-screenshots.sh gallery \
+                "${{ github.event.pull_request.number }}" "$SHORT"
+              .github/scripts/screenshots/comment-gallery.sh \
+                "${{ github.event.pull_request.number }}" "$SHORT" gallery/manifest.txt \
+                "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+                "${{ github.event.pull_request.head.sha }}"
+            fi
+
+            exit $MAESTRO_EXIT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Maestro outputs
+        if: always() && steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-screenshots
+          path: |
+            maestro-out/
+            gallery/
+          retention-days: 7
+          if-no-files-found: warn
 
   ci-success:
     needs: [changes, core, backend, app]

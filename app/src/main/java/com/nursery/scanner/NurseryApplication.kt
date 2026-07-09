@@ -11,7 +11,6 @@ class NurseryApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        // Start the silent 1-minute auto-export ticker (spec #10).
-        container.autoExportTicker.start()
+        // Auto-export ticker starts from MainActivity after CI mode may stop it (#72).
     }
 }

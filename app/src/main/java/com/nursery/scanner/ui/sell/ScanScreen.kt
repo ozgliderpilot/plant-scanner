@@ -34,6 +34,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.collect
+import com.nursery.scanner.ci.CiMode
+import com.nursery.scanner.ci.CiScanPlaceholder
 import com.nursery.scanner.scanner.ScannerView
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.BigButtonStyle
@@ -56,7 +58,8 @@ fun ScanScreen(
     val focusManager = LocalFocusManager.current
     var hasCamera by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            CiMode.skipCameraPermission ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
                 PackageManager.PERMISSION_GRANTED,
         )
     }
@@ -113,12 +116,16 @@ fun ScanScreen(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(Dimens.CardCorner)),
                 ) {
-                    ScannerView(
-                        modifier = Modifier.fillMaxSize(),
-                        // Pause emission while the not-found card is up; "Retry" clears it and re-arms.
-                        scanning = ui.notFoundCode == null,
-                        onBarcode = { code -> vm.onCode(code) },
-                    )
+                    if (CiMode.useCameraPlaceholder) {
+                        CiScanPlaceholder(modifier = Modifier.fillMaxSize())
+                    } else {
+                        ScannerView(
+                            modifier = Modifier.fillMaxSize(),
+                            // Pause emission while the not-found card is up; "Retry" clears it and re-arms.
+                            scanning = ui.notFoundCode == null,
+                            onBarcode = { code -> vm.onCode(code) },
+                        )
+                    }
                 }
             }
 

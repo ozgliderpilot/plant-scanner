@@ -33,4 +33,9 @@ class PlantRepository(
             plants.size
         }
     }
+
+    /** Insert plants without wiping the cache (CI seed path). */
+    suspend fun insertAll(plants: List<Plant>) {
+        plantDao.insertAll(plants.map { it.toEntity() })
+    }
 }

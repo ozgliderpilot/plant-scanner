@@ -22,18 +22,21 @@ import kotlinx.coroutines.SupervisorJob
 /** Manual dependency container (no Hilt — keeps the build simple). Single instance per process. */
 class AppContainer(context: Context) {
 
+    /** Application context for CI seed prefs and other process-scoped helpers. */
+    val appContext: Context = context.applicationContext
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val db = Room.databaseBuilder(
-        context.applicationContext,
+        appContext,
         NurseryDatabase::class.java,
         NurseryDatabase.NAME,
     ).addMigrations(MIGRATION_2_3, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build()
 
     private val sheets = SheetsClient()
-    private val connectivity = ConnectivityObserver(context.applicationContext)
+    private val connectivity = ConnectivityObserver(appContext)
 
-    val settingsRepository = SettingsRepository(context.applicationContext)
+    val settingsRepository = SettingsRepository(appContext)
     val plantRepository = PlantRepository(db.plantDao(), sheets)
     val receiptRepository = ReceiptRepository(db.receiptDao(), settingsRepository)
     val cullRepository = CullRepository(db.cullDao(), settingsRepository)
