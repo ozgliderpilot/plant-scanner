@@ -66,7 +66,12 @@ fun ReceiptsScreen(
             itemsIndexed(items, key = { index, item -> listItemKey(item, index) }) { _, item ->
                 when (item) {
                     is ReceiptListItem.Row -> ReceiptCard(receipt = item.receipt, onClick = { onOpen(item.receipt.localId) })
-                    is ReceiptListItem.DayTotal -> DayTotalRow(epochDay = item.epochDay, totalCents = item.totalCents)
+                    is ReceiptListItem.DayTotal -> DayTotalRow(
+                        epochDay = item.epochDay,
+                        totalCents = item.totalCents,
+                        cashCents = item.cashCents,
+                        cardCents = item.cardCents,
+                    )
                 }
             }
         }
@@ -80,14 +85,49 @@ private fun listItemKey(item: ReceiptListItem, index: Int): String =
     }
 
 @Composable
-private fun DayTotalRow(epochDay: Long, totalCents: Long) {
-    Text(
-        text = "${formatEpochDay(epochDay)} Total: ${Money.formatAud(totalCents)}",
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        textAlign = TextAlign.End,
+private fun DayTotalRow(epochDay: Long, totalCents: Long, cashCents: Long, cardCents: Long) {
+    Column(
         modifier = Modifier.fillMaxWidth(),
-    )
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(Dimens.GapSmall / 2),
+    ) {
+        Text(
+            text = formatEpochDay(epochDay),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.End,
+        )
+        DayTotalAmountRow(label = "Total", amountCents = totalCents, bold = true)
+        DayTotalAmountRow(label = "Cash", amountCents = cashCents, indent = true)
+        DayTotalAmountRow(label = "Card", amountCents = cardCents, indent = true)
+    }
+}
+
+@Composable
+private fun DayTotalAmountRow(
+    label: String,
+    amountCents: Long,
+    bold: Boolean = false,
+    indent: Boolean = false,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth(0.85f)
+            .then(if (indent) Modifier.padding(start = Dimens.GapSmall) else Modifier),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = if (bold) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+        )
+        Text(
+            text = Money.formatAud(amountCents),
+            style = if (bold) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+        )
+    }
 }
 
 @Composable

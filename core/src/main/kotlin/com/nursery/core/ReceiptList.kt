@@ -32,7 +32,20 @@ object ReceiptList {
         if (receipts.isEmpty()) return emptyList()
         val totalsByDay = receipts
             .groupBy { epochDay(it.createdAtEpochMs, zone) }
-            .mapValues { (_, dayReceipts) -> dayReceipts.sumOf { Money.receiptTotalCents(it.lines) } }
+            .mapValues { (_, dayReceipts) ->
+                var totalCents = 0L
+                var cashCents = 0L
+                var cardCents = 0L
+                for (receipt in dayReceipts) {
+                    val cents = Money.receiptTotalCents(receipt.lines)
+                    totalCents += cents
+                    when (receipt.paymentMethod) {
+                        PaymentMethod.CASH -> cashCents += cents
+                        PaymentMethod.CARD -> cardCents += cents
+                    }
+                }
+                DayBreakdown(totalCents = totalCents, cashCents = cashCents, cardCents = cardCents)
+            }
         val lastIndexByDay = receipts
             .mapIndexed { index, receipt -> epochDay(receipt.createdAtEpochMs, zone) to index }
             .toMap()
@@ -41,11 +54,21 @@ object ReceiptList {
                 add(ReceiptListItem.Row(receipt))
                 val day = epochDay(receipt.createdAtEpochMs, zone)
                 if (lastIndexByDay.getValue(day) == index) {
-                    add(ReceiptListItem.DayTotal(epochDay = day, totalCents = totalsByDay.getValue(day)))
+                    val breakdown = totalsByDay.getValue(day)
+                    add(
+                        ReceiptListItem.DayTotal(
+                            epochDay = day,
+                            totalCents = breakdown.totalCents,
+                            cashCents = breakdown.cashCents,
+                            cardCents = breakdown.cardCents,
+                        ),
+                    )
                 }
             }
         }
     }
+
+    private data class DayBreakdown(val totalCents: Long, val cashCents: Long, val cardCents: Long)
 
     private fun epochDay(createdAtEpochMs: Long, zone: ZoneId): Long =
         Instant.ofEpochMilli(createdAtEpochMs).atZone(zone).toLocalDate().toEpochDay()
@@ -54,5 +77,10 @@ object ReceiptList {
 /** One row in the Receipts list — either a receipt card or a day-total footer. */
 sealed interface ReceiptListItem {
     data class Row(val receipt: Receipt) : ReceiptListItem
-    data class DayTotal(val epochDay: Long, val totalCents: Long) : ReceiptListItem
+    data class DayTotal(
+        val epochDay: Long,
+        val totalCents: Long,
+        val cashCents: Long,
+        val cardCents: Long,
+    ) : ReceiptListItem
 }
