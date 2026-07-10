@@ -16,7 +16,6 @@ class CiFixturesTest {
         assertEquals("ci-secret", CiFixtures.SHARED_SECRET)
         assertEquals(listOf("1001", "1002", "1003"), CiFixtures.ACCESSIONS)
         assertEquals("1001", CiFixtures.WALK_ACCESSION)
-        assertEquals(2, CiFixtures.SEEDED_SEQ_COUNT)
 
         val grevillea = CiFixtures.PLANTS.single { it.accession == "1001" }
         assertEquals(12, grevillea.potsInNursery)

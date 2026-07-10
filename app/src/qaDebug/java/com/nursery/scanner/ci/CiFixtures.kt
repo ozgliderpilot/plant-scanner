@@ -74,9 +74,6 @@ object CiFixtures {
     /** Deterministic epoch so receipt numbers are stable across screenshot runs. */
     const val SEED_EPOCH_MS = 1_700_000_000_000L
 
-    /** How many daily seq slots the seeded receipt + cull occupy (walked sale uses the next). */
-    const val SEEDED_SEQ_COUNT = 2
-
     fun seededReceipt(): Receipt = Receipt(
         localId = 0,
         receiptNo = "99-1700000000-1",
