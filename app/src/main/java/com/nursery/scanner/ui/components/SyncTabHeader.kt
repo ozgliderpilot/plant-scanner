@@ -1,5 +1,6 @@
 package com.nursery.scanner.ui.components
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.nursery.scanner.util.updatedAgoLabel
+
+/** Large tap target for the header sync control (matches qty stepper buttons). */
+private val SyncActionSize = 64.dp
+
+/** Glyph / spinner size — larger than Material's ~24.dp default for arm's-length visibility. */
+private val SyncGlyphSize = 40.dp
 
 /**
  * Per-tab sync header for History (export) and Plants (import): title, manual ↻ action,
@@ -45,18 +52,28 @@ fun SyncTabHeader(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 48.dp),
+                    .heightIn(min = SyncActionSize),
             ) {
                 Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 if (isBusy) {
-                    CircularProgressIndicator(modifier = Modifier.size(40.dp))
+                    // Same footprint as the IconButton so idle ↔ busy does not shift the title.
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(SyncActionSize),
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(SyncGlyphSize))
+                    }
                 } else {
                     IconButton(
                         onClick = onSync,
                         enabled = canSync,
-                        modifier = Modifier.size(56.dp),
+                        modifier = Modifier.size(SyncActionSize),
                     ) {
-                        Icon(Icons.Filled.Sync, contentDescription = "Sync now")
+                        Icon(
+                            Icons.Filled.Sync,
+                            contentDescription = "Sync now",
+                            modifier = Modifier.size(SyncGlyphSize),
+                        )
                     }
                 }
             }
