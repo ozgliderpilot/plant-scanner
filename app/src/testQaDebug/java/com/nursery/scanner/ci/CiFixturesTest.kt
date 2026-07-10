@@ -1,5 +1,6 @@
 package com.nursery.scanner.ci
 
+import com.nursery.core.PaymentMethod
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -26,8 +27,10 @@ class CiFixturesTest {
         assertEquals(CiFixtures.ENDPOINT_URL, config.endpointUrl)
         assertEquals(CiFixtures.SHARED_SECRET, config.sharedSecret)
 
-        assertEquals("99-1700000000-1", CiFixtures.seededReceipt().receiptNo)
-        val seededLine = CiFixtures.seededReceipt().lines.single()
+        val seeded = CiFixtures.seededReceipt()
+        assertEquals("99-1700000000-1", seeded.receiptNo)
+        assertEquals(PaymentMethod.CASH, seeded.paymentMethod)
+        val seededLine = seeded.lines.single()
         assertEquals("1002", seededLine.accession)
         assertEquals(10, seededLine.discountPct)
         assertEquals("99-1700000000-2", CiFixtures.seededCull().cullNo)

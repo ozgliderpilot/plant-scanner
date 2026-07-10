@@ -45,24 +45,7 @@ appId: com.nursery.scanner.test
 - tapOn:
     id: add_to_receipt
 
-# Two more lines before confirm (no extra frames): same Grevillea as tube, then Lomandra.
-- tapOn: "Scan another"
-- tapOn:
-    id: type_number
-- tapOn:
-    text: "Accession number"
-- inputText: "1001"
-- hideKeyboard
-- tapOn:
-    id: find
-- tapOn: "pot"
-- tapOn: "tube"
-- tapOn:
-    text: "Unit price ($)"
-- inputText: "3.00"
-- hideKeyboard
-- tapOn:
-    id: add_to_receipt
+# One more line before confirm (no extra frame): Lomandra.
 - tapOn: "Scan another"
 - tapOn:
     id: type_number

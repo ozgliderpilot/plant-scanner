@@ -98,7 +98,7 @@ object CiFixtures {
                 itemSeq = 1,
             ),
         ),
-        paymentMethod = PaymentMethod.CARD,
+        paymentMethod = PaymentMethod.CASH,
     )
 
     fun seededCull(): CullRecord = CullRecord(
