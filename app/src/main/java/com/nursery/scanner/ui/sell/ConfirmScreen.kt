@@ -25,13 +25,13 @@ import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.theme.Dimens
 
 /**
- * ④ Confirmation: receipt #, total to collect, "Saved locally · N pending". Payment is handled
+ * ④ Confirmation: receipt #, total to collect, payment method. Payment is handled
  * outside the app (decision #3) — this is just the amount to collect.
+ * Pending sync count is intentionally not shown here (issue #74).
  */
 @Composable
 fun ConfirmScreen(
     vm: SellViewModel,
-    pendingCount: Int,
     onNewSale: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
@@ -69,10 +69,6 @@ fun ConfirmScreen(
         Text(
             "Payment: ${saved.paymentMethod.displayLabel}",
             style = MaterialTheme.typography.titleMedium,
-        )
-        Text(
-            "Saved locally · $pendingCount pending",
-            style = MaterialTheme.typography.bodyLarge,
         )
 
         BigButton(text = "New sale", onClick = onNewSale)

@@ -136,10 +136,10 @@ Cull-specific:
 
 Mirror `ConfirmScreen`:
 
-- Cull id (`cullNo` from `ReceiptNumbering`)
-- `Saved locally · N pending` (N = combined receipts + culls pending)
+- Cull id (`cullNo` from `ReceiptNumbering`) / plant name
 - **Cull another** → scan
 - **Done** → pop cull graph
+- Pending sync count is intentionally omitted from this screen (not duplicated here)
 
 ### 5. `core/` module
 
