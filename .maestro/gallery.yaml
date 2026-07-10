@@ -72,9 +72,12 @@ appId: com.nursery.scanner.test
 - assertVisible: "Record cull"
 - takeScreenshot:
     path: maestro-out/10-cull-info
-- tapOn: "Record cull"
-# CullSuccessScreen shows "Saved locally · N pending" as one Text node.
-- assertVisible: "Saved locally.*"
+# Header title and BigButton share the same label; index 1 is the button (0 = title).
+- tapOn:
+    text: "Record cull"
+    index: 1
+# Wait for async recordCull → CullSuccessScreen (enter-info stays up until persist completes).
+- assertVisible: "Cull another"
 - takeScreenshot:
     path: maestro-out/11-cull-success
 - tapOn: "Done"
