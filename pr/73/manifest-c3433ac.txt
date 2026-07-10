@@ -1,0 +1,8 @@
+01-actions-c3433ac.png
+02-plants-c3433ac.png
+03-sell-scan-c3433ac.png
+04-sell-line-c3433ac.png
+05-sell-cart-c3433ac.png
+06-sell-confirm-c3433ac.png
+07-receipts-c3433ac.png
+08-culls-c3433ac.png
