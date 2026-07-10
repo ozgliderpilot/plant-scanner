@@ -208,9 +208,8 @@ jobs:
             SHORT=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
 
             adb wait-for-device
-            adb shell "settings put system system_locales en-AU; setprop persist.sys.locale en-AU; setprop persist.sys.country AU; setprop persist.sys.language en"
+            adb shell settings put system system_locales en-AU || true
             adb shell am broadcast -a android.intent.action.LOCALE_CHANGED || true
-            # Soft reboot of zygote locale is unreliable; stop/start package so Compose picks en-AU.
             adb shell pm grant com.nursery.scanner.test android.permission.CAMERA || true
 
             adb install -r apk/app-qa-debug.apk
@@ -226,7 +225,7 @@ jobs:
             .github/scripts/screenshots/normalize-screenshots.sh maestro-out gallery "$SHORT"
 
             # Publish + comment even on partial success (manifest may be non-empty).
-            if [[ -s gallery/manifest.txt ]]; then
+            if [ -s gallery/manifest.txt ]; then
               .github/scripts/screenshots/publish-screenshots.sh gallery \
                 "${{ github.event.pull_request.number }}" "$SHORT"
               .github/scripts/screenshots/comment-gallery.sh \
