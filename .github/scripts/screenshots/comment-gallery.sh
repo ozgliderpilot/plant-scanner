@@ -27,7 +27,8 @@ CAPTIONS=(
 
 EXPECTED=8
 COUNT=0
-BODY_IMAGES=""
+# Collect "caption|url" rows, then render as HTML table (3 per row) for GitHub comments.
+ENTRIES=()
 
 if [[ -f "$MANIFEST" ]]; then
   while IFS= read -r file || [[ -n "$file" ]]; do
@@ -36,7 +37,7 @@ if [[ -f "$MANIFEST" ]]; then
     # Map 01-actions-abc1234.png → caption index 0
     idx=$((10#${file:0:2} - 1))
     caption="${CAPTIONS[$idx]:-Screen $COUNT}"
-    BODY_IMAGES+=$'\n'"### ${caption}"$'\n\n'"![${caption}](${RAW_BASE}/${file})"$'\n'
+    ENTRIES+=("${caption}|${RAW_BASE}/${file}")
   done < "$MANIFEST"
 fi
 
@@ -46,6 +47,34 @@ elif [[ "$COUNT" -lt "$EXPECTED" ]]; then
   STATUS="**Partial gallery** — ${COUNT}/${EXPECTED} frames captured (flow stopped early)."
 else
   STATUS="**Complete gallery** — ${COUNT}/${EXPECTED} frames."
+fi
+
+# GitHub markdown collapses images vertically; an HTML table keeps three thumbs per row.
+BODY_IMAGES=""
+if [[ "$COUNT" -gt 0 ]]; then
+  BODY_IMAGES+=$'\n<table>\n'
+  col=0
+  for entry in "${ENTRIES[@]}"; do
+    caption="${entry%%|*}"
+    url="${entry#*|}"
+    if [[ "$col" -eq 0 ]]; then
+      BODY_IMAGES+="<tr>"$'\n'
+    fi
+    BODY_IMAGES+="<td align=\"center\" width=\"33%\"><p><b>${caption}</b></p><img src=\"${url}\" alt=\"${caption}\" /></td>"$'\n'
+    col=$((col + 1))
+    if [[ "$col" -eq 3 ]]; then
+      BODY_IMAGES+="</tr>"$'\n'
+      col=0
+    fi
+  done
+  if [[ "$col" -ne 0 ]]; then
+    while [[ "$col" -lt 3 ]]; do
+      BODY_IMAGES+="<td width=\"33%\"></td>"$'\n'
+      col=$((col + 1))
+    done
+    BODY_IMAGES+="</tr>"$'\n'
+  fi
+  BODY_IMAGES+="</table>"$'\n'
 fi
 
 BODY=$(cat <<EOF

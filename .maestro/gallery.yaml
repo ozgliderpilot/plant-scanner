@@ -7,6 +7,10 @@ appId: com.nursery.scanner.test
     clearState: true
     arguments:
       com.nursery.scanner.CI_MODE: true
+# Cold start + CI seed can leave the launcher visible briefly; wait for Actions UI.
+- extendedWaitUntil:
+    visible: "Sell plants"
+    timeout: 30000
 - takeScreenshot:
     path: maestro-out/01-actions
 - tapOn: "Plants"

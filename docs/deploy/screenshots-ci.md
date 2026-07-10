@@ -31,9 +31,10 @@ pr/<pull_number>/<NN-name>-<shortsha>.png
 pr/<pull_number>/manifest-<shortsha>.txt
 ```
 
-The PR comment embeds **only** paths listed in this run's manifest (partial galleries are OK).
-A new comment is posted every run (not an edited sticky). On PR close,
-`.github/workflows/screenshots-cleanup.yml` deletes `pr/<number>/`.
+The PR comment embeds **only** paths listed in this run's manifest (partial galleries are OK),
+laid out in an HTML table with **three screenshots per row**. A new comment is posted every run
+(not an edited sticky). On PR close, `.github/workflows/screenshots-cleanup.yml` deletes
+`pr/<number>/`.
 
 ## CI mode (qaDebug only)
 
