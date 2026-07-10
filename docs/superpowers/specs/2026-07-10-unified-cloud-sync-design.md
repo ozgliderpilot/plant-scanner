@@ -1,8 +1,7 @@
-# ADR-0001: Unified cloud sync (export then import)
+# Unified cloud sync (export then import)
 
-## Status
-
-Accepted (2026-07-10)
+**Date:** 2026-07-10
+**Status:** Approved
 
 ## Context
 

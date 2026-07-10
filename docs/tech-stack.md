@@ -110,7 +110,8 @@ Skip the official Sheets API (OAuth, Cloud project, consent screens, token refre
 
 ## Cloud sync (the ~1-minute round trip)
 
-**Cloud sync** exports the sync queue then imports the plant list (see ADR-0001). Default interval
+**Cloud sync** exports the sync queue then imports the plant list (see
+`docs/superpowers/specs/2026-07-10-unified-cloud-sync-design.md`). Default interval
 **60s**, configurable via DataStore.
 
 - **Not WorkManager.** `PeriodicWorkRequest` has a **15-minute minimum** interval, so it cannot do a
