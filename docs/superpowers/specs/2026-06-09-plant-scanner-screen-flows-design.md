@@ -98,8 +98,9 @@ Home ─[Sell]→ New receipt 07-241 opened (# = «device prefix»-«local seq»
    • [＋ Scan another] → back to ①
    • [Finish & save]
    ▼
-④ Confirmation: receipt #, Total AUD, "Saved locally · N pending"
+④ Confirmation: receipt #, Total AUD, payment method
    [New sale] / [Done → Home]
+   (Pending sync count stays in the top-bar StatusChip.)
 ```
 
 **Edge paths (each a single state, not a new flow):**

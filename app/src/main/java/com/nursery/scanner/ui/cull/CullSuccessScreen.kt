@@ -23,10 +23,13 @@ import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.theme.Dimens
 
+/**
+ * Cull recorded confirmation. Pending sync status stays in the top-bar StatusChip,
+ * not on this screen.
+ */
 @Composable
 fun CullSuccessScreen(
     vm: CullViewModel,
-    pendingCount: Int,
     onCullAnother: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
@@ -55,10 +58,6 @@ fun CullSuccessScreen(
         Text(
             text = if (saved.isUnknown) "Unknown plant" else saved.name,
             style = MaterialTheme.typography.headlineSmall,
-        )
-        Text(
-            "Saved locally · $pendingCount pending",
-            style = MaterialTheme.typography.bodyLarge,
         )
         BigButton(text = "Cull another", onClick = onCullAnother)
         BigButton(

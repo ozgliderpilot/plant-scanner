@@ -195,10 +195,8 @@ private fun NurseryNavHost(
             }
             composable(Routes.SELL_CONFIRM) { entry ->
                 val vm = sellViewModel(navController, container, entry)
-                val syncState by container.syncRepository.state.collectAsStateWithLifecycle()
                 ConfirmScreen(
                     vm = vm,
-                    pendingCount = syncState.pendingCount,
                     onNewSale = {
                         // Navigate first, THEN reset: nulling `saved` while Confirm is still composed
                         // would otherwise let its empty-state guard fire onDone and bounce to Home.
@@ -236,10 +234,8 @@ private fun NurseryNavHost(
             }
             composable(Routes.CULL_SUCCESS) { entry ->
                 val vm = cullViewModel(navController, container, entry)
-                val syncState by container.syncRepository.state.collectAsStateWithLifecycle()
                 CullSuccessScreen(
                     vm = vm,
-                    pendingCount = syncState.pendingCount,
                     onCullAnother = {
                         navController.navigate(Routes.CULL_SCAN) {
                             popUpTo(Routes.CULL_GRAPH) { inclusive = false }
