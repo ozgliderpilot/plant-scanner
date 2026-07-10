@@ -1,0 +1,17 @@
+01-actions|01-actions-ab3eac7.png
+02-sell-scan|02-sell-scan-ab3eac7.png
+03-sell-line|03-sell-line-ab3eac7.png
+04-sell-cart|04-sell-cart-ab3eac7.png
+05-sell-confirm|05-sell-confirm-ab3eac7.png
+06-history|06-history-ab3eac7.png
+07-receipts|07-receipts-ab3eac7.png
+08-receipt-detail|08-receipt-detail-ab3eac7.png
+09-cull-scan|09-cull-scan-ab3eac7.png
+10-cull-info|10-cull-info-ab3eac7.png
+11-cull-success|11-cull-success-ab3eac7.png
+12-print-scan|12-print-scan-ab3eac7.png
+13-print-not-found|13-print-not-found-ab3eac7.png
+14-print-copies|14-print-copies-ab3eac7.png
+15-print-success|15-print-success-ab3eac7.png
+16-culls|16-culls-ab3eac7.png
+17-plants|17-plants-ab3eac7.png
