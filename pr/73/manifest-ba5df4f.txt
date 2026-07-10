@@ -1,0 +1,10 @@
+01-actions-ba5df4f.png
+02-sell-scan-ba5df4f.png
+03-sell-line-ba5df4f.png
+04-sell-cart-ba5df4f.png
+05-sell-confirm-ba5df4f.png
+06-history-ba5df4f.png
+07-receipts-ba5df4f.png
+08-receipt-detail-ba5df4f.png
+09-cull-scan-ba5df4f.png
+10-cull-info-ba5df4f.png
