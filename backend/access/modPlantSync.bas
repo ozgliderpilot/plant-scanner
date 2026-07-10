@@ -805,6 +805,7 @@ Private Function ApplyPrintLabel_(ByRef db As DAO.Database, _
     inTrans = True
 
     queuedAt = ParseQueuedDate_(queuedDateIso)
+    If copies < 1 Then Err.Raise vbObjectError, , "invalid copies"
 
     Set qd = db.CreateQueryDef("", _
         "PARAMETERS pAc Number, pCopies Number, pAt DateTime; " & _

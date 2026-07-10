@@ -120,6 +120,7 @@ function handleAppendPrintLabels_(body) {
     sheetName: 'PrintQueue',
     keyColumn: 'queue_id',
     syncEvent: 'Print labels from device',
+    validate: validateAppendPrintLabelCopies,
   });
 }
 

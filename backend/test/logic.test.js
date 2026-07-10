@@ -5,7 +5,8 @@ const {
   findRowByKey, accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
   selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction,
   validateAppendCullsNotes, applyMarksToValues,
-  selectPendingPrintLabels, resolvePrintLabelMarks,
+  selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
+  PRINT_LABEL_COPIES_MAX,
 } = require('../shared.js');
 
 test('isAuthorized accepts the right secret only', () => {
@@ -732,4 +733,36 @@ test('applyMarksToValues flips PrintQueue sync_status without plant enrichment',
   const marked = applyMarksToValues(values, [{ rowIndex: 1, status: 'Synced' }]);
   assert.strictEqual(marked[1][5], 'Synced');
   assert.strictEqual(marked[1][3], 'Acacia');
+});
+
+test('validateAppendPrintLabelCopies accepts integer copies from 1 to max', () => {
+  const rows = [
+    ['07-1-1', '2026-07-01T12:00', '31011', 'Acacia', 1],
+    ['07-1-2', '2026-07-01T12:00', '8250', 'Banksia', PRINT_LABEL_COPIES_MAX],
+  ];
+  assert.strictEqual(validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, rows), null);
+});
+
+test('validateAppendPrintLabelCopies rejects non-positive, non-integer, or extreme copies', () => {
+  const msg = 'Print label copies must be an integer from 1 to ' + PRINT_LABEL_COPIES_MAX;
+  assert.strictEqual(
+    validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, [['07-1', '2026-07-01T12:00', '31011', 'A', 0]]),
+    msg,
+  );
+  assert.strictEqual(
+    validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, [['07-1', '2026-07-01T12:00', '31011', 'A', -3]]),
+    msg,
+  );
+  assert.strictEqual(
+    validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, [['07-1', '2026-07-01T12:00', '31011', 'A', 1.5]]),
+    msg,
+  );
+  assert.strictEqual(
+    validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, [['07-1', '2026-07-01T12:00', '31011', 'A', PRINT_LABEL_COPIES_MAX + 1]]),
+    msg,
+  );
+  assert.strictEqual(
+    validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, [['07-1', '2026-07-01T12:00', '31011', 'A', 'abc']]),
+    msg,
+  );
 });

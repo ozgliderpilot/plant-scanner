@@ -328,6 +328,28 @@ function validateAppendCullsNotes(header, rows) {
 }
 
 /**
+ * Reject appendPrintLabels payloads whose copies column is not a positive integer within a safe
+ * bound. Prevents negative / extreme values from corrupting Access NoPrinted tracking if a client
+ * with the shared secret sends a crafted payload. Returns an error message when invalid, null when OK.
+ */
+var PRINT_LABEL_COPIES_MAX = 10000;
+
+function validateAppendPrintLabelCopies(header, rows) {
+  var iCopies = salesColIndex(header, 'copies');
+  if (iCopies < 0) return 'Missing copies column';
+  for (var r = 0; r < (rows || []).length; r++) {
+    var row = rows[r];
+    var raw = row && iCopies < row.length ? row[iCopies] : '';
+    var n = Number(raw);
+    // Integer 1..MAX (Apps Script–safe; avoid Number.isInteger).
+    if (!(isFinite(n) && Math.floor(n) === n && n >= 1 && n <= PRINT_LABEL_COPIES_MAX)) {
+      return 'Print label copies must be an integer from 1 to ' + PRINT_LABEL_COPIES_MAX;
+    }
+  }
+  return null;
+}
+
+/**
  * Normalised cull_id primary key for a Culls row — trimmed string so " PP-1 " and "PP-1" collide.
  */
 function cullRowKey(cullId) {
@@ -548,7 +570,8 @@ if (typeof module !== 'undefined' && module.exports) {
     findRowByKey, accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
     selectPendingSales, resolveSalesMarks,
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
-    printLabelRowKey, selectPendingPrintLabels, resolvePrintLabelMarks,
+    printLabelRowKey, selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
+    PRINT_LABEL_COPIES_MAX,
     isStockPlantCull, computeCullDeduction, applyMarksToValues,
   };
 }
