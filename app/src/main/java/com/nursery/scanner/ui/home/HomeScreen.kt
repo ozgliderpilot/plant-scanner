@@ -13,7 +13,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.theme.Dimens
@@ -35,12 +37,14 @@ fun HomeScreen(onSell: () -> Unit, onCull: () -> Unit, modifier: Modifier = Modi
             onClick = onSell,
             leadingIcon = Icons.Filled.PointOfSale,
             style = BigButtonStyle.Primary,
+            modifier = Modifier.testTag(TestTags.SELL_PLANTS),
         )
         BigButton(
             text = "Cull plants",
             onClick = onCull,
             leadingIcon = Icons.Filled.LocalFlorist,
             style = BigButtonStyle.Primary,
+            modifier = Modifier.testTag(TestTags.CULL_PLANTS),
         )
 
         Text(

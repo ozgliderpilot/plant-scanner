@@ -11,7 +11,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as NurseryApplication).container
-        // CI mode (#72): seed-once + flags before first frame when the launch extra is present.
+        // CI mode (#72): seed + flags before first frame when the launch extra is present.
         // runBlocking keeps Maestro from racing an empty plant list on cold start.
         runBlocking { CiMode.onColdStart(container, intent) }
         if (!CiMode.active) {

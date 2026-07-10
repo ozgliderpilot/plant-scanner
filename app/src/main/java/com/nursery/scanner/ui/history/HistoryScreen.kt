@@ -19,8 +19,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import com.nursery.scanner.BuildConfig
+import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.components.SyncTabHeader
@@ -70,12 +72,14 @@ fun HistoryScreen(
                 onClick = onViewReceipts,
                 leadingIcon = Icons.Filled.ReceiptLong,
                 style = BigButtonStyle.Primary,
+                modifier = Modifier.testTag(TestTags.VIEW_RECEIPTS),
             )
             BigButton(
                 text = "View Culled",
                 onClick = onViewCulls,
                 leadingIcon = Icons.Filled.LocalFlorist,
                 style = BigButtonStyle.Primary,
+                modifier = Modifier.testTag(TestTags.VIEW_CULLED),
             )
             BigButton(
                 text = "View Labels — coming soon",

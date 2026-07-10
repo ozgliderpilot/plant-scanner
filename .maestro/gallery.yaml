@@ -1,56 +1,65 @@
 appId: com.nursery.scanner.test
 ---
-# Volunteer-critical gallery walk (#72). Text selectors first.
+# Volunteer-critical gallery walk (#72).
 # Order: Actions → sell → History/receipts → cull → culls list → Plants.
+# Prefer id (Compose testTag) for primary actions; text for fields / asserts.
 # Screenshot paths are relative to the Maestro workspace (repo root), not --output.
+# Frame ids/captions: .maestro/gallery-frames.txt
 - launchApp:
     clearState: true
     arguments:
       com.nursery.scanner.CI_MODE: true
 # Cold start + CI seed can leave the launcher visible briefly; wait for Actions UI.
 - extendedWaitUntil:
-    visible: "Sell plants"
+    visible:
+      id: sell_plants
     timeout: 30000
 - takeScreenshot:
     path: maestro-out/01-actions
 
 # --- Sell walk ---
-- tapOn: "Sell plants"
+- tapOn:
+    id: sell_plants
 - takeScreenshot:
     path: maestro-out/02-sell-scan
-- tapOn: "Type number instead"
+- tapOn:
+    id: type_number
 - tapOn:
     text: "Accession number"
 - inputText: "1001"
 # Soft keyboard covers Find on Pixel-class AVDs; hideKeyboard uses BACK which only
 # dismisses the IME while it is showing (ScanScreen BackHandler does not run).
 - hideKeyboard
-- tapOn: "Find"
+- tapOn:
+    id: find
 - takeScreenshot:
     path: maestro-out/03-sell-line
 - tapOn:
     text: "Unit price ($)"
 - inputText: "5.00"
 - hideKeyboard
-- tapOn: "Add to receipt"
+- tapOn:
+    id: add_to_receipt
 - takeScreenshot:
     path: maestro-out/04-sell-cart
-- tapOn: "Finish & save"
+- tapOn:
+    id: finish_save
 # Wait for async finishAndSave → ConfirmScreen (cart stays up until persist completes).
 - assertVisible: "Total to collect"
 - takeScreenshot:
     path: maestro-out/05-sell-confirm
-- tapOn: "Done"
+- tapOn:
+    id: done
 
 # --- History + receipts ---
 - tapOn: "History"
 - takeScreenshot:
     path: maestro-out/06-history
-- tapOn: "View Receipts"
+- tapOn:
+    id: view_receipts
 - takeScreenshot:
     path: maestro-out/07-receipts
 # Seeded receipt number is stable across CI runs (CiFixtures).
-# Maestro text selectors are full-string regexes — match the whole Compose Text.
 - tapOn: "99-1700000000-1"
 - assertVisible: "Payment:.*"
 - takeScreenshot:
@@ -60,31 +69,34 @@ appId: com.nursery.scanner.test
 
 # --- Cull walk ---
 - tapOn: "Actions"
-- tapOn: "Cull plants"
+- tapOn:
+    id: cull_plants
 - takeScreenshot:
     path: maestro-out/09-cull-scan
-- tapOn: "Type number instead"
+- tapOn:
+    id: type_number
 - tapOn:
     text: "Accession number"
 - inputText: "1002"
 - hideKeyboard
-- tapOn: "Find"
+- tapOn:
+    id: find
 - assertVisible: "Record cull"
 - takeScreenshot:
     path: maestro-out/10-cull-info
-# Header title and BigButton share the same label; index 1 is the button (0 = title).
 - tapOn:
-    text: "Record cull"
-    index: 1
+    id: record_cull
 # Wait for async recordCull → CullSuccessScreen (enter-info stays up until persist completes).
 - assertVisible: "Cull another"
 - takeScreenshot:
     path: maestro-out/11-cull-success
-- tapOn: "Done"
+- tapOn:
+    id: done
 
 # --- Culls list (seeded + walked) then Plants catalog ---
 - tapOn: "History"
-- tapOn: "View Culled"
+- tapOn:
+    id: view_culled
 - takeScreenshot:
     path: maestro-out/12-culls
 - back

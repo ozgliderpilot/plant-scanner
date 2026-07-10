@@ -1,0 +1,14 @@
+# id|caption — single source of truth for normalize + PR comment (#72).
+01-actions|Actions
+02-sell-scan|Sell · scan
+03-sell-line|Sell · line item
+04-sell-cart|Sell · cart
+05-sell-confirm|Sell · confirm
+06-history|History
+07-receipts|Receipts
+08-receipt-detail|Receipt detail
+09-cull-scan|Cull · scan
+10-cull-info|Cull · enter info
+11-cull-success|Cull · success
+12-culls|Culls
+13-plants|Plants

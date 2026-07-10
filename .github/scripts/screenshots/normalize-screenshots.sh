@@ -1,39 +1,28 @@
 #!/usr/bin/env bash
 # Normalize Maestro screenshots into the gallery filename contract and write a per-run manifest.
-# Usage: normalize-screenshots.sh <maestro-output-dir> <dest-dir> <short-sha>
+# Frame list: .maestro/gallery-frames.txt (id|caption).
+# Usage: normalize-screenshots.sh <maestro-output-dir> <dest-dir> <short-sha> [frames-file]
 set -euo pipefail
 
 SRC="${1:?maestro output dir}"
 DEST="${2:?destination dir}"
 SHA="${3:?short sha}"
+FRAMES_FILE="${4:-.maestro/gallery-frames.txt}"
 
 mkdir -p "$DEST"
 MANIFEST="$DEST/manifest.txt"
 : > "$MANIFEST"
 
-# Expected frames in gallery order (basename without extension as Maestro wrote them).
-FRAMES=(
-  "01-actions"
-  "02-sell-scan"
-  "03-sell-line"
-  "04-sell-cart"
-  "05-sell-confirm"
-  "06-history"
-  "07-receipts"
-  "08-receipt-detail"
-  "09-cull-scan"
-  "10-cull-info"
-  "11-cull-success"
-  "12-culls"
-  "13-plants"
-)
+if [[ ! -f "$FRAMES_FILE" ]]; then
+  echo "frames file missing: $FRAMES_FILE" >&2
+  exit 1
+fi
 
-# Maestro writes takeScreenshot names under ~/.maestro/tests/... or the --output dir.
-# Search recursively for each frame name as .png.
-for frame in "${FRAMES[@]}"; do
+# Maestro writes takeScreenshot names under the workspace or --output dir.
+while IFS='|' read -r frame caption || [[ -n "${frame:-}" ]]; do
+  [[ -z "${frame:-}" || "$frame" =~ ^# ]] && continue
   found="$(find "$SRC" -type f -name "${frame}.png" | head -n 1 || true)"
   if [[ -z "$found" ]]; then
-    # Also accept names Maestro may suffix.
     found="$(find "$SRC" -type f -name "${frame}*.png" | head -n 1 || true)"
   fi
   if [[ -n "$found" ]]; then
@@ -44,6 +33,6 @@ for frame in "${FRAMES[@]}"; do
   else
     echo "missing $frame (partial gallery)" >&2
   fi
-done
+done < "$FRAMES_FILE"
 
 echo "manifest written: $MANIFEST"

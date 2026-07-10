@@ -1,113 +1,51 @@
 # CI screenshot gallery
 
-Review aid for Android-impacting pull requests: an emulator + Maestro walk captures thirteen
-volunteer-critical screens and posts a collapsible PR comment. Screenshots never participate in
-the merge gate (`ci-success` ignores the `app-screenshots` job). Settings is omitted (hidden
-behind a version-tap gate).
+Review aid for Android-impacting PRs: emulator + Maestro walk posts a collapsible PR comment.
+Soft check only (`ci-success` ignores `app-screenshots`). Settings is omitted (version-tap gate).
 
 ## When it runs
 
 - Same-repository `pull_request` only (not push to `main`, not forks).
-- Only when the existing **app** path filter matches and the **app** assemble job succeeded.
-- Soft check: emulator/Maestro failure may mark `app-screenshots` red; it must not fail
-  `ci-success` or block merge.
+- Same **app** path filter as the assemble job; runs after that job succeeds.
+- Emulator/Maestro failure may mark `app-screenshots` red; it must not block merge.
 
-## Gallery contract (13 frames)
+## Frames
 
-Walk order matches volunteer workflows (sell → history/receipts → cull → catalog):
+Source of truth: [`.maestro/gallery-frames.txt`](../../.maestro/gallery-frames.txt) (`id|caption`).
+Walk: [`.maestro/gallery.yaml`](../../.maestro/gallery.yaml).
 
-| # | Caption | Maestro name |
-|---|---------|--------------|
-| 1 | Actions | `01-actions` |
-| 2 | Sell · scan | `02-sell-scan` |
-| 3 | Sell · line item | `03-sell-line` |
-| 4 | Sell · cart | `04-sell-cart` |
-| 5 | Sell · confirm | `05-sell-confirm` |
-| 6 | History | `06-history` |
-| 7 | Receipts | `07-receipts` |
-| 8 | Receipt detail | `08-receipt-detail` |
-| 9 | Cull · scan | `09-cull-scan` |
-| 10 | Cull · enter info | `10-cull-info` |
-| 11 | Cull · success | `11-cull-success` |
-| 12 | Culls | `12-culls` |
-| 13 | Plants | `13-plants` |
-
-Files on the orphan `ci-screenshots` branch:
-
-```
-pr/<pull_number>/<NN-name>-<shortsha>.png
-pr/<pull_number>/manifest-<shortsha>.txt
-```
-
-The PR comment embeds **only** paths listed in this run's manifest (partial galleries are OK),
-laid out in an HTML table with **three screenshots per row**. A new comment is posted every run
-(not an edited sticky). On PR close, `.github/workflows/screenshots-cleanup.yml` deletes
-`pr/<number>/`.
+Files on orphan `ci-screenshots`: `pr/<n>/<id>-<shortsha>.png` + `manifest-<shortsha>.txt`.
+Comment embeds this run’s manifest only (partial OK), three thumbs per row. New comment each run.
+On PR close, [`.github/workflows/screenshots-cleanup.yml`](../../.github/workflows/screenshots-cleanup.yml)
+deletes `pr/<n>/`.
 
 ## CI mode (qaDebug only)
 
-Compile-time fence: orchestrator + activator live under `app/src/qaDebug/`. Prod and qaRelease
-builds do not contain the seed/activator code. Thin hooks in `main` (`CiMode` flags +
-`CiScanPlaceholder`) stay inert unless activated.
+`CiNurseryApplication` + `CiBootstrap` live under `src/qaDebug/`. Launch extra
+`com.nursery.scanner.CI_MODE` (see `CiMode.EXTRA_CI_MODE`). When active: stop auto-export, camera
+placeholder + permission skip, seed fixtures every cold start (Maestro `clearState`).
 
-**Launch extra** (cold start):
+Fixtures: prefix `99`, dummy endpoint, plants `1001`/`1002`/`1003`, one SAVED receipt, one PENDING
+cull. Walked sale uses `1001` @ `$5.00`; walked cull uses `1002`.
 
-```bash
-adb shell am start -n com.nursery.scanner.test/com.nursery.scanner.MainActivity \
-  --ez com.nursery.scanner.CI_MODE true
-```
+## Runner
 
-Constant: `CiMode.EXTRA_CI_MODE` = `com.nursery.scanner.CI_MODE`.
+- [`.github/scripts/screenshots/run-gallery.sh`](../../.github/scripts/screenshots/run-gallery.sh)
+  (single emulator-runner `script:` line)
+- Normalize + publish + comment:
+  [`.github/scripts/screenshots/`](../../.github/scripts/screenshots/)
+- Maestro CLI version: `MAESTRO_VERSION` in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
+- Emulator: API 30 x86_64 AOSP, Pixel-class, animations off
+- Primary actions use Compose `testTag` / Maestro `id`; typed fields stay text selectors
 
-When active, CI mode:
+## Soft vs red
 
-1. Stops / never starts the auto-export ticker (dummy endpoint must never be POSTed).
-2. Sets camera permission bypass + static scan placeholder.
-3. Seeds fixtures **once** (SharedPreferences flag); relaunch does not duplicate rows.
-
-### Fixtures
-
-| Setting | Value |
-|---------|-------|
-| Device prefix | `99` |
-| Endpoint | `https://ci.invalid/exec` |
-| Shared secret | `ci-secret` |
-| Plant accessions | `1001`, `1002`, `1003` (sale walk `1001`; cull walk `1002`) |
-| Seeded receipt | one SAVED receipt (Westringia / 1002) — opened for receipt detail |
-| Seeded cull | one PENDING cull (Lomandra / 1003) |
-
-Walked sale: 1 pot, unit price `$5.00`, no discount, default Card payment.
-Walked cull: 1 pot, default reason/unit (no notes).
-
-Normal qaDebug sideloads without the extra stay empty (no auto-seed).
-
-## Maestro
-
-- Flow: [`.maestro/gallery.yaml`](../../.maestro/gallery.yaml)
-- Pinned CLI version: see `MAESTRO_VERSION` in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
-- Text selectors first; add Compose test tags only if a step proves flaky
-- Maestro text selectors are **full-string regexes** — assert the whole Compose `Text`
-  (e.g. `Payment:.*`, not `Payment:`)
-- After typed fields, `hideKeyboard` before tapping Find / Add (IME covers those buttons on
-  Pixel-class AVDs; BACK only dismisses the keyboard while it is showing)
-- Screenshots use `takeScreenshot.path: maestro-out/<frame>` (workspace-relative)
-- Emulator: API 30, x86_64, AOSP `default`, Pixel-class profile, animations off, 30 min timeout
-  (default en-US; Maestro selectors are English — no brittle locale setprops on CI)
-- Gallery runner: [`.github/scripts/screenshots/run-gallery.sh`](../../.github/scripts/screenshots/run-gallery.sh)
-  (must stay a single emulator-runner `script:` line — that action splits multi-line scripts)
-
-Helper scripts: [`.github/scripts/screenshots/`](../../.github/scripts/screenshots/).
-
-## Soft vs red policy
-
-| Outcome | `app-screenshots` | `ci-success` / merge |
-|---------|-------------------|----------------------|
-| Full gallery | green | unaffected |
-| Partial gallery (flow died mid-way) | red (Maestro exit) but comment still posted | unaffected |
+| Outcome | `app-screenshots` | merge gate |
+|---------|-------------------|------------|
+| Full / partial gallery | green / red (Maestro) | unaffected |
 | Emulator / publish failure | red | unaffected |
-| App assemble failure | job skipped | fails as today |
+| App assemble failure | skipped | fails as today |
 
 ## Cursor Cloud
 
-Cloud VMs have **no KVM** — do not install AVDs or run Maestro there. Visual review for Cloud Agent
-Android PRs comes from this GitHub Actions path after the QA debug APK builds.
+No KVM — do not run AVDs/Maestro there; use this Actions path after the QA debug APK builds.

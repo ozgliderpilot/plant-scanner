@@ -22,7 +22,6 @@ import kotlinx.coroutines.SupervisorJob
 /** Manual dependency container (no Hilt — keeps the build simple). Single instance per process. */
 class AppContainer(context: Context) {
 
-    /** Application context for CI seed prefs and other process-scoped helpers. */
     val appContext: Context = context.applicationContext
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

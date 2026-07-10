@@ -71,7 +71,7 @@ class CullRepository(
         return entity.copy(localId = id).toCore()
     }
 
-    /** Insert a pre-numbered cull (CI seed path; does not allocate a new seq). */
-    suspend fun insertSeeded(cull: CullRecord): Long =
+    /** Insert a pre-numbered cull (does not allocate a new seq). */
+    suspend fun insert(cull: CullRecord): Long =
         cullDao.insert(cull.copy(localId = 0).toEntity())
 }

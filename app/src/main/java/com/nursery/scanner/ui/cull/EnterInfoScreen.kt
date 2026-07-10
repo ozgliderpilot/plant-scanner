@@ -29,10 +29,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nursery.core.CullRecord
+import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.PlantCard
 import com.nursery.scanner.ui.components.ReasonDropdown
@@ -112,6 +114,7 @@ fun EnterInfoScreen(
             BigButton(
                 text = "Record cull",
                 onClick = { vm.recordCull(qty = qty, unit = unit, reason = reason, notes = notes) },
+                modifier = Modifier.testTag(TestTags.RECORD_CULL),
             )
         }
     }

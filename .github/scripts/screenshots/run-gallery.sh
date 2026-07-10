@@ -10,11 +10,9 @@ HEAD_SHA="${1:?head sha}"
 PR_NUMBER="${2:?pr number}"
 RUN_URL="${3:?actions run url}"
 SHORT="$(echo "$HEAD_SHA" | cut -c1-7)"
+FRAMES_FILE=".maestro/gallery-frames.txt"
 
 adb wait-for-device
-# Skip emulator locale setprops — persist.sys.* fails on API 30 AOSP under CI and
-# English UI copy in .maestro/gallery.yaml matches the default en-US image.
-#
 # Cached AVDs (force-avd-creation: false) can retain a prior qaDebug install signed
 # with a different debug keystore → INSTALL_FAILED_UPDATE_INCOMPATIBLE on -r.
 adb uninstall com.nursery.scanner.test >/dev/null 2>&1 || true
@@ -31,15 +29,11 @@ maestro test --format JUNIT --output maestro-out/report.xml .maestro/gallery.yam
 MAESTRO_EXIT=$?
 set -e
 
-.github/scripts/screenshots/normalize-screenshots.sh maestro-out gallery "$SHORT"
+.github/scripts/screenshots/normalize-screenshots.sh maestro-out gallery "$SHORT" "$FRAMES_FILE"
 
-# Publish + comment even on partial success (manifest may be non-empty).
 if [[ -s gallery/manifest.txt ]]; then
-  .github/scripts/screenshots/publish-screenshots.sh gallery "$PR_NUMBER" "$SHORT"
-  .github/scripts/screenshots/comment-gallery.sh \
-    "$PR_NUMBER" "$SHORT" gallery/manifest.txt \
-    "$RUN_URL" \
-    "$HEAD_SHA"
+  .github/scripts/screenshots/publish-and-comment.sh \
+    gallery "$PR_NUMBER" "$SHORT" "$RUN_URL" "$HEAD_SHA" "$FRAMES_FILE"
 fi
 
 exit "$MAESTRO_EXIT"

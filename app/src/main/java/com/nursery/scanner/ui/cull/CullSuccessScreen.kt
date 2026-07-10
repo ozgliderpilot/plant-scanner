@@ -15,8 +15,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.theme.Dimens
@@ -59,6 +61,11 @@ fun CullSuccessScreen(
             style = MaterialTheme.typography.bodyLarge,
         )
         BigButton(text = "Cull another", onClick = onCullAnother)
-        BigButton(text = "Done", onClick = onDone, style = BigButtonStyle.Secondary)
+        BigButton(
+            text = "Done",
+            onClick = onDone,
+            style = BigButtonStyle.Secondary,
+            modifier = Modifier.testTag(TestTags.DONE),
+        )
     }
 }

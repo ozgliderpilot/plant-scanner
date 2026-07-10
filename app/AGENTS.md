@@ -20,7 +20,7 @@ Device/emulator setup: [`docs/deploy/connect.md`](../docs/deploy/connect.md).
   `MainActivity` after optional CI mode (so CI can leave it off).
 - **Room** — no `fallbackToDestructiveMigration`; schema changes need real `Migration`s in
   `Migrations.kt`. Check `NurseryDatabase.kt` for current version.
-- **CI mode (qaDebug only)** — `src/qaDebug/` orchestrator + activator; launch extra
+- **CI mode (qaDebug only)** — `CiNurseryApplication` + `CiBootstrap`; launch extra
   `com.nursery.scanner.CI_MODE`. See [`docs/deploy/screenshots-ci.md`](../docs/deploy/screenshots-ci.md).
 
 ## UI constraints

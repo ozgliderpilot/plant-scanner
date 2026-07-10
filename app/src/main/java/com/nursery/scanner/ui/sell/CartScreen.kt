@@ -29,11 +29,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nursery.core.LineItem
 import com.nursery.core.Money
 import com.nursery.core.PaymentMethod
+import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.components.ScreenHeader
@@ -131,6 +133,7 @@ fun CartScreen(
                     text = "Finish & save",
                     onClick = { vm.finishAndSave() },
                     enabled = ui.lines.isNotEmpty() && !ui.isSaving,
+                    modifier = Modifier.testTag(TestTags.FINISH_SAVE),
                 )
             }
         }

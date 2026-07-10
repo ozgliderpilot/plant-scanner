@@ -4,10 +4,8 @@ import android.content.Intent
 import com.nursery.scanner.di.AppContainer
 
 /**
- * Process-wide CI mode flags and cold-start hook (#72).
- *
- * Defaults keep normal qaDebug / prod / qaRelease installs inert. The real activator is registered
- * only from the qaDebug source set; [onColdStart] is a no-op until then.
+ * Process-wide CI screenshot flags (#72). Defaults keep normal installs inert.
+ * [onColdStart] runs the qaDebug hook when the launch intent carries [EXTRA_CI_MODE].
  */
 object CiMode {
     const val EXTRA_CI_MODE = "com.nursery.scanner.CI_MODE"
@@ -24,22 +22,28 @@ object CiMode {
     var skipCameraPermission: Boolean = false
         internal set
 
-    @Volatile
-    internal var activator: (suspend (AppContainer) -> Unit)? = null
+    fun clear() {
+        active = false
+        useCameraPlaceholder = false
+        skipCameraPermission = false
+    }
 
     /**
-     * Called from [com.nursery.scanner.MainActivity] on cold start. Activates when the launch
-     * intent carries [EXTRA_CI_MODE] and a qaDebug activator is registered; otherwise clears
-     * process-wide CI flags so a normal relaunch after CI does not keep placeholder/export gating.
+     * Called from [com.nursery.scanner.MainActivity] on cold start.
+     * Activates when the launch intent carries [EXTRA_CI_MODE] and a qaDebug hook is registered;
+     * otherwise clears process-wide flags.
      */
     suspend fun onColdStart(container: AppContainer, intent: Intent?) {
         if (intent == null || !intent.hasCiModeExtra()) {
-            active = false
-            useCameraPlaceholder = false
-            skipCameraPermission = false
+            clear()
             return
         }
-        activator?.invoke(container)
+        val hook = CiModeHooks.activate
+        if (hook == null) {
+            clear()
+            return
+        }
+        hook(container)
     }
 
     /** True when the launch intent requested CI mode (boolean or string "true" from Maestro/adb). */

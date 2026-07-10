@@ -4,7 +4,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
@@ -44,6 +47,7 @@ import com.nursery.scanner.ui.settings.SettingsViewModel
 import com.nursery.scanner.ui.sync.SyncViewModel
 import com.nursery.scanner.ui.theme.NurseryTheme
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun NurseryRoot(container: AppContainer) {
     NurseryTheme {
@@ -54,6 +58,7 @@ fun NurseryRoot(container: AppContainer) {
         val syncState by container.syncRepository.state.collectAsStateWithLifecycle()
 
         Scaffold(
+            modifier = Modifier.semantics { testTagsAsResourceId = true },
             bottomBar = {
                 if (showBottomBar) {
                     NurseryBottomBar(currentRoute = route) { dest ->
