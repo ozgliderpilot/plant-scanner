@@ -27,7 +27,8 @@ auto-export, camera placeholder + permission skip, seed fixtures every cold star
 (Maestro `clearState`).
 
 Fixtures: prefix `99`, dummy endpoint, plants `1001`/`1002`/`1003`, one SAVED receipt, one PENDING
-cull. Walked sale uses `1001` @ `$5.00`; walked cull uses `1002`.
+cull. Walked sale starts with `1001` pot @ `$5.00` (−10%), then adds `1001` tube @ `$3.00` and
+`1003` pot @ `$4.00` before confirm (no extra frames). Walked cull uses `1002` with notes and qty 3.
 
 ## Runner
 
