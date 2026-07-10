@@ -8,44 +8,51 @@ package com.nursery.core
  */
 object CloudSync {
 
-    sealed interface Step {
+    sealed interface ExportStep {
         data class Ok(
             val salesCount: Int = 0,
             val cullCount: Int = 0,
-            val plantCount: Int = 0,
             val partialError: String? = null,
-        ) : Step
+        ) : ExportStep
 
-        data class Err(val message: String) : Step
+        data class Err(val message: String) : ExportStep
+    }
+
+    sealed interface ImportStep {
+        data object Ok : ImportStep
+        data class Err(val message: String) : ImportStep
     }
 
     data class Outcome(
         val salesCount: Int,
         val cullCount: Int,
-        val plantCount: Int,
         val advanceExportTimestamp: Boolean,
         val advancePlantListTimestamp: Boolean,
         val errorMessage: String?,
         val partialError: String?,
     )
 
-    fun combine(export: Step, import: Step): Outcome {
-        val exportOk = export as? Step.Ok
-        val importOk = import as? Step.Ok
-        val exportErr = (export as? Step.Err)?.message
-        val importErr = (import as? Step.Err)?.message
+    fun combine(export: ExportStep, import: ImportStep): Outcome {
+        val exportOk = when (export) {
+            is ExportStep.Ok -> export
+            is ExportStep.Err -> null
+        }
+        val exportErr = when (export) {
+            is ExportStep.Ok -> null
+            is ExportStep.Err -> export.message
+        }
+        val importOk = import is ImportStep.Ok
+        val importErr = when (import) {
+            ImportStep.Ok -> null
+            is ImportStep.Err -> import.message
+        }
 
         return Outcome(
             salesCount = exportOk?.salesCount ?: 0,
             cullCount = exportOk?.cullCount ?: 0,
-            plantCount = importOk?.plantCount ?: 0,
             advanceExportTimestamp = exportOk != null,
-            advancePlantListTimestamp = importOk != null,
-            errorMessage = when {
-                exportErr != null -> exportErr
-                importErr != null -> importErr
-                else -> null
-            },
+            advancePlantListTimestamp = importOk,
+            errorMessage = exportErr ?: importErr,
             partialError = exportOk?.partialError,
         )
     }

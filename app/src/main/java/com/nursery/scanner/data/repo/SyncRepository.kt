@@ -14,7 +14,6 @@ import com.nursery.scanner.data.remote.SheetsClient
 import com.nursery.scanner.data.settings.SettingsRepository
 import com.nursery.scanner.util.ConnectivityObserver
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -42,9 +41,7 @@ sealed interface SyncResult {
         val salesCount: Int,
         val cullCount: Int = 0,
         val partialError: String? = null,
-    ) : SyncResult {
-        val count: Int get() = salesCount + cullCount
-    }
+    ) : SyncResult
     data class Error(val message: String, val partialError: String? = null) : SyncResult
     data object NotConfigured : SyncResult
 }
@@ -52,7 +49,6 @@ sealed interface SyncResult {
 /** Narrow façade SyncViewModel needs — keeps UI tests free of Room/OkHttp. */
 interface CloudSyncActions {
     val state: StateFlow<SyncState>
-    val plantCount: Flow<Int>
     suspend fun syncCloud(): SyncResult
 }
 
@@ -98,11 +94,6 @@ class SyncRepository(
         )
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), SyncState())
 
-    /**
-     * Cloud sync: export pending sales then culls, then import the plant list.
-     * Import still runs when export fails or the queue is empty. [SyncResult.NotConfigured]
-     * skips both steps.
-     */
     override suspend fun syncCloud(): SyncResult = cloudMutex.withLock {
         val config = settings.config.first()
         if (!config.isComplete) return@withLock SyncResult.NotConfigured
@@ -110,7 +101,10 @@ class SyncRepository(
         transient.update { it.copy(busy = true, error = null) }
 
         val exportStep = exportStep(config)
-        val importStep = importStep(config)
+        val importStep = plants.updateFromCloud(config).fold(
+            onSuccess = { CloudSync.ImportStep.Ok },
+            onFailure = { e -> CloudSync.ImportStep.Err(e.message ?: "Update failed") },
+        )
         val outcome = CloudSync.combine(exportStep, importStep)
 
         if (outcome.advanceExportTimestamp) settings.setLastSynced(now())
@@ -129,12 +123,12 @@ class SyncRepository(
     }
 
     /** Push pending sales then culls, then retention GC. Queues are independent on partial failure. */
-    private suspend fun exportStep(config: DeviceConfig): CloudSync.Step {
+    private suspend fun exportStep(config: DeviceConfig): CloudSync.ExportStep {
         val salesPending = receiptDao.receiptsByStatus(ReceiptStatus.SAVED.name).map { it.toCore() }
         val cullsPending = cullDao.cullsByStatus(CullStatus.PENDING.name).map { it.toCore() }
         if (salesPending.isEmpty() && cullsPending.isEmpty()) {
             purgeRetained()
-            return CloudSync.Step.Ok(salesCount = 0, cullCount = 0)
+            return CloudSync.ExportStep.Ok(salesCount = 0, cullCount = 0)
         }
 
         var salesExported = 0
@@ -149,7 +143,7 @@ class SyncRepository(
                     salesExported = salesPending.size
                 },
                 onFailure = { e ->
-                    return CloudSync.Step.Err(e.message ?: "Export failed")
+                    return CloudSync.ExportStep.Err(e.message ?: "Export failed")
                 },
             )
         }
@@ -165,27 +159,19 @@ class SyncRepository(
                 onFailure = { e ->
                     purgeRetained()
                     if (salesExported > 0) {
-                        return CloudSync.Step.Ok(
+                        return CloudSync.ExportStep.Ok(
                             salesCount = salesExported,
                             cullCount = 0,
                             partialError = "Cull export failed",
                         )
                     }
-                    return CloudSync.Step.Err(e.message ?: "Export failed")
+                    return CloudSync.ExportStep.Err(e.message ?: "Export failed")
                 },
             )
         }
 
         purgeRetained()
-        return CloudSync.Step.Ok(salesCount = salesExported, cullCount = cullsExported)
-    }
-
-    private suspend fun importStep(config: DeviceConfig): CloudSync.Step {
-        val result = plants.updateFromCloud(config)
-        return result.fold(
-            onSuccess = { CloudSync.Step.Ok(plantCount = it) },
-            onFailure = { e -> CloudSync.Step.Err(e.message ?: "Update failed") },
-        )
+        return CloudSync.ExportStep.Ok(salesCount = salesExported, cullCount = cullsExported)
     }
 
     private suspend fun purgeRetained() {
@@ -193,8 +179,6 @@ class SyncRepository(
         receiptDao.deleteExportedOlderThan(ReceiptStatus.EXPORTED.name, cutoff)
         cullDao.deleteExportedOlderThan(CullStatus.EXPORTED.name, cutoff)
     }
-
-    override val plantCount: Flow<Int> get() = plants.count
 
     private data class TransientState(val busy: Boolean = false, val error: String? = null)
 

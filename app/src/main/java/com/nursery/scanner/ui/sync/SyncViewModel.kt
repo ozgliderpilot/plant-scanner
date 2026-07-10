@@ -20,9 +20,6 @@ class SyncViewModel(
 
     val state: StateFlow<SyncState> = sync.state
 
-    val plantCount: StateFlow<Int> =
-        sync.plantCount.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
-
     val config: StateFlow<DeviceConfig> =
         settings.config.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DeviceConfig.default())
 
@@ -34,7 +31,6 @@ class SyncViewModel(
         _message.value = null
     }
 
-    /** History ↻ and Plants ↻ both run the same cloud sync (export then import). */
     fun syncNow() = viewModelScope.launch {
         _message.value = describe(sync.syncCloud())
     }
@@ -47,12 +43,12 @@ class SyncViewModel(
                 result.salesCount == 0 -> "Synced (${result.cullCount} cull)"
                 else -> "Synced (${result.salesCount} sales, ${result.cullCount} cull)"
             }
-            result.partialError?.let { "$base · $it" } ?: base
+            withPartial(base, result.partialError)
         }
-        is SyncResult.Error -> {
-            val base = "Error: ${result.message}"
-            result.partialError?.let { "$base · $it" } ?: base
-        }
+        is SyncResult.Error -> withPartial("Error: ${result.message}", result.partialError)
         SyncResult.NotConfigured -> "Set up the connection in Settings first"
     }
+
+    private fun withPartial(base: String, partialError: String?): String =
+        partialError?.let { "$base · $it" } ?: base
 }

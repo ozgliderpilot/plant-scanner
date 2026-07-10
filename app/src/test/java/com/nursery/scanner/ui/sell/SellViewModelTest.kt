@@ -9,25 +9,19 @@ import com.nursery.core.ReceiptStatus
 import com.nursery.core.SaleUnit
 import com.nursery.scanner.data.repo.PlantBookSource
 import com.nursery.scanner.data.repo.ReceiptSaver
-import com.nursery.scanner.data.settings.SettingsConfigSource
-import kotlinx.coroutines.Dispatchers
+import com.nursery.scanner.test.FakeSettingsConfigSource
+import com.nursery.scanner.test.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TestWatcher
-import org.junit.runner.Description
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SellViewModelTest {
@@ -70,10 +64,6 @@ private class FakePlantBookSource : PlantBookSource {
     override val plantBook: Flow<PlantBook> = MutableStateFlow(PlantBook(emptyList()))
 }
 
-private class FakeSettingsConfigSource(
-    override val config: Flow<DeviceConfig>,
-) : SettingsConfigSource
-
 private class RecordingReceiptSaver : ReceiptSaver {
     var savedPaymentMethod: PaymentMethod? = null
 
@@ -91,18 +81,5 @@ private class RecordingReceiptSaver : ReceiptSaver {
             lines = lines.mapIndexed { index, line -> line.copy(itemSeq = index + 1) },
             paymentMethod = paymentMethod,
         )
-    }
-}
-
-@OptIn(ExperimentalCoroutinesApi::class)
-class MainDispatcherRule(
-    private val dispatcher: TestDispatcher = StandardTestDispatcher(),
-) : TestWatcher() {
-    override fun starting(description: Description) {
-        Dispatchers.setMain(dispatcher)
-    }
-
-    override fun finished(description: Description) {
-        Dispatchers.resetMain()
     }
 }
