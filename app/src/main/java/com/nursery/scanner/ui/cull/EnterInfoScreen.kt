@@ -29,10 +29,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nursery.core.CullRecord
+import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.PlantCard
 import com.nursery.scanner.ui.components.ReasonDropdown
@@ -89,7 +91,10 @@ fun EnterInfoScreen(
                     Icon(Icons.Filled.Remove, contentDescription = "One fewer")
                 }
                 Text("$qty", style = MaterialTheme.typography.displaySmall)
-                FilledTonalIconButton(onClick = { qty++ }, modifier = Modifier.size(64.dp)) {
+                FilledTonalIconButton(
+                    onClick = { qty++ },
+                    modifier = Modifier.size(64.dp).testTag(TestTags.QTY_PLUS),
+                ) {
                     Icon(Icons.Filled.Add, contentDescription = "One more")
                 }
                 UnitDropdown(selected = unit, qty = qty, onSelect = { unit = it }, modifier = Modifier.weight(1f))
@@ -112,6 +117,7 @@ fun EnterInfoScreen(
             BigButton(
                 text = "Record cull",
                 onClick = { vm.recordCull(qty = qty, unit = unit, reason = reason, notes = notes) },
+                modifier = Modifier.testTag(TestTags.RECORD_CULL),
             )
         }
     }

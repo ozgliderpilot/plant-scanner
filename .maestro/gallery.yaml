@@ -1,0 +1,158 @@
+appId: com.nursery.scanner.test
+---
+# Volunteer-critical gallery walk (#72).
+# Order: Actions → sell → History/receipts → cull → culls list → Plants.
+# Prefer id (Compose testTag) for primary actions; text for fields / asserts.
+# Screenshot paths are relative to the Maestro workspace (repo root), not --output.
+# Frame ids/captions: .maestro/gallery-frames.txt
+- launchApp:
+    clearState: true
+    arguments:
+      com.nursery.scanner.CI_MODE: true
+# Cold start + CI seed can leave the launcher visible briefly; wait for Actions UI.
+- extendedWaitUntil:
+    visible:
+      id: sell_plants
+    timeout: 30000
+- takeScreenshot:
+    path: maestro-out/01-actions
+
+# --- Sell walk ---
+- tapOn:
+    id: sell_plants
+- takeScreenshot:
+    path: maestro-out/02-sell-scan
+- tapOn:
+    id: type_number
+- tapOn:
+    text: "Accession number"
+- inputText: "1001"
+# Soft keyboard covers Find on Pixel-class AVDs; hideKeyboard uses BACK which only
+# dismisses the IME while it is showing (ScanScreen BackHandler does not run).
+- hideKeyboard
+- tapOn:
+    id: find
+- tapOn:
+    text: "Unit price ($)"
+- inputText: "5.00"
+- hideKeyboard
+- tapOn:
+    text: "Discount %"
+- inputText: "10"
+- hideKeyboard
+- takeScreenshot:
+    path: maestro-out/03-sell-line
+- tapOn:
+    id: add_to_receipt
+
+# One more line before confirm (no extra frame): Lomandra.
+- tapOn: "Scan another"
+- tapOn:
+    id: type_number
+- tapOn:
+    text: "Accession number"
+- inputText: "1003"
+- hideKeyboard
+- tapOn:
+    id: find
+- tapOn:
+    text: "Unit price ($)"
+- inputText: "4.00"
+- hideKeyboard
+- tapOn:
+    id: add_to_receipt
+
+- takeScreenshot:
+    path: maestro-out/04-sell-cart
+- tapOn:
+    id: finish_save
+# Wait for async finishAndSave → ConfirmScreen (cart stays up until persist completes).
+- assertVisible: "Total to collect"
+- takeScreenshot:
+    path: maestro-out/05-sell-confirm
+- tapOn:
+    id: done
+
+# Second sale same calendar day (no frame) so receipts shows two today.
+- tapOn:
+    id: sell_plants
+- tapOn:
+    id: type_number
+- tapOn:
+    text: "Accession number"
+- inputText: "1002"
+- hideKeyboard
+- tapOn:
+    id: find
+- tapOn:
+    text: "Unit price ($)"
+- inputText: "8.00"
+- hideKeyboard
+- tapOn:
+    id: add_to_receipt
+- tapOn:
+    id: finish_save
+- assertVisible: "Total to collect"
+- tapOn:
+    id: done
+
+# --- History + receipts ---
+- tapOn: "History"
+- takeScreenshot:
+    path: maestro-out/06-history
+- tapOn:
+    id: view_receipts
+- takeScreenshot:
+    path: maestro-out/07-receipts
+# Seeded receipt number is stable across CI runs (CiFixtures).
+- tapOn: "99-1700000000-1"
+- assertVisible: "Payment:.*"
+- takeScreenshot:
+    path: maestro-out/08-receipt-detail
+- back
+- back
+
+# --- Cull walk ---
+- tapOn: "Actions"
+- tapOn:
+    id: cull_plants
+- takeScreenshot:
+    path: maestro-out/09-cull-scan
+- tapOn:
+    id: type_number
+- tapOn:
+    text: "Accession number"
+- inputText: "1002"
+- hideKeyboard
+- tapOn:
+    id: find
+- assertVisible: "Record cull"
+- tapOn:
+    text: "Notes (optional)"
+- inputText: "Yellowing leaves"
+- hideKeyboard
+- tapOn:
+    id: qty_plus
+- tapOn:
+    id: qty_plus
+- takeScreenshot:
+    path: maestro-out/10-cull-info
+- tapOn:
+    id: record_cull
+# Wait for async recordCull → CullSuccessScreen (enter-info stays up until persist completes).
+- assertVisible: "Cull another"
+- takeScreenshot:
+    path: maestro-out/11-cull-success
+- tapOn:
+    id: done
+
+# --- Culls list (seeded + walked) then Plants catalog ---
+- tapOn: "History"
+- tapOn:
+    id: view_culled
+- takeScreenshot:
+    path: maestro-out/12-culls
+- back
+- tapOn: "Plants"
+- takeScreenshot:
+    path: maestro-out/13-plants

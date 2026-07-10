@@ -10,6 +10,8 @@ Three parts, deploy in this order:
    unique 2-digit prefix; pull the plant list; do a test sale. (Once per device.)
 4. **[access.md](access.md)** — on the nursery PC, set up the Access → Sheets plant sync (import the
    VBA module, set the URL/secret env vars, wire the Form Timer). (Once, on the nursery PC.)
+5. **[screenshots-ci.md](screenshots-ci.md)** — PR screenshot gallery (emulator + Maestro); not a
+   merge gate. Cursor Cloud cannot run emulators.
 
 ## End-to-end checklist
 
@@ -40,4 +42,6 @@ node --test backend/test/logic.test.js
 ```
 
 Both should report success. The Android UI layer is compiled by Android Studio / `gradlew` on a
-machine with the SDK (it has no automated tests here — verify it by running the app per `connect.md`).
+machine with the SDK. App unit tests (`:app:testQaDebugUnitTest`) cover the CI mode seam; volunteer
+UI on PRs is reviewed via the [screenshot gallery](screenshots-ci.md). Manual device checks remain
+per `connect.md`.

@@ -10,6 +10,7 @@ import com.nursery.core.SaleUnit
 import com.nursery.scanner.data.local.dao.CullDao
 import com.nursery.scanner.data.local.entity.CullEntity
 import com.nursery.scanner.data.local.toCore
+import com.nursery.scanner.data.local.toEntity
 import com.nursery.scanner.data.settings.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -69,4 +70,8 @@ class CullRepository(
         val id = cullDao.insert(entity)
         return entity.copy(localId = id).toCore()
     }
+
+    /** Insert a pre-numbered cull (does not allocate a new seq). */
+    suspend fun insert(cull: CullRecord): Long =
+        cullDao.insert(cull.copy(localId = 0).toEntity())
 }

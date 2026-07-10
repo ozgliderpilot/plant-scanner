@@ -80,6 +80,7 @@ Single-context: `CONTEXT.md` + `docs/adr/`. See [`docs/agents/domain.md`](./docs
 
 - [`docs/tech-stack.md`](./docs/tech-stack.md) — technology decisions
 - [`docs/deploy/`](./docs/deploy/) — backend → android → connect → access
+- [`docs/deploy/screenshots-ci.md`](./docs/deploy/screenshots-ci.md) — PR screenshot gallery (emulator + Maestro)
 - [`docs/superpowers/specs/`](./docs/superpowers/specs/) — approved feature designs
 
 ## Gotchas
@@ -103,8 +104,10 @@ script refreshes `backend/` npm deps and (re)writes the git-ignored `local.prope
   The Kotlin compile daemon may fail to start in this VM (memory-mapped file limits) and fall back to
   "Compile without Kotlin daemon" — the build still succeeds; ignore that warning.
 - **Running the app GUI is not possible here** — no `/dev/kvm`, so an Android emulator can't run.
-  Validate app behaviour through `core/` (all business logic lives there) + `backend/` tests. The
-  full scan → sale → export → sheet pipeline can be exercised at the logic level via `core/` and
-  `backend/shared.js` without a device.
+  Do not install AVDs in the Cloud snapshot. Visual review for Android UI PRs comes from the
+  GitHub Actions screenshot gallery ([`docs/deploy/screenshots-ci.md`](./docs/deploy/screenshots-ci.md)).
+  Validate app behaviour through `core/` (all business logic lives there) + `backend/` tests +
+  qaDebug CI-mode unit tests. The full scan → sale → export → sheet pipeline can be exercised at
+  the logic level via `core/` and `backend/shared.js` without a device.
 - **Live sync** (deployed Apps Script `/exec` + Google Sheet) is optional and needs external Google
   credentials; not required for local dev or testing.

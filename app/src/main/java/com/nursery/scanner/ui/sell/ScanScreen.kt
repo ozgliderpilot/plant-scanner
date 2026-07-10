@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,14 +26,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.flow.collect
-import com.nursery.scanner.scanner.ScannerView
+import com.nursery.scanner.ci.CiMode
+import com.nursery.scanner.scanner.ScannerSlot
+import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.components.ScreenHeader
@@ -56,7 +58,8 @@ fun ScanScreen(
     val focusManager = LocalFocusManager.current
     var hasCamera by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            CiMode.active ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
                 PackageManager.PERMISSION_GRANTED,
         )
     }
@@ -113,7 +116,7 @@ fun ScanScreen(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(Dimens.CardCorner)),
                 ) {
-                    ScannerView(
+                    ScannerSlot(
                         modifier = Modifier.fillMaxSize(),
                         // Pause emission while the not-found card is up; "Retry" clears it and re-arms.
                         scanning = ui.notFoundCode == null,
@@ -129,7 +132,7 @@ fun ScanScreen(
                         shape = RoundedCornerShape(Dimens.CardCorner),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                     ) {
-                        Column(Modifier.padding(Dimens.Gap), verticalArrangement = Arrangement.spacedBy(Dimens.GapSmall)) {
+                        Column(modifier.padding(Dimens.Gap), verticalArrangement = Arrangement.spacedBy(Dimens.GapSmall)) {
                             Text("Not in plant list", style = MaterialTheme.typography.titleMedium)
                             Text("Scanned: $notFound", style = MaterialTheme.typography.bodyMedium)
                             BigButton(text = "Sell as unknown", onClick = { vm.sellAsUnknown() })
@@ -142,6 +145,7 @@ fun ScanScreen(
                     text = if (showType) "Hide keypad" else "Type number instead",
                     onClick = { showType = !showType },
                     style = BigButtonStyle.Secondary,
+                    modifier = Modifier.testTag(TestTags.TYPE_NUMBER),
                 )
                 if (showType) {
                     OutlinedTextField(
@@ -157,6 +161,7 @@ fun ScanScreen(
                         text = "Find",
                         onClick = submitTyped,
                         enabled = typed.isNotBlank(),
+                        modifier = Modifier.testTag(TestTags.FIND),
                     )
                 }
             }

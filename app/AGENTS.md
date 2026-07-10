@@ -16,9 +16,12 @@ Device/emulator setup: [`docs/deploy/connect.md`](../docs/deploy/connect.md).
 
 - **Manual DI** — `di/AppContainer.kt`; no Hilt.
 - **`SyncRepository`** — only cloud I/O; serialized by `cloudMutex`.
-- **Auto-export** — in-app coroutine ticker (`AutoExportTicker`), not WorkManager.
+- **Auto-export** — in-app coroutine ticker (`AutoExportTicker`), not WorkManager; started from
+  `MainActivity` after optional CI mode (so CI can leave it off).
 - **Room** — no `fallbackToDestructiveMigration`; schema changes need real `Migration`s in
   `Migrations.kt`. Check `NurseryDatabase.kt` for current version.
+- **CI mode (qaDebug only)** — `CiNurseryApplication` + `CiBootstrap`; launch extra
+  `com.nursery.scanner.CI_MODE`. See [`docs/deploy/screenshots-ci.md`](../docs/deploy/screenshots-ci.md).
 
 ## UI constraints
 

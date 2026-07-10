@@ -66,4 +66,10 @@ class ReceiptRepository(
     }
 
     suspend fun receiptById(id: Long): Receipt? = receiptDao.receiptById(id)?.toCore()
+
+    /** Insert a pre-numbered receipt (does not allocate a new seq). */
+    suspend fun insert(receipt: Receipt): Long {
+        val header = receipt.copy(localId = 0).toEntity()
+        return receiptDao.saveReceipt(header, receipt.lines.map { it.toEntity(0) })
+    }
 }
