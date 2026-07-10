@@ -16,16 +16,21 @@ RAW_BASE="https://raw.githubusercontent.com/${REPO}/ci-screenshots/pr/${PR}"
 
 CAPTIONS=(
   "Actions"
-  "Plants"
   "Sell · scan"
   "Sell · line item"
   "Sell · cart"
   "Sell · confirm"
+  "History"
   "Receipts"
+  "Receipt detail"
+  "Cull · scan"
+  "Cull · enter info"
+  "Cull · success"
   "Culls"
+  "Plants"
 )
 
-EXPECTED=8
+EXPECTED=13
 COUNT=0
 # Collect "caption|url" rows, then render as HTML table (3 per row) for GitHub comments.
 ENTRIES=()

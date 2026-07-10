@@ -14,13 +14,18 @@ MANIFEST="$DEST/manifest.txt"
 # Expected frames in gallery order (basename without extension as Maestro wrote them).
 FRAMES=(
   "01-actions"
-  "02-plants"
-  "03-sell-scan"
-  "04-sell-line"
-  "05-sell-cart"
-  "06-sell-confirm"
+  "02-sell-scan"
+  "03-sell-line"
+  "04-sell-cart"
+  "05-sell-confirm"
+  "06-history"
   "07-receipts"
-  "08-culls"
+  "08-receipt-detail"
+  "09-cull-scan"
+  "10-cull-info"
+  "11-cull-success"
+  "12-culls"
+  "13-plants"
 )
 
 # Maestro writes takeScreenshot names under ~/.maestro/tests/... or the --output dir.

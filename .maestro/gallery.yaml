@@ -1,7 +1,7 @@
 appId: com.nursery.scanner.test
 ---
 # Volunteer-critical gallery walk (#72). Text selectors first.
-# Launch with CI mode so seed-once + camera placeholder run before the first frame.
+# Order: Actions → sell → History/receipts → cull → culls list → Plants.
 # Screenshot paths are relative to the Maestro workspace (repo root), not --output.
 - launchApp:
     clearState: true
@@ -13,13 +13,11 @@ appId: com.nursery.scanner.test
     timeout: 30000
 - takeScreenshot:
     path: maestro-out/01-actions
-- tapOn: "Plants"
-- takeScreenshot:
-    path: maestro-out/02-plants
-- tapOn: "Actions"
+
+# --- Sell walk ---
 - tapOn: "Sell plants"
 - takeScreenshot:
-    path: maestro-out/03-sell-scan
+    path: maestro-out/02-sell-scan
 - tapOn: "Type number instead"
 - tapOn:
     text: "Accession number"
@@ -29,25 +27,62 @@ appId: com.nursery.scanner.test
 - hideKeyboard
 - tapOn: "Find"
 - takeScreenshot:
-    path: maestro-out/04-sell-line
+    path: maestro-out/03-sell-line
 - tapOn:
     text: "Unit price ($)"
 - inputText: "5.00"
 - hideKeyboard
 - tapOn: "Add to receipt"
 - takeScreenshot:
-    path: maestro-out/05-sell-cart
+    path: maestro-out/04-sell-cart
 - tapOn: "Finish & save"
 # Wait for async finishAndSave → ConfirmScreen (cart stays up until persist completes).
 - assertVisible: "Total to collect"
 - takeScreenshot:
-    path: maestro-out/06-sell-confirm
+    path: maestro-out/05-sell-confirm
 - tapOn: "Done"
+
+# --- History + receipts ---
 - tapOn: "History"
+- takeScreenshot:
+    path: maestro-out/06-history
 - tapOn: "View Receipts"
 - takeScreenshot:
     path: maestro-out/07-receipts
+# Seeded receipt number is stable across CI runs (CiFixtures).
+- tapOn: "99-1700000000-1"
+- assertVisible: "Payment:"
+- takeScreenshot:
+    path: maestro-out/08-receipt-detail
 - back
+- back
+
+# --- Cull walk ---
+- tapOn: "Actions"
+- tapOn: "Cull plants"
+- takeScreenshot:
+    path: maestro-out/09-cull-scan
+- tapOn: "Type number instead"
+- tapOn:
+    text: "Accession number"
+- inputText: "1002"
+- hideKeyboard
+- tapOn: "Find"
+- assertVisible: "Record cull"
+- takeScreenshot:
+    path: maestro-out/10-cull-info
+- tapOn: "Record cull"
+- assertVisible: "Saved locally"
+- takeScreenshot:
+    path: maestro-out/11-cull-success
+- tapOn: "Done"
+
+# --- Culls list (seeded + walked) then Plants catalog ---
+- tapOn: "History"
 - tapOn: "View Culled"
 - takeScreenshot:
-    path: maestro-out/08-culls
+    path: maestro-out/12-culls
+- back
+- tapOn: "Plants"
+- takeScreenshot:
+    path: maestro-out/13-plants

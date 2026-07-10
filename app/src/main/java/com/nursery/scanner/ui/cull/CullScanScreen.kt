@@ -33,6 +33,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nursery.scanner.ci.CiMode
+import com.nursery.scanner.ci.CiScanPlaceholder
 import com.nursery.scanner.scanner.ScannerView
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.BigButtonStyle
@@ -51,7 +53,8 @@ fun CullScanScreen(
     val focusManager = LocalFocusManager.current
     var hasCamera by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            CiMode.skipCameraPermission ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
                 PackageManager.PERMISSION_GRANTED,
         )
     }
@@ -95,11 +98,15 @@ fun CullScanScreen(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(Dimens.CardCorner)),
                 ) {
-                    ScannerView(
-                        modifier = Modifier.fillMaxSize(),
-                        scanning = ui.notFoundCode == null,
-                        onBarcode = { code -> vm.onCode(code) },
-                    )
+                    if (CiMode.useCameraPlaceholder) {
+                        CiScanPlaceholder(modifier = Modifier.fillMaxSize())
+                    } else {
+                        ScannerView(
+                            modifier = Modifier.fillMaxSize(),
+                            scanning = ui.notFoundCode == null,
+                            onBarcode = { code -> vm.onCode(code) },
+                        )
+                    }
                 }
             }
 

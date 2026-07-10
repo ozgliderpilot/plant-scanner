@@ -1,8 +1,9 @@
 # CI screenshot gallery
 
-Review aid for Android-impacting pull requests: an emulator + Maestro walk captures eight
+Review aid for Android-impacting pull requests: an emulator + Maestro walk captures thirteen
 volunteer-critical screens and posts a collapsible PR comment. Screenshots never participate in
-the merge gate (`ci-success` ignores the `app-screenshots` job).
+the merge gate (`ci-success` ignores the `app-screenshots` job). Settings is omitted (hidden
+behind a version-tap gate).
 
 ## When it runs
 
@@ -11,18 +12,25 @@ the merge gate (`ci-success` ignores the `app-screenshots` job).
 - Soft check: emulator/Maestro failure may mark `app-screenshots` red; it must not fail
   `ci-success` or block merge.
 
-## Gallery contract (8 frames)
+## Gallery contract (13 frames)
+
+Walk order matches volunteer workflows (sell → history/receipts → cull → catalog):
 
 | # | Caption | Maestro name |
 |---|---------|--------------|
 | 1 | Actions | `01-actions` |
-| 2 | Plants | `02-plants` |
-| 3 | Sell · scan | `03-sell-scan` |
-| 4 | Sell · line item | `04-sell-line` |
-| 5 | Sell · cart | `05-sell-cart` |
-| 6 | Sell · confirm | `06-sell-confirm` |
+| 2 | Sell · scan | `02-sell-scan` |
+| 3 | Sell · line item | `03-sell-line` |
+| 4 | Sell · cart | `04-sell-cart` |
+| 5 | Sell · confirm | `05-sell-confirm` |
+| 6 | History | `06-history` |
 | 7 | Receipts | `07-receipts` |
-| 8 | Culls | `08-culls` |
+| 8 | Receipt detail | `08-receipt-detail` |
+| 9 | Cull · scan | `09-cull-scan` |
+| 10 | Cull · enter info | `10-cull-info` |
+| 11 | Cull · success | `11-cull-success` |
+| 12 | Culls | `12-culls` |
+| 13 | Plants | `13-plants` |
 
 Files on the orphan `ci-screenshots` branch:
 
@@ -64,11 +72,12 @@ When active, CI mode:
 | Device prefix | `99` |
 | Endpoint | `https://ci.invalid/exec` |
 | Shared secret | `ci-secret` |
-| Plant accessions | `1001`, `1002`, `1003` (walk uses `1001`) |
-| Seeded receipt | one SAVED receipt (Westringia / 1002) |
+| Plant accessions | `1001`, `1002`, `1003` (sale walk `1001`; cull walk `1002`) |
+| Seeded receipt | one SAVED receipt (Westringia / 1002) — opened for receipt detail |
 | Seeded cull | one PENDING cull (Lomandra / 1003) |
 
 Walked sale: 1 pot, unit price `$5.00`, no discount, default Card payment.
+Walked cull: 1 pot, default reason/unit (no notes).
 
 Normal qaDebug sideloads without the extra stay empty (no auto-seed).
 
