@@ -1,0 +1,7 @@
+01-actions-0122b43.png
+02-sell-scan-0122b43.png
+03-sell-line-0122b43.png
+04-sell-cart-0122b43.png
+05-sell-confirm-0122b43.png
+06-history-0122b43.png
+07-receipts-0122b43.png
