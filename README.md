@@ -12,8 +12,8 @@ volunteers (big buttons, big text, high contrast, no flicker, tap-not-gesture).
 - **Sell** — scan Code 128 (or type the accession), auto-fill the plant, key pots/price/discount %,
   add to a receipt, finish & save. Works **fully offline**. Not-found scans are sold "as unknown" and
   kept for later reconciliation — never lost.
-- **Auto-export** — pending receipts push to Google Sheets every ~1 minute when online, silently. A
-  manual **Export now** and **Update plant list** are one tap each.
+- **Cloud sync** — every ~1 minute when online (and on History/Plants ↻): export pending sales/culls,
+  then import the plant list. Silent on the ticker; Done/Error on manual ↻.
 - **Receipts** — local sales history, grouped by receipt.
 - Receipt numbers are `PP-<epochSeconds>-<seq>` (e.g. `07-1718000000-1`): a per-device 2-digit prefix
   `PP`, the creation time in epoch seconds, and a sequence that resets daily — so multiple devices
