@@ -36,18 +36,32 @@ _Avoid_: line id, row id (it is not globally unique on its own)
 
 **Receipt number**:
 Per-device identifier for a saved sale, formatted `PP-<epochSeconds>-<seq>` where `PP` is the
-two-digit device prefix from settings and `seq` resets daily. Culls reuse the same numbering scheme
-and daily counter. See `ReceiptNumbering.kt`.
+two-digit device prefix from settings and `seq` resets daily. Culls and label print requests reuse
+the same numbering scheme and daily counter (`cull_id` / `queue_id`). See `ReceiptNumbering.kt`.
 _Avoid_: receipt id (ambiguous with local DB id), order number
 
 **Sync queue**:
-The local `status` column on a receipt or cull record. Only pending rows are exported; status flips
-to exported only after a successful HTTP push. Receipts: `OPEN` → `SAVED` → `EXPORTED`. Culls:
-`PENDING` → `EXPORTED`. See `Sync` and `CullSync`.
+The local `status` column on a receipt, cull, or label print request. Only pending rows are exported;
+status flips to exported only after a successful HTTP push. Receipts: `OPEN` → `SAVED` → `EXPORTED`.
+Culls and label print requests: `PENDING` → `EXPORTED`. See `Sync`, `CullSync`, and `LabelPrintSync`.
 _Avoid_: outbox table, sync flag (as a separate concept)
 
 **Export header**:
-The ordered column list for a Sheet tab (`Export.HEADER` for Sales, `CullExport.HEADER` for Culls).
-Stable order relied on by the Apps Script backend — change only with coordinated `core/` and
-`backend/` updates.
+The ordered column list for a Sheet tab (`Export.HEADER` for Sales, `CullExport.HEADER` for Culls,
+`LabelPrintExport.HEADER` for PrintQueue). Stable order relied on by the Apps Script backend —
+change only with coordinated `core/` and `backend/` updates.
 _Avoid_: CSV schema, column mapping (implies flexibility the backend does not have)
+
+**Label print request**:
+A volunteer request to reprint lost/worn accession labels. Saved locally first (offline-first), then
+exported to the Sheets `PrintQueue` tab and applied into Access `PrintQueue` for NiceLabel. Uses the
+same `PP-<epochSeconds>-<seq>` allocator as sales/culls (`queue_id`). Unlike sales/culls, a not-found
+accession is **blocked** (message: "Please contact database administrator") — never recorded as
+unknown.
+_Avoid_: print job, label order
+
+**Nursery stock total**:
+Per-accession sum of `PotsInNursery + TubesInNursery + MiscInNursery + StockInNursery`. Caps how many
+label copies may be requested in one print request. Stock corrections stay in Access — the app does
+not edit counts.
+_Avoid_: available stock (ambiguous with for-sale counts), inventory on hand

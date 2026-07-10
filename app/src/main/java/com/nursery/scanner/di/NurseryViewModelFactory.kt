@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.nursery.scanner.ui.cull.CullViewModel
 import com.nursery.scanner.ui.culls.CullListViewModel
 import com.nursery.scanner.ui.plants.PlantListViewModel
+import com.nursery.scanner.ui.printlabel.LabelPrintViewModel
 import com.nursery.scanner.ui.receipts.ReceiptsViewModel
 import com.nursery.scanner.ui.sell.SellViewModel
 import com.nursery.scanner.ui.settings.SettingsViewModel
@@ -19,6 +20,8 @@ class NurseryViewModelFactory(private val c: AppContainer) : ViewModelProvider.F
                 SellViewModel(c.plantRepository, c.receiptRepository, c.settingsRepository)
             modelClass.isAssignableFrom(CullViewModel::class.java) ->
                 CullViewModel(c.plantRepository, c.cullRepository, c.settingsRepository)
+            modelClass.isAssignableFrom(LabelPrintViewModel::class.java) ->
+                LabelPrintViewModel(c.plantRepository, c.labelPrintRepository, c.settingsRepository)
             modelClass.isAssignableFrom(ReceiptsViewModel::class.java) ->
                 ReceiptsViewModel(c.receiptRepository)
             modelClass.isAssignableFrom(SyncViewModel::class.java) ->

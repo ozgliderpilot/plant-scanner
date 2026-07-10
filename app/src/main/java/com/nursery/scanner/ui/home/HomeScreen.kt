@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material3.MaterialTheme
@@ -21,10 +22,15 @@ import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.theme.Dimens
 
 /**
- * Action-first home: Sell plants and Cull plants enabled; remaining Phase-2 actions dimmed.
+ * Action-first home: Sell, Cull, and Print label enabled; remaining Phase-2 actions dimmed.
  */
 @Composable
-fun HomeScreen(onSell: () -> Unit, onCull: () -> Unit, modifier: Modifier = Modifier) {
+fun HomeScreen(
+    onSell: () -> Unit,
+    onCull: () -> Unit,
+    onPrintLabel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -46,6 +52,13 @@ fun HomeScreen(onSell: () -> Unit, onCull: () -> Unit, modifier: Modifier = Modi
             style = BigButtonStyle.Primary,
             modifier = Modifier.testTag(TestTags.CULL_PLANTS),
         )
+        BigButton(
+            text = "Print label",
+            onClick = onPrintLabel,
+            leadingIcon = Icons.Filled.Label,
+            style = BigButtonStyle.Primary,
+            modifier = Modifier.testTag(TestTags.PRINT_LABEL),
+        )
 
         Text(
             "Coming later",
@@ -53,7 +66,7 @@ fun HomeScreen(onSell: () -> Unit, onCull: () -> Unit, modifier: Modifier = Modi
             modifier = Modifier.padding(top = Dimens.Gap),
         )
 
-        listOf("New accession", "Print label", "Repot").forEach { label ->
+        listOf("New accession", "Repot").forEach { label ->
             BigButton(
                 text = label,
                 onClick = {},

@@ -21,6 +21,7 @@ fun ActionsTabScreen(
     online: Boolean,
     onSell: () -> Unit,
     onCull: () -> Unit,
+    onPrintLabel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -40,6 +41,11 @@ fun ActionsTabScreen(
                 ConnectivityChip(online = online)
             }
         }
-        HomeScreen(onSell = onSell, onCull = onCull, modifier = Modifier.weight(1f))
+        HomeScreen(
+            onSell = onSell,
+            onCull = onCull,
+            onPrintLabel = onPrintLabel,
+            modifier = Modifier.weight(1f),
+        )
     }
 }

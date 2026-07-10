@@ -44,12 +44,12 @@ class SyncViewModel(
 
     private fun describe(result: SyncResult, okWord: String): String = when (result) {
         is SyncResult.Done -> {
-            val base = when {
-                result.salesCount == 0 && result.cullCount == 0 -> "$okWord (0)"
-                result.cullCount == 0 -> "$okWord (${result.salesCount} sales)"
-                result.salesCount == 0 -> "$okWord (${result.cullCount} cull)"
-                else -> "$okWord (${result.salesCount} sales, ${result.cullCount} cull)"
+            val parts = buildList {
+                if (result.salesCount > 0) add("${result.salesCount} sales")
+                if (result.cullCount > 0) add("${result.cullCount} cull")
+                if (result.labelCount > 0) add("${result.labelCount} label")
             }
+            val base = if (parts.isEmpty()) "$okWord (0)" else "$okWord (${parts.joinToString(", ")})"
             result.partialError?.let { "$base · $it" } ?: base
         }
         is SyncResult.Error -> "Error: ${result.message}"

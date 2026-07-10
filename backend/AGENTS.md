@@ -15,13 +15,14 @@ Deploy: [`docs/deploy/backend.md`](../docs/deploy/backend.md).
 
 - **`shared.js`** — pure logic (auth, plant parsing, dedupe). Source of truth; mirrored into the GAS
   project as `shared.gs`.
-- **`Code.gs`** — HTTP handlers. Separate actions for sales and culls (`appendSales`, `appendCulls`).
+- **`Code.gs`** — HTTP handlers. Separate actions for sales, culls, and print labels
+  (`appendSales`, `appendCulls`, `appendPrintLabels`).
 
 ## Rules
 
 - Change logic in `shared.js` first; run `node --test` before deploy.
-- Export column order comes from `Export.HEADER` and `CullExport.HEADER` in `core/` — keep backend
-  handlers aligned; never reorder columns without updating both sides.
+- Export column order comes from `Export.HEADER`, `CullExport.HEADER`, and `LabelPrintExport.HEADER`
+  in `core/` — keep backend handlers aligned; never reorder columns without updating both sides.
 - Sheet tabs and `sync_status` behaviour: see `Code.gs` and tests.
 
 See root [`AGENTS.md`](../AGENTS.md) for sync invariants.

@@ -66,3 +66,19 @@ data class AppendCullsResponse(
     val skipped: Int = 0,
     val error: String? = null,
 )
+
+@Serializable
+data class AppendPrintLabelsRequest(
+    val secret: String,
+    val header: List<String>,
+    val rows: List<List<String>>,
+    val action: String = "appendPrintLabels",
+)
+
+@Serializable
+data class AppendPrintLabelsResponse(
+    val ok: Boolean,
+    val appended: Int = 0,
+    val skipped: Int = 0,
+    val error: String? = null,
+)

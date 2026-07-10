@@ -46,12 +46,14 @@ Per-module detail: [`core/AGENTS.md`](./core/AGENTS.md), [`backend/AGENTS.md`](.
 These are behavioural guarantees, not reference data — see `Sync`, `CullSync`, `Money`, `Export`,
 `CullExport`, and `PlantBook` in `core/` for specifics.
 
-- **Local `status` is the sync queue** for receipts and culls. Export only pending rows; flip to
-  exported **only on HTTP success**. Nothing lost, no double-counting.
+- Local `status` is the sync queue for receipts, culls, and label print requests. Export only
+  pending rows; flip to exported **only on HTTP success**. Nothing lost, no double-counting.
 - **Money is integer cents** — never floats.
-- **Not-found scans are never dropped** — record as unknown with the scanned code kept.
+- **Not-found scans are never dropped** for sales/culls — record as unknown with the scanned code
+  kept. Label print requests are the exception: missing accessions are blocked (administrator
+  message) and not enqueued.
 - **Export `HEADER` column order is a backend contract** — keep stable; coordinate `core/` and
-  `backend/` changes together.
+  `backend/` changes together (`Export`, `CullExport`, `LabelPrintExport`).
 
 ## Verify changes
 

@@ -97,4 +97,19 @@ class SheetsClient(
             AppendOutcome(appended = resp.appended, skipped = resp.skipped)
         }
     }
+
+    suspend fun appendPrintLabels(
+        config: DeviceConfig,
+        header: List<String>,
+        rows: List<List<String>>,
+    ): Result<AppendOutcome> = withContext(Dispatchers.IO) {
+        runCatching {
+            val requestBody = json.encodeToString(
+                AppendPrintLabelsRequest(secret = config.sharedSecret, header = header, rows = rows),
+            )
+            val resp = json.decodeFromString<AppendPrintLabelsResponse>(postRaw(config.endpointUrl, requestBody))
+            if (!resp.ok) error(resp.error ?: "Server rejected the print label export")
+            AppendOutcome(appended = resp.appended, skipped = resp.skipped)
+        }
+    }
 }

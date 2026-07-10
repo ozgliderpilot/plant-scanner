@@ -75,3 +75,24 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         db.execSQL("ALTER TABLE receipts ADD COLUMN paymentMethod TEXT NOT NULL DEFAULT 'CARD'")
     }
 }
+
+/**
+ * v7 -> v8: add `label_print_requests` for offline-first label reprints (issue #77). Additive only.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS label_print_requests (
+                localId INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                queueId TEXT NOT NULL,
+                createdAtEpochMs INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                accession TEXT NOT NULL,
+                name TEXT NOT NULL,
+                copies INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+    }
+}
