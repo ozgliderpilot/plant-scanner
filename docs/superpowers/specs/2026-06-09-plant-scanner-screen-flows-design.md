@@ -100,7 +100,7 @@ Home ─[Sell]→ New receipt 07-241 opened (# = «device prefix»-«local seq»
    ▼
 ④ Confirmation: receipt #, Total AUD, payment method
    [New sale] / [Done → Home]
-   (Pending sync count stays in the top-bar StatusChip.)
+   (Pending sync count is intentionally omitted from this screen.)
 ```
 
 **Edge paths (each a single state, not a new flow):**

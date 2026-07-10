@@ -139,7 +139,7 @@ Mirror `ConfirmScreen`:
 - Cull id (`cullNo` from `ReceiptNumbering`) / plant name
 - **Cull another** → scan
 - **Done** → pop cull graph
-- Pending sync count stays in the top-bar StatusChip (not duplicated on this screen)
+- Pending sync count is intentionally omitted from this screen (not duplicated here)
 
 ### 5. `core/` module
 

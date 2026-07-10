@@ -24,8 +24,8 @@ import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.theme.Dimens
 
 /**
- * Cull recorded confirmation. Pending sync status stays in the top-bar StatusChip,
- * not on this screen.
+ * Cull recorded confirmation. Pending sync count is intentionally not shown here
+ * (issue #74).
  */
 @Composable
 fun CullSuccessScreen(

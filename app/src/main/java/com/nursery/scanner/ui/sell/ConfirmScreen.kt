@@ -27,7 +27,7 @@ import com.nursery.scanner.ui.theme.Dimens
 /**
  * ④ Confirmation: receipt #, total to collect, payment method. Payment is handled
  * outside the app (decision #3) — this is just the amount to collect.
- * Pending sync status stays in the top-bar StatusChip, not on this screen.
+ * Pending sync count is intentionally not shown here (issue #74).
  */
 @Composable
 fun ConfirmScreen(
