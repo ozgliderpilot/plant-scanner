@@ -203,38 +203,8 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
-          script: |
-            set -eu
-            SHORT=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
-
-            adb wait-for-device
-            adb shell settings put system system_locales en-AU || true
-            adb shell am broadcast -a android.intent.action.LOCALE_CHANGED || true
-            adb shell pm grant com.nursery.scanner.test android.permission.CAMERA || true
-
-            adb install -r apk/app-qa-debug.apk
-
-            mkdir -p maestro-out gallery
-            # Maestro launches with CI_MODE (see .maestro/gallery.yaml). May exit non-zero on
-            # mid-flow failure; still normalize partial captures.
-            set +e
-            maestro test --output maestro-out .maestro/gallery.yaml
-            MAESTRO_EXIT=$?
-            set -e
-
-            .github/scripts/screenshots/normalize-screenshots.sh maestro-out gallery "$SHORT"
-
-            # Publish + comment even on partial success (manifest may be non-empty).
-            if [ -s gallery/manifest.txt ]; then
-              .github/scripts/screenshots/publish-screenshots.sh gallery \
-                "${{ github.event.pull_request.number }}" "$SHORT"
-              .github/scripts/screenshots/comment-gallery.sh \
-                "${{ github.event.pull_request.number }}" "$SHORT" gallery/manifest.txt \
-                "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-                "${{ github.event.pull_request.head.sha }}"
-            fi
-
-            exit $MAESTRO_EXIT
+          # One line only: android-emulator-runner runs each script line in a fresh /usr/bin/sh -c.
+          script: .github/scripts/screenshots/run-gallery.sh "${{ github.event.pull_request.head.sha }}" "${{ github.event.pull_request.number }}" "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

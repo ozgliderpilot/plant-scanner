@@ -76,7 +76,10 @@ Normal qaDebug sideloads without the extra stay empty (no auto-seed).
 - Flow: [`.maestro/gallery.yaml`](../../.maestro/gallery.yaml)
 - Pinned CLI version: see `MAESTRO_VERSION` in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
 - Text selectors first; add Compose test tags only if a step proves flaky
-- Emulator: API 30, x86_64, AOSP `default`, Pixel-class profile, animations off, en-AU, 30 min timeout
+- Emulator: API 30, x86_64, AOSP `default`, Pixel-class profile, animations off, 30 min timeout
+  (default en-US; Maestro selectors are English — no brittle locale setprops on CI)
+- Gallery runner: [`.github/scripts/screenshots/run-gallery.sh`](../../.github/scripts/screenshots/run-gallery.sh)
+  (must stay a single emulator-runner `script:` line — that action splits multi-line scripts)
 
 Helper scripts: [`.github/scripts/screenshots/`](../../.github/scripts/screenshots/).
 
