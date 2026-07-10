@@ -41,6 +41,38 @@ function accessionColIndex(header) {
 }
 
 /**
+ * Compose a display name from Species columns — same rules as parsePlants nameOf.
+ */
+function composePlantName(genus, species, cultivar, commonName) {
+  var base = [String(genus || '').trim(), String(species || '').trim()].filter(Boolean).join(' ');
+  var cv = String(cultivar || '').trim();
+  if (cv) base = (base + " '" + cv + "'").trim();
+  return base || String(commonName || '').trim();
+}
+
+/** True when a sheet row name is the app's unknown-scan sentinel (trimmed, case-insensitive). */
+function isUnknownPlantName(name) {
+  return String(name === undefined || name === null ? '' : name).trim().toLowerCase() === 'unknown';
+}
+
+/** Optional plant metadata fields carried in markSalesSynced / markCullsSynced keys. */
+var PLANT_ENRICHMENT_FIELDS = ['name', 'genus', 'species', 'cultivar', 'common_name', 'group'];
+
+/** Extract non-blank enrichment fields from a mark key object, or null when none are present. */
+function pickPlantEnrichment(key) {
+  if (!key) return null;
+  var out = null;
+  PLANT_ENRICHMENT_FIELDS.forEach(function (f) {
+    if (key[f] === undefined || key[f] === null) return;
+    var s = String(key[f]).trim();
+    if (!s) return;
+    if (!out) out = {};
+    out[f] = s;
+  });
+  return out;
+}
+
+/**
  * Convert a 2D sheet range (row 0 = header) into plant objects for the app's getPlants response.
  *
  * The "Plants" sheet is now the raw Batches+Species view exported from Access, so columns are found
@@ -74,10 +106,8 @@ function parsePlants(values) {
   function nameOf(row) {
     var legacy = rowStr(row, iName);
     if (legacy) return legacy;
-    var base = [rowStr(row, iGenus), rowStr(row, iSpecies)].filter(Boolean).join(' ');
-    var cv = rowStr(row, iCultivar);
-    if (cv) base = (base + " '" + cv + "'").trim();
-    return base || rowStr(row, iCommon);
+    return composePlantName(rowStr(row, iGenus), rowStr(row, iSpecies),
+      rowStr(row, iCultivar), rowStr(row, iCommon));
   }
 
   var out = [];
@@ -204,7 +234,8 @@ function salesRowKey(receipt, itemSeq) {
  * Backing logic for the `pendingSales` action: select the reverse-sync work set from the raw "Sales"
  * sheet values (row 0 = header). Returns every row whose `sync_status` is exactly "Pending" (trimmed,
  * case-insensitive), shaped as the minimal object the Access sales-in phase consumes:
- * `{receipt, item_seq, accession, qty, unit}`.
+ * `{receipt, item_seq, accession, qty, unit, name}`. `name` lets Access skip Species lookup/enrichment
+ * for rows that are already resolved (only `unknown` needs backfill).
  *
  * Columns are resolved by header name, so reordered / extra columns are tolerated and a missing data
  * column yields a default ('' for strings, 0 for numbers). A header-only or empty sheet, or one with no
@@ -221,6 +252,7 @@ function selectPendingSales(values) {
   var iAcc = salesColIndex(header, 'accession');
   var iQty = salesColIndex(header, 'qty');
   var iUnit = salesColIndex(header, 'unit');
+  var iName = salesColIndex(header, 'name');
 
   var out = [];
   for (var r = 1; r < values.length; r++) {
@@ -231,7 +263,8 @@ function selectPendingSales(values) {
       item_seq: rowNum(row, iSeq),
       accession: rowStr(row, iAcc),
       qty: rowNum(row, iQty),
-      unit: rowStr(row, iUnit)
+      unit: rowStr(row, iUnit),
+      name: rowStr(row, iName)
     });
   }
   return out;
@@ -265,7 +298,12 @@ function resolveSalesMarks(values, keys) {
   var out = [];
   (keys || []).forEach(function (req) {
     var rowIndex = byKey[salesRowKey(req.receipt, req.item_seq)];
-    if (rowIndex !== undefined) out.push({ rowIndex: rowIndex, status: req.status });
+    if (rowIndex !== undefined) {
+      var mark = { rowIndex: rowIndex, status: req.status };
+      var enrichment = pickPlantEnrichment(req);
+      if (enrichment) mark.enrichment = enrichment;
+      out.push(mark);
+    }
   });
   return out;
 }
@@ -300,7 +338,8 @@ function cullRowKey(cullId) {
  * Backing logic for the `pendingCulls` action: select the reverse-sync work set from the raw "Culls"
  * sheet values (row 0 = header). Returns every row whose `sync_status` is exactly "Pending" (trimmed,
  * case-insensitive), shaped as the minimal object the Access culls-in phase consumes:
- * `{cull_id, accession, qty, unit, notes}`.
+ * `{cull_id, accession, qty, unit, notes, name}`. `name` lets Access skip Species lookup/enrichment
+ * for rows that are already resolved (only `unknown` needs backfill).
  *
  * Columns are resolved by header name, so reordered / extra columns are tolerated and a missing data
  * column yields a default ('' for strings, 0 for numbers). A header-only or empty sheet, or one with no
@@ -316,6 +355,7 @@ function selectPendingCulls(values) {
   var iQty = salesColIndex(header, 'qty');
   var iUnit = salesColIndex(header, 'unit');
   var iNotes = salesColIndex(header, 'notes');
+  var iName = salesColIndex(header, 'name');
 
   var out = [];
   for (var r = 1; r < values.length; r++) {
@@ -327,6 +367,7 @@ function selectPendingCulls(values) {
       qty: rowNum(row, iQty),
       unit: rowStr(row, iUnit),
       notes: rowStr(row, iNotes),
+      name: rowStr(row, iName),
     });
   }
   return out;
@@ -355,7 +396,42 @@ function resolveCullMarks(values, keys) {
   var out = [];
   (keys || []).forEach(function (req) {
     var rowIndex = byKey[cullRowKey(req.cull_id)];
-    if (rowIndex !== undefined) out.push({ rowIndex: rowIndex, status: req.status });
+    if (rowIndex !== undefined) {
+      var mark = { rowIndex: rowIndex, status: req.status };
+      var enrichment = pickPlantEnrichment(req);
+      if (enrichment) mark.enrichment = enrichment;
+      out.push(mark);
+    }
+  });
+  return out;
+}
+
+/**
+ * Pure helper mirroring Code.gs mark application: write sync_status and, when the row's current name
+ * is unknown, optional plant enrichment columns. Returns a deep copy of values with updates applied.
+ */
+function applyMarksToValues(values, marks) {
+  if (!values || values.length < 2 || !marks || marks.length === 0) {
+    return values ? values.map(function (row) { return row.slice(); }) : values;
+  }
+  var out = values.map(function (row) { return row.slice(); });
+  var header = out[0];
+  var iStatus = headerColIndex(header, 'sync_status');
+  var iName = headerColIndex(header, 'name');
+  var colByField = {};
+  PLANT_ENRICHMENT_FIELDS.forEach(function (f) {
+    colByField[f] = headerColIndex(header, f);
+  });
+
+  marks.forEach(function (mark) {
+    var row = out[mark.rowIndex];
+    if (!row) return;
+    if (iStatus >= 0) row[iStatus] = mark.status;
+    if (!mark.enrichment || iName < 0 || !isUnknownPlantName(row[iName])) return;
+    PLANT_ENRICHMENT_FIELDS.forEach(function (f) {
+      var col = colByField[f];
+      if (col >= 0 && mark.enrichment[f] !== undefined) row[col] = mark.enrichment[f];
+    });
   });
   return out;
 }
@@ -396,10 +472,11 @@ function computeCullDeduction(unit, qty, pots, tubes, misc) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    isAuthorized, emptyToNull, rowStr, rowNum, parsePlants, filterNewRows, planPlantReplace,
+    isAuthorized, emptyToNull, rowStr, rowNum, composePlantName, isUnknownPlantName,
+    pickPlantEnrichment, PLANT_ENRICHMENT_FIELDS, parsePlants, filterNewRows, planPlantReplace,
     findRowByKey, accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
     selectPendingSales, resolveSalesMarks,
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
-    isStockPlantCull, computeCullDeduction,
+    isStockPlantCull, computeCullDeduction, applyMarksToValues,
   };
 }

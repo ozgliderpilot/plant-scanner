@@ -1,10 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const {
-  isAuthorized, emptyToNull, parsePlants, filterNewRows, planPlantReplace, findRowByKey,
-  accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
+  isAuthorized, emptyToNull, parsePlants, composePlantName, filterNewRows, planPlantReplace,
+  findRowByKey, accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
   selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction,
-  validateAppendCullsNotes,
+  validateAppendCullsNotes, applyMarksToValues,
 } = require('../shared.js');
 
 test('isAuthorized accepts the right secret only', () => {
@@ -274,7 +274,7 @@ test('selectPendingSales returns [] for an empty or header-only sheet', () => {
   assert.deepStrictEqual(selectPendingSales([SALES_HEADER]), []);
 });
 
-test('selectPendingSales selects only Pending rows, shaped {receipt,item_seq,accession,qty,unit}', () => {
+test('selectPendingSales selects only Pending rows, shaped {receipt,item_seq,accession,qty,unit,name}', () => {
   const values = [
     SALES_HEADER,
     salesRow('PP-1700000000-1', '2026-06-23', 1, '31011', 'Acacia', 2, 'pots', 500, 0, 1000, 'Pending'),
@@ -283,8 +283,8 @@ test('selectPendingSales selects only Pending rows, shaped {receipt,item_seq,acc
     salesRow('PP-1700000000-4', '2026-06-23', 4, '16726', 'Hardenbergia', 3, 'pots', 200, 0, 600, 'Pending'),
   ];
   assert.deepStrictEqual(selectPendingSales(values), [
-    { receipt: 'PP-1700000000-1', item_seq: 1, accession: '31011', qty: 2, unit: 'pots' },
-    { receipt: 'PP-1700000000-4', item_seq: 4, accession: '16726', qty: 3, unit: 'pots' },
+    { receipt: 'PP-1700000000-1', item_seq: 1, accession: '31011', qty: 2, unit: 'pots', name: 'Acacia' },
+    { receipt: 'PP-1700000000-4', item_seq: 4, accession: '16726', qty: 3, unit: 'pots', name: 'Hardenbergia' },
   ]);
 });
 
@@ -308,10 +308,20 @@ test('selectPendingSales parses item_seq/qty as numbers and keeps receipt/access
 });
 
 test('selectPendingSales tolerates reordered columns and a missing data column', () => {
-  const header = ['sync_status', 'item_seq', 'receipt', 'accession', 'qty']; // no unit column
+  const header = ['sync_status', 'item_seq', 'receipt', 'accession', 'qty']; // no unit/name columns
   const values = [header, ['Pending', 2, 'PP-5-2', '8250', 4]];
   assert.deepStrictEqual(selectPendingSales(values), [
-    { receipt: 'PP-5-2', item_seq: 2, accession: '8250', qty: 4, unit: '' },
+    { receipt: 'PP-5-2', item_seq: 2, accession: '8250', qty: 4, unit: '', name: '' },
+  ]);
+});
+
+test('selectPendingSales carries unknown name for Access enrichment gating', () => {
+  const values = [
+    SALES_HEADER,
+    salesRow('PP-9-1', '2026-06-23', 1, '31011', 'unknown', 1, 'pots', 500, 0, 500, 'Pending'),
+  ];
+  assert.deepStrictEqual(selectPendingSales(values), [
+    { receipt: 'PP-9-1', item_seq: 1, accession: '31011', qty: 1, unit: 'pots', name: 'unknown' },
   ]);
 });
 
@@ -378,6 +388,103 @@ test('resolveSalesMarks on empty keys or empty sheet returns []', () => {
   assert.deepStrictEqual(resolveSalesMarks(null, null), []);
 });
 
+test('composePlantName matches parsePlants name rules', () => {
+  assert.strictEqual(composePlantName('Acacia', 'pycnantha', '', 'Golden Wattle'), 'Acacia pycnantha');
+  assert.strictEqual(composePlantName('Banksia', 'integrifolia', 'Roller Coaster', ''), "Banksia integrifolia 'Roller Coaster'");
+  assert.strictEqual(composePlantName('', '', '', 'Mystery Plant'), 'Mystery Plant');
+});
+
+test('resolveSalesMarks carries optional plant enrichment fields from keys', () => {
+  const values = [SALES_HEADER, salesRow('PP-1-1', '2026-06-23', 1, '31011', 'unknown', 2, 'pots', 500, 0, 1000, 'Pending')];
+  assert.deepStrictEqual(
+    resolveSalesMarks(values, [{
+      receipt: 'PP-1-1', item_seq: 1, status: 'Synced',
+      name: 'Acacia pycnantha', genus: 'Acacia', species: 'pycnantha',
+      cultivar: '', common_name: 'Golden Wattle', group: 'Tree',
+    }]),
+    [{
+      rowIndex: 1, status: 'Synced',
+      enrichment: {
+        name: 'Acacia pycnantha', genus: 'Acacia', species: 'pycnantha',
+        common_name: 'Golden Wattle', group: 'Tree',
+      },
+    }],
+  );
+});
+
+test('applyMarksToValues enriches unknown sales rows when enrichment fields are present', () => {
+  const values = [
+    SALES_HEADER,
+    salesRow('PP-1-1', '2026-06-23', 1, '31011', 'unknown', 2, 'pots', 500, 0, 1000, 'Pending'),
+  ];
+  const marks = resolveSalesMarks(values, [{
+    receipt: 'PP-1-1', item_seq: 1, status: 'Synced',
+    name: 'Acacia pycnantha', genus: 'Acacia', species: 'pycnantha',
+    common_name: 'Golden Wattle', group: 'Tree',
+  }]);
+  const out = applyMarksToValues(values, marks);
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('sync_status')], 'Synced');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('name')], 'Acacia pycnantha');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('genus')], 'Acacia');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('species')], 'pycnantha');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('common_name')], 'Golden Wattle');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('group')], 'Tree');
+});
+
+test('applyMarksToValues does not overwrite a non-unknown name', () => {
+  const values = [
+    SALES_HEADER,
+    salesRow('PP-1-1', '2026-06-23', 1, '31011', 'Acacia', 2, 'pots', 500, 0, 1000, 'Pending'),
+  ];
+  const marks = resolveSalesMarks(values, [{
+    receipt: 'PP-1-1', item_seq: 1, status: 'Synced',
+    name: 'Should Not Apply', genus: 'X', species: 'y',
+  }]);
+  const out = applyMarksToValues(values, marks);
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('sync_status')], 'Synced');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('name')], 'Acacia');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('genus')], '');
+});
+
+test('applyMarksToValues treats name unknown case-insensitively', () => {
+  const values = [
+    SALES_HEADER,
+    salesRow('PP-1-1', '2026-06-23', 1, '31011', '  UNKNOWN  ', 2, 'pots', 500, 0, 1000, 'Pending'),
+  ];
+  const marks = resolveSalesMarks(values, [{
+    receipt: 'PP-1-1', item_seq: 1, status: 'Synced', name: 'Resolved',
+  }]);
+  const out = applyMarksToValues(values, marks);
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('name')], 'Resolved');
+});
+
+test('applyMarksToValues is backward compatible without enrichment fields', () => {
+  const values = [
+    SALES_HEADER,
+    salesRow('PP-1-1', '2026-06-23', 1, '31011', 'unknown', 2, 'pots', 500, 0, 1000, 'Pending'),
+  ];
+  const marks = resolveSalesMarks(values, [{ receipt: 'PP-1-1', item_seq: 1, status: 'Synced' }]);
+  const out = applyMarksToValues(values, marks);
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('sync_status')], 'Synced');
+  assert.strictEqual(out[1][SALES_HEADER.indexOf('name')], 'unknown');
+});
+
+test('applyMarksToValues enriches unknown cull rows', () => {
+  const values = [
+    CULLS_SHEET_HEADER,
+    ['PP-1-1', '2026-07-01', '31011', 'unknown', '', '', '', '', '', 1, 'tubes', 'Dead', '', 'Pending'],
+  ];
+  const marks = resolveCullMarks(values, [{
+    cull_id: 'PP-1-1', status: 'Synced',
+    name: 'Acacia pycnantha', genus: 'Acacia', species: 'pycnantha', group: 'Tree',
+  }]);
+  const out = applyMarksToValues(values, marks);
+  assert.strictEqual(out[1][CULLS_SHEET_HEADER.indexOf('sync_status')], 'Synced');
+  assert.strictEqual(out[1][CULLS_SHEET_HEADER.indexOf('name')], 'Acacia pycnantha');
+  assert.strictEqual(out[1][CULLS_SHEET_HEADER.indexOf('genus')], 'Acacia');
+  assert.strictEqual(out[1][CULLS_SHEET_HEADER.indexOf('group')], 'Tree');
+});
+
 const CULLS_HEADER = [
   'cull_id', 'date', 'accession', 'name', 'genus', 'species', 'cultivar', 'common_name',
   'group', 'qty', 'unit', 'reason', 'notes',
@@ -406,7 +513,7 @@ test('selectPendingCulls returns [] for an empty or header-only sheet', () => {
   assert.deepStrictEqual(selectPendingCulls([CULLS_SHEET_HEADER]), []);
 });
 
-test('selectPendingCulls selects only Pending rows, shaped {cull_id,accession,qty,unit,notes}', () => {
+test('selectPendingCulls selects only Pending rows, shaped {cull_id,accession,qty,unit,notes,name}', () => {
   const values = [
     CULLS_SHEET_HEADER,
     ['PP-1-1', '2026-07-01', '31011', 'Acacia', '', '', '', '', 'Tree', 2, 'tubes', 'Dead', '', 'Pending'],
@@ -414,8 +521,8 @@ test('selectPendingCulls selects only Pending rows, shaped {cull_id,accession,qt
     ['PP-1-3', '2026-07-01', '9000', 'Grevillea', '', '', '', '', '', 1, 'misc', 'Other', '', 'Pending'],
   ];
   assert.deepStrictEqual(selectPendingCulls(values), [
-    { cull_id: 'PP-1-1', accession: '31011', qty: 2, unit: 'tubes', notes: '' },
-    { cull_id: 'PP-1-3', accession: '9000', qty: 1, unit: 'misc', notes: '' },
+    { cull_id: 'PP-1-1', accession: '31011', qty: 2, unit: 'tubes', notes: '', name: 'Acacia' },
+    { cull_id: 'PP-1-3', accession: '9000', qty: 1, unit: 'misc', notes: '', name: 'Grevillea' },
   ]);
 });
 
@@ -425,7 +532,17 @@ test('selectPendingCulls carries notes for stock-plant routing', () => {
     ['PP-2-1', '2026-07-01', '16726', 'Hardenbergia', '', '', '', '', '', 1, 'pots', 'Dead', 'Stock plant', 'Pending'],
   ];
   assert.deepStrictEqual(selectPendingCulls(values), [
-    { cull_id: 'PP-2-1', accession: '16726', qty: 1, unit: 'pots', notes: 'Stock plant' },
+    { cull_id: 'PP-2-1', accession: '16726', qty: 1, unit: 'pots', notes: 'Stock plant', name: 'Hardenbergia' },
+  ]);
+});
+
+test('selectPendingCulls carries unknown name for Access enrichment gating', () => {
+  const values = [
+    CULLS_SHEET_HEADER,
+    ['PP-3-1', '2026-07-01', '31011', 'unknown', '', '', '', '', '', 1, 'tubes', 'Dead', '', 'Pending'],
+  ];
+  assert.deepStrictEqual(selectPendingCulls(values), [
+    { cull_id: 'PP-3-1', accession: '31011', qty: 1, unit: 'tubes', notes: '', name: 'unknown' },
   ]);
 });
 

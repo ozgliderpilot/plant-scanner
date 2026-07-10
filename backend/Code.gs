@@ -190,27 +190,44 @@ function handleMarkExportSynced_(body, sheetName, resolveFn, syncEvent) {
     if (statusCol < 0) return json_({ ok: false, error: 'No sync_status column' });
 
     var marks = resolveFn(values, body.keys);
-    applyStatusMarks_(sheet, marks, statusCol);
+    applyExportMarks_(sheet, values, marks, statusCol);
     recordSync_(syncEvent, 'Sheet → Access', 'marked ' + marks.length);
     return json_({ ok: true, marked: marks.length });
   });
 }
 
-/** Batch-write sync_status updates, grouping contiguous row runs into single setValues calls. */
-function applyStatusMarks_(sheet, marks, statusCol) {
+/** Batch-write sync_status updates and optional plant-field enrichment for unknown rows. */
+function applyExportMarks_(sheet, values, marks, statusCol) {
   if (!marks.length) return;
+  var header = values[0];
+  var iName = headerColIndex(header, 'name');
+  var colByField = {};
+  PLANT_ENRICHMENT_FIELDS.forEach(function (f) {
+    colByField[f] = headerColIndex(header, f);
+  });
+
   marks.sort(function (a, b) { return a.rowIndex - b.rowIndex; });
   var i = 0;
   while (i < marks.length) {
     var startRow = marks[i].rowIndex + 1;
-    var values = [[marks[i].status]];
+    var statusValues = [[marks[i].status]];
     i++;
     while (i < marks.length && marks[i].rowIndex === marks[i - 1].rowIndex + 1) {
-      values.push([marks[i].status]);
+      statusValues.push([marks[i].status]);
       i++;
     }
-    sheet.getRange(startRow, statusCol + 1, values.length, 1).setValues(values);
+    sheet.getRange(startRow, statusCol + 1, statusValues.length, 1).setValues(statusValues);
   }
+
+  marks.forEach(function (mark) {
+    if (!mark.enrichment || iName < 0 || !isUnknownPlantName(values[mark.rowIndex][iName])) return;
+    PLANT_ENRICHMENT_FIELDS.forEach(function (f) {
+      var col = colByField[f];
+      if (col >= 0 && mark.enrichment[f] !== undefined) {
+        sheet.getRange(mark.rowIndex + 1, col + 1).setValue(mark.enrichment[f]);
+      }
+    });
+  });
 }
 
 /** Set a single 0-based column of an append range to plain-text format (no-op if the column is absent). */
