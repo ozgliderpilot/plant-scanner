@@ -10,5 +10,9 @@
 09-cull-scan|Cull · scan
 10-cull-info|Cull · enter info
 11-cull-success|Cull · success
-12-culls|Culls
-13-plants|Plants
+12-print-scan|Print · scan
+13-print-not-found|Print · not found
+14-print-copies|Print · copies
+15-print-success|Print · success
+16-culls|Culls
+17-plants|Plants
