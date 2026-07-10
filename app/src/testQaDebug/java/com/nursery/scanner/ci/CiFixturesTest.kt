@@ -27,7 +27,9 @@ class CiFixturesTest {
         assertEquals(CiFixtures.SHARED_SECRET, config.sharedSecret)
 
         assertEquals("99-1700000000-1", CiFixtures.seededReceipt().receiptNo)
-        assertEquals("1002", CiFixtures.seededReceipt().lines.single().accession)
+        val seededLine = CiFixtures.seededReceipt().lines.single()
+        assertEquals("1002", seededLine.accession)
+        assertEquals(10, seededLine.discountPct)
         assertEquals("99-1700000000-2", CiFixtures.seededCull().cullNo)
         assertEquals("1003", CiFixtures.seededCull().accession)
     }

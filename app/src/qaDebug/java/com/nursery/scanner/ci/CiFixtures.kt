@@ -93,7 +93,7 @@ object CiFixtures {
                 group = "Shrubs",
                 qty = 2,
                 unitPriceCents = 800,
-                discountPct = 0,
+                discountPct = 10,
                 unit = SaleUnit.POTS,
                 itemSeq = 1,
             ),

@@ -44,8 +44,6 @@ appId: com.nursery.scanner.test
     path: maestro-out/03-sell-line
 - tapOn:
     id: add_to_receipt
-- takeScreenshot:
-    path: maestro-out/04-sell-cart
 
 # Two more lines before confirm (no extra frames): same Grevillea as tube, then Lomandra.
 - tapOn: "Scan another"
@@ -81,12 +79,37 @@ appId: com.nursery.scanner.test
 - tapOn:
     id: add_to_receipt
 
+- takeScreenshot:
+    path: maestro-out/04-sell-cart
 - tapOn:
     id: finish_save
 # Wait for async finishAndSave → ConfirmScreen (cart stays up until persist completes).
 - assertVisible: "Total to collect"
 - takeScreenshot:
     path: maestro-out/05-sell-confirm
+- tapOn:
+    id: done
+
+# Second sale same calendar day (no frame) so receipts shows two today.
+- tapOn:
+    id: sell_plants
+- tapOn:
+    id: type_number
+- tapOn:
+    text: "Accession number"
+- inputText: "1002"
+- hideKeyboard
+- tapOn:
+    id: find
+- tapOn:
+    text: "Unit price ($)"
+- inputText: "8.00"
+- hideKeyboard
+- tapOn:
+    id: add_to_receipt
+- tapOn:
+    id: finish_save
+- assertVisible: "Total to collect"
 - tapOn:
     id: done
 
