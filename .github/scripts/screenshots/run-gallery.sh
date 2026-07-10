@@ -14,9 +14,12 @@ SHORT="$(echo "$HEAD_SHA" | cut -c1-7)"
 adb wait-for-device
 # Skip emulator locale setprops — persist.sys.* fails on API 30 AOSP under CI and
 # English UI copy in .maestro/gallery.yaml matches the default en-US image.
-adb shell pm grant com.nursery.scanner.test android.permission.CAMERA || true
-
+#
+# Cached AVDs (force-avd-creation: false) can retain a prior qaDebug install signed
+# with a different debug keystore → INSTALL_FAILED_UPDATE_INCOMPATIBLE on -r.
+adb uninstall com.nursery.scanner.test >/dev/null 2>&1 || true
 adb install -r apk/app-qa-debug.apk
+adb shell pm grant com.nursery.scanner.test android.permission.CAMERA || true
 
 mkdir -p maestro-out gallery
 # Maestro launches with CI_MODE (see .maestro/gallery.yaml). May exit non-zero on
