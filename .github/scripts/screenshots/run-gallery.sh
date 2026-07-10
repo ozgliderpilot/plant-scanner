@@ -21,8 +21,10 @@ adb install -r apk/app-qa-debug.apk
 mkdir -p maestro-out gallery
 # Maestro launches with CI_MODE (see .maestro/gallery.yaml). May exit non-zero on
 # mid-flow failure; still normalize partial captures.
+# takeScreenshot paths in gallery.yaml write under ./maestro-out/ (workspace-relative).
+# Maestro 1.39.9 has no --test-output-dir; --output is the JUnit report path only.
 set +e
-maestro test --output maestro-out .maestro/gallery.yaml
+maestro test --format JUNIT --output maestro-out/report.xml .maestro/gallery.yaml
 MAESTRO_EXIT=$?
 set -e
 

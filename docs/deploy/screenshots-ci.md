@@ -76,6 +76,9 @@ Normal qaDebug sideloads without the extra stay empty (no auto-seed).
 - Flow: [`.maestro/gallery.yaml`](../../.maestro/gallery.yaml)
 - Pinned CLI version: see `MAESTRO_VERSION` in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
 - Text selectors first; add Compose test tags only if a step proves flaky
+- After typed fields, `hideKeyboard` before tapping Find / Add (IME covers those buttons on
+  Pixel-class AVDs; BACK only dismisses the keyboard while it is showing)
+- Screenshots use `takeScreenshot.path: maestro-out/<frame>` (workspace-relative)
 - Emulator: API 30, x86_64, AOSP `default`, Pixel-class profile, animations off, 30 min timeout
   (default en-US; Maestro selectors are English — no brittle locale setprops on CI)
 - Gallery runner: [`.github/scripts/screenshots/run-gallery.sh`](../../.github/scripts/screenshots/run-gallery.sh)

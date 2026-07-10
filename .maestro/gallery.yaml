@@ -2,35 +2,48 @@ appId: com.nursery.scanner.test
 ---
 # Volunteer-critical gallery walk (#72). Text selectors first.
 # Launch with CI mode so seed-once + camera placeholder run before the first frame.
+# Screenshot paths are relative to the Maestro workspace (repo root), not --output.
 - launchApp:
     clearState: true
     arguments:
       com.nursery.scanner.CI_MODE: true
-- takeScreenshot: 01-actions
+- takeScreenshot:
+    path: maestro-out/01-actions
 - tapOn: "Plants"
-- takeScreenshot: 02-plants
+- takeScreenshot:
+    path: maestro-out/02-plants
 - tapOn: "Actions"
 - tapOn: "Sell plants"
-- takeScreenshot: 03-sell-scan
+- takeScreenshot:
+    path: maestro-out/03-sell-scan
 - tapOn: "Type number instead"
 - tapOn:
     text: "Accession number"
 - inputText: "1001"
+# Soft keyboard covers Find on Pixel-class AVDs; hideKeyboard uses BACK which only
+# dismisses the IME while it is showing (ScanScreen BackHandler does not run).
+- hideKeyboard
 - tapOn: "Find"
-- takeScreenshot: 04-sell-line
+- takeScreenshot:
+    path: maestro-out/04-sell-line
 - tapOn:
     text: "Unit price ($)"
 - inputText: "5.00"
+- hideKeyboard
 - tapOn: "Add to receipt"
-- takeScreenshot: 05-sell-cart
+- takeScreenshot:
+    path: maestro-out/05-sell-cart
 - tapOn: "Finish & save"
 # Wait for async finishAndSave → ConfirmScreen (cart stays up until persist completes).
 - assertVisible: "Total to collect"
-- takeScreenshot: 06-sell-confirm
+- takeScreenshot:
+    path: maestro-out/06-sell-confirm
 - tapOn: "Done"
 - tapOn: "History"
 - tapOn: "View Receipts"
-- takeScreenshot: 07-receipts
+- takeScreenshot:
+    path: maestro-out/07-receipts
 - back
 - tapOn: "View Culled"
-- takeScreenshot: 08-culls
+- takeScreenshot:
+    path: maestro-out/08-culls
