@@ -53,6 +53,19 @@ class SyncViewModelTest {
     }
 
     @Test
+    fun syncNowKeepsPartialExportWarningWhenImportFails() = runTest {
+        val sync = RecordingCloudSync(
+            SyncResult.Error("plant pull failed", partialError = "Cull export failed"),
+        )
+        val vm = SyncViewModel(sync, FakeSettings(DeviceConfig("07", "https://x/exec", "secret", 60)))
+
+        vm.syncNow()
+        runCurrent()
+
+        assertEquals("Error: plant pull failed · Cull export failed", vm.message.value)
+    }
+
+    @Test
     fun syncNowSurfacesNotConfiguredWithoutCallingFailurePath() = runTest {
         val sync = RecordingCloudSync(SyncResult.NotConfigured)
         val vm = SyncViewModel(sync, FakeSettings(DeviceConfig.default()))

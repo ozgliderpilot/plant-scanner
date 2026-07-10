@@ -45,7 +45,7 @@ sealed interface SyncResult {
     ) : SyncResult {
         val count: Int get() = salesCount + cullCount
     }
-    data class Error(val message: String) : SyncResult
+    data class Error(val message: String, val partialError: String? = null) : SyncResult
     data object NotConfigured : SyncResult
 }
 
@@ -124,7 +124,7 @@ class SyncRepository(
                 cullCount = outcome.cullCount,
                 partialError = outcome.partialError,
             )
-            else -> SyncResult.Error(err)
+            else -> SyncResult.Error(err, partialError = outcome.partialError)
         }
     }
 

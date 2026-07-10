@@ -49,7 +49,10 @@ class SyncViewModel(
             }
             result.partialError?.let { "$base · $it" } ?: base
         }
-        is SyncResult.Error -> "Error: ${result.message}"
+        is SyncResult.Error -> {
+            val base = "Error: ${result.message}"
+            result.partialError?.let { "$base · $it" } ?: base
+        }
         SyncResult.NotConfigured -> "Set up the connection in Settings first"
     }
 }
