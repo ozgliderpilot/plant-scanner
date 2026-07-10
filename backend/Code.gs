@@ -6,10 +6,13 @@
  *   - appendSales     -> appends sales rows to "Sales" (deduped by receipt #), stamping each newly
  *                        appended row's sync_status "Pending" for the Access reverse sync (auto-export/push)
  *   - appendCulls     -> appends cull rows to "Culls" (deduped by cull_id), stamping sync_status
+ *   - appendPrintLabels -> appends label print rows to "PrintQueue" (deduped by queue_id), stamping sync_status
  *   - pendingSales    -> returns every "Sales" row whose sync_status is "Pending" (Access reverse sync)
  *   - markSalesSynced -> sets sync_status by (receipt,item_seq) key (Access reverse sync, status-agnostic)
  *   - pendingCulls    -> returns every "Culls" row whose sync_status is "Pending" (Access reverse sync)
  *   - markCullsSynced -> sets sync_status by cull_id key (Access reverse sync, status-agnostic)
+ *   - pendingPrintLabels -> returns every "PrintQueue" row whose sync_status is "Pending" (Access reverse sync)
+ *   - markPrintLabelsSynced -> sets sync_status by queue_id key (Access reverse sync, status-agnostic)
  *
  * Every action also stamps a "SyncStatus" sheet (one row per event) with the last time it ran, so the
  * Sheet shows when plants were last pushed from Access and last pulled to / pushed from the device.
@@ -29,10 +32,13 @@ function doPost(e) {
       case 'replacePlants': return handleReplacePlants_(body);
       case 'appendSales': return handleAppendSales_(body);
       case 'appendCulls': return handleAppendCulls_(body);
+      case 'appendPrintLabels': return handleAppendPrintLabels_(body);
       case 'pendingSales': return handlePendingSales_();
       case 'markSalesSynced': return handleMarkSalesSynced_(body);
       case 'pendingCulls': return handlePendingCulls_();
       case 'markCullsSynced': return handleMarkCullsSynced_(body);
+      case 'pendingPrintLabels': return handlePendingPrintLabels_();
+      case 'markPrintLabelsSynced': return handleMarkPrintLabelsSynced_(body);
       default: return json_({ ok: false, error: 'Unknown action: ' + body.action });
     }
   } catch (err) {
@@ -109,6 +115,14 @@ function handleAppendCulls_(body) {
   });
 }
 
+function handleAppendPrintLabels_(body) {
+  return handleAppendExport_(body, {
+    sheetName: 'PrintQueue',
+    keyColumn: 'queue_id',
+    syncEvent: 'Print labels from device',
+  });
+}
+
 function handleAppendSales_(body) {
   return handleAppendExport_(body, {
     sheetName: 'Sales',
@@ -164,6 +178,14 @@ function handlePendingCulls_() {
 
 function handleMarkCullsSynced_(body) {
   return handleMarkExportSynced_(body, 'Culls', resolveCullMarks, 'Culls to Access');
+}
+
+function handlePendingPrintLabels_() {
+  return handlePendingExport_('PrintQueue', selectPendingPrintLabels, 'printLabels', 'Print labels to Access');
+}
+
+function handleMarkPrintLabelsSynced_(body) {
+  return handleMarkExportSynced_(body, 'PrintQueue', resolvePrintLabelMarks, 'Print labels to Access');
 }
 
 function handlePendingExport_(sheetName, selectFn, resultKey, syncEvent) {

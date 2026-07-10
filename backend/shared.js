@@ -407,6 +407,77 @@ function resolveCullMarks(values, keys) {
 }
 
 /**
+ * Normalised queue_id primary key for a PrintQueue row — trimmed string so " PP-1 " and "PP-1" collide.
+ */
+function printLabelRowKey(queueId) {
+  return String(queueId === undefined || queueId === null ? '' : queueId).trim();
+}
+
+/**
+ * Backing logic for the `pendingPrintLabels` action: select the reverse-sync work set from the raw
+ * "PrintQueue" sheet values (row 0 = header). Returns every row whose `sync_status` is exactly
+ * "Pending" (trimmed, case-insensitive), shaped as:
+ * `{queue_id, date, accession, name, copies}` for Access PrintQueue insert + Batches print tracking.
+ *
+ * Columns are resolved by header name. A header-only or empty sheet, or one with no `sync_status`
+ * column, yields [].
+ */
+function selectPendingPrintLabels(values) {
+  if (!values || values.length < 2) return [];
+  var header = values[0];
+  var iStatus = salesColIndex(header, 'sync_status');
+  if (iStatus < 0) return [];
+  var iQueueId = salesColIndex(header, 'queue_id');
+  var iDate = salesColIndex(header, 'date');
+  var iAcc = salesColIndex(header, 'accession');
+  var iName = salesColIndex(header, 'name');
+  var iCopies = salesColIndex(header, 'copies');
+
+  var out = [];
+  for (var r = 1; r < values.length; r++) {
+    var row = values[r];
+    if (String(row[iStatus]).trim().toLowerCase() !== 'pending') continue;
+    out.push({
+      queue_id: rowStr(row, iQueueId),
+      date: rowStr(row, iDate),
+      accession: rowStr(row, iAcc),
+      name: rowStr(row, iName),
+      copies: rowNum(row, iCopies),
+    });
+  }
+  return out;
+}
+
+/**
+ * Backing logic for the `markPrintLabelsSynced` action: resolve mark requests against the raw
+ * "PrintQueue" sheet values (row 0 = header). Each request is `{queue_id, status}`; this finds the
+ * data row whose `queue_id` primary key matches and pairs it with the requested status.
+ *
+ * Returns `[{ rowIndex, status }]` (0-based into `values`). Unknown keys are silently ignored.
+ */
+function resolvePrintLabelMarks(values, keys) {
+  if (!values || values.length < 2 || !keys || keys.length === 0) return [];
+  var header = values[0];
+  var iQueueId = salesColIndex(header, 'queue_id');
+  if (iQueueId < 0) return [];
+
+  var byKey = Object.create(null);
+  for (var r = 1; r < values.length; r++) {
+    var k = printLabelRowKey(values[r][iQueueId]);
+    if (byKey[k] === undefined) byKey[k] = r;
+  }
+
+  var out = [];
+  (keys || []).forEach(function (req) {
+    var rowIndex = byKey[printLabelRowKey(req.queue_id)];
+    if (rowIndex !== undefined) {
+      out.push({ rowIndex: rowIndex, status: req.status });
+    }
+  });
+  return out;
+}
+
+/**
  * Pure helper mirroring Code.gs mark application: write sync_status and, when the row's current name
  * is unknown, optional plant enrichment columns. Returns a deep copy of values with updates applied.
  */
@@ -477,6 +548,7 @@ if (typeof module !== 'undefined' && module.exports) {
     findRowByKey, accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
     selectPendingSales, resolveSalesMarks,
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
+    printLabelRowKey, selectPendingPrintLabels, resolvePrintLabelMarks,
     isStockPlantCull, computeCullDeduction, applyMarksToValues,
   };
 }
