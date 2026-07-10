@@ -44,9 +44,25 @@ class SyncTest {
         assertEquals(4, Sync.totalPendingCount(receipts, culls)) // 2 SAVED + 2 PENDING
     }
 
+    @Test fun `totalPendingCount includes PENDING label print requests`() {
+        val culls = listOf(cull(1, CullStatus.PENDING))
+        val labels = listOf(
+            label(1, LabelPrintStatus.PENDING),
+            label(2, LabelPrintStatus.EXPORTED),
+            label(3, LabelPrintStatus.PENDING),
+        )
+        // 2 SAVED receipts + 1 PENDING cull + 2 PENDING labels
+        assertEquals(5, Sync.totalPendingCount(receipts, culls, labels))
+    }
+
     private fun cull(id: Long, status: CullStatus) = CullRecord(
         localId = id, cullNo = "PP-$id", createdAtEpochMs = 0, status = status,
         accession = "A", name = "X", group = null, isUnknown = false,
         qty = 1, unit = SaleUnit.TUBES, reason = CullReason.DEAD, notes = null,
+    )
+
+    private fun label(id: Long, status: LabelPrintStatus) = LabelPrintRequest(
+        localId = id, queueId = "07-$id", createdAtEpochMs = 0, status = status,
+        accession = "A", name = "X", copies = 1,
     )
 }
