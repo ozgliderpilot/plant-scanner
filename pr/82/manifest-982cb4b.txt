@@ -1,0 +1,13 @@
+01-actions|01-actions-982cb4b.png
+02-sell-scan|02-sell-scan-982cb4b.png
+03-sell-line|03-sell-line-982cb4b.png
+04-sell-cart|04-sell-cart-982cb4b.png
+05-sell-confirm|05-sell-confirm-982cb4b.png
+06-history|06-history-982cb4b.png
+07-receipts|07-receipts-982cb4b.png
+08-receipt-detail|08-receipt-detail-982cb4b.png
+09-cull-scan|09-cull-scan-982cb4b.png
+10-cull-info|10-cull-info-982cb4b.png
+11-cull-success|11-cull-success-982cb4b.png
+12-culls|12-culls-982cb4b.png
+13-plants|13-plants-982cb4b.png
