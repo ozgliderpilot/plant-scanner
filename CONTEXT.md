@@ -46,6 +46,13 @@ to exported only after a successful HTTP push. Receipts: `OPEN` → `SAVED` → 
 `PENDING` → `EXPORTED`. See `Sync` and `CullSync`.
 _Avoid_: outbox table, sync flag (as a separate concept)
 
+**Cloud sync**:
+The single device↔Sheets round trip: export the sync queue (pending sales, then pending culls),
+then import the plant list. History ↻, Plants ↻, and the background ticker all run this same
+sequence via `SyncRepository.syncCloud`. Import still runs when export fails or the queue is empty;
+both steps are skipped only when the device is not configured. See ADR-0001 and `CloudSync`.
+_Avoid_: export now, update plant list (as separate one-way actions), full sync (ambiguous)
+
 **Export header**:
 The ordered column list for a Sheet tab (`Export.HEADER` for Sales, `CullExport.HEADER` for Culls).
 Stable order relied on by the Apps Script backend — change only with coordinated `core/` and

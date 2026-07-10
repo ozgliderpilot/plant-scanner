@@ -10,7 +10,7 @@
 |---|---|
 | Target platform | **Android only** |
 | Distribution | **Sideloaded** (manually installed on ~2 devices, not on Play Store) |
-| Connectivity | **Offline-first** — selling works fully offline; **sales auto-export every ~1 min when online**; plant-list update is a manual pull |
+| Connectivity | **Offline-first** — selling works fully offline; **cloud sync every ~1 min when online** (export sync queue, then import plant list) |
 | Developer background | Comfortable in Java/Kotlin/TypeScript/Python; **new to mobile dev** |
 | Guiding priority | **Simplicity** |
 
@@ -67,7 +67,7 @@ Data is naturally **relational** (a receipt has many line items; each references
 and the spec's cardinal rule is *"nothing lost"* → a transactional SQLite store, not a document DB.
 
 ```
-PlantEntity(accession PK, name, group, light)                        ← replaced wholesale on "Update plant list" (accession == barcode; sheet has no price column)
+PlantEntity(accession PK, name, group, light)                        ← replaced wholesale on cloud sync plant-list import (accession == barcode; sheet has no price column)
 ReceiptEntity(localId PK, receiptNo, createdAt, status: OPEN | SAVED | EXPORTED)
 LineItemEntity(id PK, receiptId FK, accession, name, pots, unitPrice, discountPct)
 ```
@@ -103,23 +103,24 @@ Skip the official Sheets API (OAuth, Cloud project, consent screens, token refre
 2 trusted devices). Instead:
 
 - A **Google Apps Script** bound to the Sheet, deployed as a Web App, with:
-  - `doGet` → returns the plant list (for "Update plant list" / pull).
-  - `doPost` → appends sales rows incl. transaction date (for "Export to Google Sheets" / push).
+  - `doGet` / `getPlants` → returns the plant list (cloud sync import).
+  - `doPost` → appends sales/cull rows (cloud sync export).
 - Protected by a **shared secret** string sent by the app.
 - The app talks to it with plain **HTTPS + JSON**. All Sheet formatting logic lives in the script.
 
-## Auto-export (the 1-minute push)
+## Cloud sync (the ~1-minute round trip)
 
-Pending sales push automatically on a timer (default **60s**, configurable via DataStore).
+**Cloud sync** exports the sync queue then imports the plant list (see ADR-0001). Default interval
+**60s**, configurable via DataStore.
 
 - **Not WorkManager.** `PeriodicWorkRequest` has a **15-minute minimum** interval, so it cannot do a
-  1-minute cadence. Use an **in-app coroutine ticker** — a `while (isActive) { exportPending(); delay(interval) }`
+  1-minute cadence. Use an **in-app coroutine ticker** — a `while (isActive) { syncCloud(); delay(interval) }`
   loop on a lifecycle-aware scope that runs while the app is open.
 - **Why that's enough:** volunteers keep the app open during a selling session — exactly when receipts
   accrue — so no background execution is needed.
-- **Silent + safe:** each tick grabs `SAVED` receipts, pushes, and flips to `EXPORTED` only on success;
-  failures are swallowed and retried next tick (no popups/flicker, per the accessibility rules). The manual
-  **Export now** button reuses the same `exportPending()` and surfaces Done/Error visibly.
+- **Silent + safe:** each tick runs `SyncRepository.syncCloud` (export then import); rows flip to
+  `EXPORTED` only on HTTP success; failures are swallowed and retried next tick (no popups/flicker).
+  History/Plants ↻ reuse the same `syncCloud()` and surface Done/Error visibly.
 - **If background export is ever required** (app closed), promote to a **foreground Service** with a
   persistent notification — deferred; not needed for current usage.
 

@@ -131,7 +131,7 @@ private fun NurseryNavHost(
                 syncState = syncState,
                 isTabRoot = true,
                 canUpdate = syncState.online && !syncState.isBusy && config.isComplete,
-                onUpdate = { syncVm.updatePlantList() },
+                onUpdate = { syncVm.syncNow() },
             )
         }
 

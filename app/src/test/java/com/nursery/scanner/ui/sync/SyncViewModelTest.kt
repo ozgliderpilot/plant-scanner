@@ -1,0 +1,100 @@
+package com.nursery.scanner.ui.sync
+
+import com.nursery.core.DeviceConfig
+import com.nursery.scanner.data.repo.CloudSyncActions
+import com.nursery.scanner.data.repo.SyncResult
+import com.nursery.scanner.data.repo.SyncState
+import com.nursery.scanner.data.settings.SettingsConfigSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TestWatcher
+import org.junit.runner.Description
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class SyncViewModelTest {
+
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
+    @Test
+    fun syncNowRunsCloudSyncAndSurfacesDoneMessage() = runTest {
+        val sync = RecordingCloudSync(SyncResult.Done(salesCount = 2, cullCount = 1))
+        val vm = SyncViewModel(sync, FakeSettings(DeviceConfig("07", "https://x/exec", "secret", 60)))
+
+        vm.syncNow()
+        runCurrent()
+
+        assertEquals(1, sync.calls)
+        assertEquals("Synced (2 sales, 1 cull)", vm.message.value)
+    }
+
+    @Test
+    fun syncNowSurfacesExportErrorFromCloudSync() = runTest {
+        val sync = RecordingCloudSync(SyncResult.Error("sales push failed"))
+        val vm = SyncViewModel(sync, FakeSettings(DeviceConfig("07", "https://x/exec", "secret", 60)))
+
+        vm.syncNow()
+        runCurrent()
+
+        assertEquals(1, sync.calls)
+        assertEquals("Error: sales push failed", vm.message.value)
+    }
+
+    @Test
+    fun syncNowSurfacesNotConfiguredWithoutCallingFailurePath() = runTest {
+        val sync = RecordingCloudSync(SyncResult.NotConfigured)
+        val vm = SyncViewModel(sync, FakeSettings(DeviceConfig.default()))
+
+        vm.syncNow()
+        runCurrent()
+
+        assertEquals(1, sync.calls)
+        assertEquals("Set up the connection in Settings first", vm.message.value)
+    }
+}
+
+private class RecordingCloudSync(
+    private val result: SyncResult,
+) : CloudSyncActions {
+    var calls = 0
+        private set
+
+    override val state: StateFlow<SyncState> = MutableStateFlow(SyncState())
+    override val plantCount: Flow<Int> = MutableStateFlow(0)
+
+    override suspend fun syncCloud(): SyncResult {
+        calls++
+        return result
+    }
+}
+
+private class FakeSettings(
+    config: DeviceConfig,
+) : SettingsConfigSource {
+    override val config: Flow<DeviceConfig> = MutableStateFlow(config)
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+private class MainDispatcherRule(
+    private val dispatcher: TestDispatcher = StandardTestDispatcher(),
+) : TestWatcher() {
+    override fun starting(description: Description) {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    override fun finished(description: Description) {
+        Dispatchers.resetMain()
+    }
+}

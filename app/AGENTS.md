@@ -15,9 +15,10 @@ Device/emulator setup: [`docs/deploy/connect.md`](../docs/deploy/connect.md).
 ## Structure
 
 - **Manual DI** — `di/AppContainer.kt`; no Hilt.
-- **`SyncRepository`** — only cloud I/O; serialized by `cloudMutex`.
-- **Auto-export** — in-app coroutine ticker (`AutoExportTicker`), not WorkManager; started from
-  `MainActivity` after optional CI mode (so CI can leave it off).
+- **`SyncRepository`** — only cloud I/O; serialized by `cloudMutex`. Single entry
+  `syncCloud()` = export sync queue then import plant list (ADR-0001).
+- **Background ticker** — in-app coroutine (`AutoExportTicker`) calls `syncCloud` on an interval;
+  not WorkManager; started from `MainActivity` after optional CI mode (so CI can leave it off).
 - **Room** — no `fallbackToDestructiveMigration`; schema changes need real `Migration`s in
   `Migrations.kt`. Check `NurseryDatabase.kt` for current version.
 - **CI mode (qaDebug only)** — `CiNurseryApplication` + `CiBootstrap`; launch extra

@@ -32,7 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nursery.scanner.ui.sync.SyncViewModel
 
 /**
- * History tab hub: review past work (receipts, culls, labels) with manual export in the header.
+ * History tab hub: review past work (receipts, culls, labels) with cloud sync in the header.
  * Settings opens via 5× tap on the version string at the bottom.
  */
 @Composable
@@ -57,7 +57,7 @@ fun HistoryScreen(
             online = state.online,
             isBusy = state.isBusy,
             canSync = canExport,
-            onSync = { vm.exportNow() },
+            onSync = { vm.syncNow() },
         )
 
         Column(

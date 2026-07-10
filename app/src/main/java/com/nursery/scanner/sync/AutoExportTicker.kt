@@ -11,10 +11,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * The auto-export "1-minute push" (spec #10). A plain in-app coroutine ticker — NOT WorkManager,
- * whose periodic floor is 15 minutes. Runs while the app is alive; each tick silently pushes pending
- * receipts when configured + online, and swallows every result/error so nothing ever flickers.
- * The manual "Export now" button calls SyncRepository.exportPending() directly and shows its result.
+ * Background cloud-sync ticker. A plain in-app coroutine — NOT WorkManager, whose periodic floor
+ * is 15 minutes. Runs while the app is alive; each tick silently runs [SyncRepository.syncCloud]
+ * when configured + online, and swallows every result/error so nothing ever flickers.
+ * History/Plants ↻ call the same [SyncRepository.syncCloud] and surface the result.
  */
 class AutoExportTicker(
     private val sync: SyncRepository,
@@ -30,7 +30,7 @@ class AutoExportTicker(
             while (isActive) {
                 val config = settings.config.first()
                 if (config.isComplete && connectivity.isOnline()) {
-                    runCatching { sync.exportPending() } // silent on success AND failure
+                    runCatching { sync.syncCloud() } // silent on success AND failure
                 }
                 delay(config.autoExportSeconds * 1000L)
             }

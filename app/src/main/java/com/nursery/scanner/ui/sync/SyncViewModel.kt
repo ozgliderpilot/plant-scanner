@@ -3,10 +3,10 @@ package com.nursery.scanner.ui.sync
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nursery.core.DeviceConfig
-import com.nursery.scanner.data.repo.SyncRepository
+import com.nursery.scanner.data.repo.CloudSyncActions
 import com.nursery.scanner.data.repo.SyncResult
 import com.nursery.scanner.data.repo.SyncState
-import com.nursery.scanner.data.settings.SettingsRepository
+import com.nursery.scanner.data.settings.SettingsConfigSource
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,8 +14,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class SyncViewModel(
-    private val sync: SyncRepository,
-    settings: SettingsRepository,
+    private val sync: CloudSyncActions,
+    settings: SettingsConfigSource,
 ) : ViewModel() {
 
     val state: StateFlow<SyncState> = sync.state
@@ -34,21 +34,18 @@ class SyncViewModel(
         _message.value = null
     }
 
-    fun updatePlantList() = viewModelScope.launch {
-        _message.value = describe(sync.updatePlantList(), okWord = "Plant list updated")
+    /** History ↻ and Plants ↻ both run the same cloud sync (export then import). */
+    fun syncNow() = viewModelScope.launch {
+        _message.value = describe(sync.syncCloud())
     }
 
-    fun exportNow() = viewModelScope.launch {
-        _message.value = describe(sync.exportPending(), okWord = "Exported")
-    }
-
-    private fun describe(result: SyncResult, okWord: String): String = when (result) {
+    private fun describe(result: SyncResult): String = when (result) {
         is SyncResult.Done -> {
             val base = when {
-                result.salesCount == 0 && result.cullCount == 0 -> "$okWord (0)"
-                result.cullCount == 0 -> "$okWord (${result.salesCount} sales)"
-                result.salesCount == 0 -> "$okWord (${result.cullCount} cull)"
-                else -> "$okWord (${result.salesCount} sales, ${result.cullCount} cull)"
+                result.salesCount == 0 && result.cullCount == 0 -> "Synced (0 pending)"
+                result.cullCount == 0 -> "Synced (${result.salesCount} sales)"
+                result.salesCount == 0 -> "Synced (${result.cullCount} cull)"
+                else -> "Synced (${result.salesCount} sales, ${result.cullCount} cull)"
             }
             result.partialError?.let { "$base · $it" } ?: base
         }
