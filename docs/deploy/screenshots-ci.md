@@ -22,8 +22,9 @@ deletes `pr/<n>/`.
 ## CI mode (qaDebug only)
 
 `CiNurseryApplication` + `CiBootstrap` live under `src/qaDebug/`. Launch extra
-`com.nursery.scanner.CI_MODE` (see `CiMode.EXTRA_CI_MODE`). When active: stop auto-export, camera
-placeholder + permission skip, seed fixtures every cold start (Maestro `clearState`).
+`com.nursery.scanner.CI_MODE` (see `CiMode.EXTRA_CI_MODE`). When `CiMode.active`: stop
+auto-export, camera placeholder + permission skip, seed fixtures every cold start
+(Maestro `clearState`).
 
 Fixtures: prefix `99`, dummy endpoint, plants `1001`/`1002`/`1003`, one SAVED receipt, one PENDING
 cull. Walked sale uses `1001` @ `$5.00`; walked cull uses `1002`.

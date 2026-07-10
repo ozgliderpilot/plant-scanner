@@ -10,7 +10,6 @@ HEAD_SHA="${1:?head sha}"
 PR_NUMBER="${2:?pr number}"
 RUN_URL="${3:?actions run url}"
 SHORT="$(echo "$HEAD_SHA" | cut -c1-7)"
-FRAMES_FILE=".maestro/gallery-frames.txt"
 
 adb wait-for-device
 # Cached AVDs (force-avd-creation: false) can retain a prior qaDebug install signed
@@ -29,11 +28,11 @@ maestro test --format JUNIT --output maestro-out/report.xml .maestro/gallery.yam
 MAESTRO_EXIT=$?
 set -e
 
-.github/scripts/screenshots/normalize-screenshots.sh maestro-out gallery "$SHORT" "$FRAMES_FILE"
+.github/scripts/screenshots/normalize-screenshots.sh maestro-out gallery "$SHORT"
 
 if [[ -s gallery/manifest.txt ]]; then
   .github/scripts/screenshots/publish-and-comment.sh \
-    gallery "$PR_NUMBER" "$SHORT" "$RUN_URL" "$HEAD_SHA" "$FRAMES_FILE"
+    gallery "$PR_NUMBER" "$SHORT" "$RUN_URL" "$HEAD_SHA"
 fi
 
 exit "$MAESTRO_EXIT"

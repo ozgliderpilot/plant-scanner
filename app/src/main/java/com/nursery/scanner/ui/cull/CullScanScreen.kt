@@ -54,7 +54,7 @@ fun CullScanScreen(
     val focusManager = LocalFocusManager.current
     var hasCamera by remember {
         mutableStateOf(
-            CiMode.skipCameraPermission ||
+            CiMode.active ||
                 ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
                 PackageManager.PERMISSION_GRANTED,
         )

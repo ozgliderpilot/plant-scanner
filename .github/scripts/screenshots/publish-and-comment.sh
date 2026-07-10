@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Publish gallery PNGs to ci-screenshots and post a collapsible PR comment.
 # Frame captions: .maestro/gallery-frames.txt (id|caption).
+# Manifest lines from normalize: id|filename.png
 # Usage: publish-and-comment.sh <gallery-dir> <pr-number> <short-sha> <run-url> <commit-sha> [frames-file]
 set -euo pipefail
 
@@ -18,7 +19,6 @@ RAW_BASE="https://raw.githubusercontent.com/${REPO}/ci-screenshots/${REMOTE_DIR}
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-# --- captions from frames file ---
 declare -A CAPTIONS=()
 EXPECTED=0
 while IFS='|' read -r frame caption || [[ -n "${frame:-}" ]]; do
@@ -27,7 +27,6 @@ while IFS='|' read -r frame caption || [[ -n "${frame:-}" ]]; do
   EXPECTED=$((EXPECTED + 1))
 done < "$FRAMES_FILE"
 
-# --- publish to orphan branch ---
 git config --global user.name "github-actions[bot]"
 git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -44,10 +43,15 @@ else
 fi
 
 mkdir -p "$WORK/repo/$REMOTE_DIR"
+COUNT=0
+ENTRIES=()
 if [[ -f "$GALLERY/manifest.txt" ]]; then
-  while IFS= read -r file || [[ -n "$file" ]]; do
-    [[ -z "$file" ]] && continue
+  while IFS='|' read -r frame file || [[ -n "${frame:-}" ]]; do
+    [[ -z "${frame:-}" || -z "${file:-}" ]] && continue
     cp "$GALLERY/$file" "$WORK/repo/$REMOTE_DIR/$file"
+    COUNT=$((COUNT + 1))
+    caption="${CAPTIONS[$frame]:-Screen $COUNT}"
+    ENTRIES+=("${caption}|${RAW_BASE}/${file}")
   done < "$GALLERY/manifest.txt"
   cp "$GALLERY/manifest.txt" "$WORK/repo/$REMOTE_DIR/manifest-${SHA}.txt"
 fi
@@ -69,24 +73,6 @@ if ! git -C "$WORK/repo" diff --cached --quiet; then
   echo "Published to ${BRANCH}/${REMOTE_DIR}/"
 else
   echo "No screenshot changes to publish"
-fi
-
-# --- PR comment ---
-COUNT=0
-ENTRIES=()
-if [[ -f "$GALLERY/manifest.txt" ]]; then
-  while IFS= read -r file || [[ -n "$file" ]]; do
-    [[ -z "$file" ]] && continue
-    COUNT=$((COUNT + 1))
-    # 01-actions-abc1234.png → 01-actions
-    if [[ "$file" =~ ^(.+)-[0-9a-f]{7}\.png$ ]]; then
-      frame="${BASH_REMATCH[1]}"
-    else
-      frame="${file%.png}"
-    fi
-    caption="${CAPTIONS[$frame]:-Screen $COUNT}"
-    ENTRIES+=("${caption}|${RAW_BASE}/${file}")
-  done < "$GALLERY/manifest.txt"
 fi
 
 if [[ "$COUNT" -eq 0 ]]; then

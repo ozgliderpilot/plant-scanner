@@ -10,8 +10,6 @@ import java.time.ZoneId
 object CiBootstrap {
     suspend fun activate(container: AppContainer) {
         CiMode.active = true
-        CiMode.useCameraPlaceholder = true
-        CiMode.skipCameraPermission = true
         container.autoExportTicker.stop()
 
         val settings = container.settingsRepository

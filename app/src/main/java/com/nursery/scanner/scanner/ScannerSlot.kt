@@ -12,17 +12,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.nursery.scanner.ci.CiMode
 
-/**
- * Camera preview slot shared by sell and cull scan screens.
- * In CI mode shows a static placeholder instead of CameraX.
- */
+/** Camera preview for sell/cull scan; static placeholder when [CiMode.active]. */
 @Composable
 fun ScannerSlot(
     scanning: Boolean,
     onBarcode: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (CiMode.useCameraPlaceholder) {
+    if (CiMode.active) {
         Box(
             modifier = modifier
                 .fillMaxSize()
