@@ -50,8 +50,9 @@ appId: com.nursery.scanner.test
 - takeScreenshot:
     path: maestro-out/07-receipts
 # Seeded receipt number is stable across CI runs (CiFixtures).
+# Maestro text selectors are full-string regexes — match the whole Compose Text.
 - tapOn: "99-1700000000-1"
-- assertVisible: "Payment:"
+- assertVisible: "Payment:.*"
 - takeScreenshot:
     path: maestro-out/08-receipt-detail
 - back
@@ -72,7 +73,8 @@ appId: com.nursery.scanner.test
 - takeScreenshot:
     path: maestro-out/10-cull-info
 - tapOn: "Record cull"
-- assertVisible: "Saved locally"
+# CullSuccessScreen shows "Saved locally · N pending" as one Text node.
+- assertVisible: "Saved locally.*"
 - takeScreenshot:
     path: maestro-out/11-cull-success
 - tapOn: "Done"
