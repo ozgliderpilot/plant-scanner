@@ -32,16 +32,55 @@ appId: com.nursery.scanner.test
 - hideKeyboard
 - tapOn:
     id: find
-- takeScreenshot:
-    path: maestro-out/03-sell-line
 - tapOn:
     text: "Unit price ($)"
 - inputText: "5.00"
 - hideKeyboard
 - tapOn:
+    text: "Discount %"
+- inputText: "10"
+- hideKeyboard
+- takeScreenshot:
+    path: maestro-out/03-sell-line
+- tapOn:
     id: add_to_receipt
 - takeScreenshot:
     path: maestro-out/04-sell-cart
+
+# Two more lines before confirm (no extra frames): same Grevillea as tube, then Lomandra.
+- tapOn: "Scan another"
+- tapOn:
+    id: type_number
+- tapOn:
+    text: "Accession number"
+- inputText: "1001"
+- hideKeyboard
+- tapOn:
+    id: find
+- tapOn: "pot"
+- tapOn: "tube"
+- tapOn:
+    text: "Unit price ($)"
+- inputText: "3.00"
+- hideKeyboard
+- tapOn:
+    id: add_to_receipt
+- tapOn: "Scan another"
+- tapOn:
+    id: type_number
+- tapOn:
+    text: "Accession number"
+- inputText: "1003"
+- hideKeyboard
+- tapOn:
+    id: find
+- tapOn:
+    text: "Unit price ($)"
+- inputText: "4.00"
+- hideKeyboard
+- tapOn:
+    id: add_to_receipt
+
 - tapOn:
     id: finish_save
 # Wait for async finishAndSave → ConfirmScreen (cart stays up until persist completes).
@@ -82,6 +121,14 @@ appId: com.nursery.scanner.test
 - tapOn:
     id: find
 - assertVisible: "Record cull"
+- tapOn:
+    text: "Notes (optional)"
+- inputText: "Yellowing leaves"
+- hideKeyboard
+- tapOn:
+    id: qty_plus
+- tapOn:
+    id: qty_plus
 - takeScreenshot:
     path: maestro-out/10-cull-info
 - tapOn:

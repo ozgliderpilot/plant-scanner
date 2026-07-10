@@ -7,6 +7,7 @@ object TestTags {
     const val TYPE_NUMBER = "type_number"
     const val FIND = "find"
     const val ADD_TO_RECEIPT = "add_to_receipt"
+    const val QTY_PLUS = "qty_plus"
     const val FINISH_SAVE = "finish_save"
     const val DONE = "done"
     const val VIEW_RECEIPTS = "view_receipts"

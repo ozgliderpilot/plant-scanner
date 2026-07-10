@@ -121,7 +121,10 @@ fun LineItemScreen(
                     Icon(Icons.Filled.Remove, contentDescription = "One fewer")
                 }
                 Text("$qty", style = MaterialTheme.typography.displaySmall)
-                FilledTonalIconButton(onClick = { qty++ }, modifier = Modifier.size(64.dp)) {
+                FilledTonalIconButton(
+                    onClick = { qty++ },
+                    modifier = Modifier.size(64.dp).testTag(TestTags.QTY_PLUS),
+                ) {
                     Icon(Icons.Filled.Add, contentDescription = "One more")
                 }
                 UnitDropdown(selected = unit, qty = qty, onSelect = { unit = it }, modifier = Modifier.weight(1f))

@@ -17,6 +17,10 @@ class CiFixturesTest {
         assertEquals("1001", CiFixtures.WALK_ACCESSION)
         assertEquals(2, CiFixtures.SEEDED_SEQ_COUNT)
 
+        val grevillea = CiFixtures.PLANTS.single { it.accession == "1001" }
+        assertEquals(12, grevillea.potsInNursery)
+        assertEquals(6, grevillea.tubesInNursery)
+
         val config = CiFixtures.deviceConfig()
         assertEquals(CiFixtures.DEVICE_PREFIX, config.devicePrefix)
         assertEquals(CiFixtures.ENDPOINT_URL, config.endpointUrl)

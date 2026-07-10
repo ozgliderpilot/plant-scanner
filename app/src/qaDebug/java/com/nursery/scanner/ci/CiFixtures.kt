@@ -36,7 +36,8 @@ object CiFixtures {
             group = "Shrubs",
             light = "Full sun",
             potsInNursery = 12,
-            tubesInNursery = 0,
+            // Tubes > 0 so the gallery walk can add the same Grevillea as a tube line.
+            tubesInNursery = 6,
             miscInNursery = 0,
             stockInNursery = 0,
         ),
