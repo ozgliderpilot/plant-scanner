@@ -3,7 +3,8 @@ const assert = require('node:assert');
 const {
   isAuthorized, emptyToNull, parsePlants, composePlantName, filterNewRows, planPlantReplace,
   findRowByKey, accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
-  selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction,
+  selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction, computeSalesDeduction,
+  predictStockUpdates,
   validateAppendCullsNotes, applyMarksToValues,
   selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
   PRINT_LABEL_COPIES_MAX,
@@ -765,4 +766,142 @@ test('validateAppendPrintLabelCopies rejects non-positive, non-integer, or extre
     validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, [['07-1', '2026-07-01T12:00', '31011', 'A', 'abc']]),
     msg,
   );
+});
+
+// ---- Stock prediction on append (#80) — mirrors Access DeductSelfTest / ComputeDeduction_ ---------
+test('computeSalesDeduction subtracts pots only, clamped at zero', () => {
+  assert.deepStrictEqual(
+    computeSalesDeduction('pots', 3, 10, 5, 4),
+    { pots: 7, tubes: 5, misc: 4 },
+  );
+  assert.deepStrictEqual(
+    computeSalesDeduction('pots', 9, 2, 5, 4),
+    { pots: 0, tubes: 5, misc: 4 },
+  );
+});
+
+test('computeSalesDeduction subtracts tubes only, clamped at zero', () => {
+  assert.deepStrictEqual(
+    computeSalesDeduction('tubes', 3, 10, 5, 4),
+    { pots: 10, tubes: 2, misc: 4 },
+  );
+  assert.deepStrictEqual(
+    computeSalesDeduction('tubes', 9, 10, 2, 4),
+    { pots: 10, tubes: 0, misc: 4 },
+  );
+});
+
+test('computeSalesDeduction misc overflows into pots when oversold', () => {
+  // DeductSelfTest cases: pure misc, exact zero, partial overflow, overflow exceeding pots
+  assert.deepStrictEqual(
+    computeSalesDeduction('misc', 3, 10, 5, 4),
+    { pots: 10, tubes: 5, misc: 1 },
+  );
+  assert.deepStrictEqual(
+    computeSalesDeduction('misc', 4, 10, 5, 4),
+    { pots: 10, tubes: 5, misc: 0 },
+  );
+  assert.deepStrictEqual(
+    computeSalesDeduction('misc', 7, 10, 5, 4),
+    { pots: 7, tubes: 5, misc: 0 },
+  );
+  assert.deepStrictEqual(
+    computeSalesDeduction('misc', 9, 2, 5, 4),
+    { pots: 0, tubes: 5, misc: 0 },
+  );
+});
+
+test('computeSalesDeduction blank or unrecognized unit moves nothing', () => {
+  assert.deepStrictEqual(
+    computeSalesDeduction('', 5, 10, 5, 4),
+    { pots: 10, tubes: 5, misc: 4 },
+  );
+  assert.deepStrictEqual(
+    computeSalesDeduction('unknown', 5, 10, 5, 4),
+    { pots: 10, tubes: 5, misc: 4 },
+  );
+});
+
+test('computeSalesDeduction successive misc rows are order-independent', () => {
+  // DeductSelfTest PrintOrderIndependence_: misc 3 then 5 vs 5 then 3 from (4,0,6)
+  let a = { pots: 4, tubes: 0, misc: 6 };
+  a = computeSalesDeduction('misc', 3, a.pots, a.tubes, a.misc);
+  a = computeSalesDeduction('misc', 5, a.pots, a.tubes, a.misc);
+  let b = { pots: 4, tubes: 0, misc: 6 };
+  b = computeSalesDeduction('misc', 5, b.pots, b.tubes, b.misc);
+  b = computeSalesDeduction('misc', 3, b.pots, b.tubes, b.misc);
+  assert.deepStrictEqual(a, b);
+});
+
+test('predictStockUpdates deducts a sale from the matching Plants-tab accession', () => {
+  const plants = [
+    ['Ac Number', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery', 'StockInNursery'],
+    ['31011', 10, 5, 4, 2],
+    ['8250', 3, 0, 0, 1],
+  ];
+  const appended = [
+    salesRow('PP-1-1', '2026-07-11', 1, '31011', 'Acacia', 3, 'pots', 500, 0, 1500, 'Pending'),
+  ];
+  assert.deepStrictEqual(
+    predictStockUpdates(plants, SALES_HEADER, appended, 'sales'),
+    [{ rowIndex: 1, pots: 7, tubes: 5, misc: 4 }],
+  );
+  // StockInNursery on the plants sheet is untouched (not part of the update payload)
+  assert.strictEqual(plants[1][4], 2);
+});
+
+test('predictStockUpdates skips unknown accessions and applies misc→pots overflow', () => {
+  const plants = [
+    ['Ac Number', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery', 'StockInNursery'],
+    ['31011', 10, 5, 4, 2],
+  ];
+  const appended = [
+    salesRow('PP-1-1', '2026-07-11', 1, '99999', 'unknown', 2, 'pots', 500, 0, 1000, 'Pending'),
+    salesRow('PP-1-1', '2026-07-11', 2, '31011', 'Acacia', 7, 'misc', 100, 0, 700, 'Pending'),
+  ];
+  assert.deepStrictEqual(
+    predictStockUpdates(plants, SALES_HEADER, appended, 'sales'),
+    [{ rowIndex: 1, pots: 7, tubes: 5, misc: 0 }],
+  );
+});
+
+test('predictStockUpdates deducts a cull from only the named pot type', () => {
+  const plants = [
+    ['Ac Number', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery', 'StockInNursery'],
+    ['31011', 10, 5, 4, 0],
+  ];
+  const appended = [
+    ['PP-1-1', '2026-07-11', '31011', 'Acacia', '', '', '', '', 'Tree', 3, 'tubes', 'Dead', ''],
+  ];
+  // Culls: only tubes drop; misc oversell would NOT overflow to pots (unlike sales)
+  assert.deepStrictEqual(
+    predictStockUpdates(plants, CULLS_HEADER, appended, 'culls'),
+    [{ rowIndex: 1, pots: 10, tubes: 2, misc: 4 }],
+  );
+});
+
+test('predictStockUpdates skips stock-plant culls and leaves zeroed plants on the tab', () => {
+  const plants = [
+    ['Ac Number', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery', 'StockInNursery'],
+    ['31011', 2, 0, 0, 1],
+    ['8250', 1, 0, 0, 0],
+  ];
+  const appended = [
+    // Stock plant: notes + pots → no stock move
+    ['PP-1-1', '2026-07-11', '31011', 'Acacia', '', '', '', '', '', 1, 'pots', 'Dead', 'Stock plant'],
+    // Regular cull that zeros the plant — plant stays with zeros
+    ['PP-1-2', '2026-07-11', '8250', 'Banksia', '', '', '', '', '', 1, 'pots', 'Dead', ''],
+  ];
+  assert.deepStrictEqual(
+    predictStockUpdates(plants, CULLS_HEADER, appended, 'culls'),
+    [{ rowIndex: 2, pots: 0, tubes: 0, misc: 0 }],
+  );
+});
+
+test('predictStockUpdates returns [] when nothing was appended (dedupe-only push)', () => {
+  const plants = [
+    ['Ac Number', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery', 'StockInNursery'],
+    ['31011', 10, 5, 4, 2],
+  ];
+  assert.deepStrictEqual(predictStockUpdates(plants, SALES_HEADER, [], 'sales'), []);
 });
