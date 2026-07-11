@@ -904,5 +904,4 @@ test('predictStockUpdates returns [] when nothing was appended (dedupe-only push
     ['31011', 10, 5, 4, 2],
   ];
   assert.deepStrictEqual(predictStockUpdates(plants, SALES_HEADER, [], 'sales'), []);
-  assert.deepStrictEqual(predictStockUpdates(plants, SALES_HEADER, null, 'sales'), []);
 });

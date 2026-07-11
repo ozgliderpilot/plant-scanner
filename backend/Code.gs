@@ -168,6 +168,7 @@ function handleAppendExport_(body, opts) {
           predictPlantsStock_(body.header, result.rows, opts.predictKind);
         } catch (e) {
           // Access replacePlants will self-correct on the next reverse sync.
+          console.error('predictPlantsStock_ failed after append:', e);
         }
       }
     }
@@ -180,6 +181,8 @@ function handleAppendExport_(body, opts) {
 /**
  * Apply predicted Pots/Tubes/Misc stock deductions to the Plants tab for newly appended rows.
  * Caller holds the document lock. Swallows nothing — callers wrap in try/catch.
+ * Columns are not always contiguous on the Access mirror, so each stock column is batch-written
+ * separately (same contiguous-run pattern as applyExportMarks_).
  */
 function predictPlantsStock_(exportHeader, appendedRows, kind) {
   var plantsSheet = SpreadsheetApp.getActive().getSheetByName('Plants');
@@ -194,13 +197,24 @@ function predictPlantsStock_(exportHeader, appendedRows, kind) {
   var iMisc = headerColIndex(header, 'miscinnursery');
   if (iPots < 0 || iTubes < 0 || iMisc < 0) return;
 
-  updates.forEach(function (u) {
-    // Sheet rows are 1-based; values rowIndex is 0-based (header = 0).
-    var sheetRow = u.rowIndex + 1;
-    plantsSheet.getRange(sheetRow, iPots + 1).setValue(u.pots);
-    plantsSheet.getRange(sheetRow, iTubes + 1).setValue(u.tubes);
-    plantsSheet.getRange(sheetRow, iMisc + 1).setValue(u.misc);
-  });
+  writePredictedStockColumn_(plantsSheet, updates, iPots, 'pots');
+  writePredictedStockColumn_(plantsSheet, updates, iTubes, 'tubes');
+  writePredictedStockColumn_(plantsSheet, updates, iMisc, 'misc');
+}
+
+/** Batch-write one stock column for sorted updates, coalescing contiguous plant rows. */
+function writePredictedStockColumn_(sheet, updates, colIndex, field) {
+  var i = 0;
+  while (i < updates.length) {
+    var startRow = updates[i].rowIndex + 1; // sheet is 1-based; values rowIndex is 0-based
+    var block = [[updates[i][field]]];
+    i++;
+    while (i < updates.length && updates[i].rowIndex === updates[i - 1].rowIndex + 1) {
+      block.push([updates[i][field]]);
+      i++;
+    }
+    sheet.getRange(startRow, colIndex + 1, block.length, 1).setValues(block);
+  }
 }
 
 function handlePendingSales_() {

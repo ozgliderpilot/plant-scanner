@@ -566,18 +566,18 @@ function computeSalesDeduction(unit, qty, pots, tubes, misc) {
   var u = String(unit === undefined || unit === null ? '' : unit).trim().toLowerCase();
   if (qty < 0) qty = 0;
   var p = pots, t = tubes, m = misc;
-  function sub(cur, n) { return cur - n < 0 ? 0 : cur - n; }
   switch (u) {
     case 'pots':
-      p = sub(p, qty);
+      p = Math.max(0, p - qty);
       break;
     case 'tubes':
-      t = sub(t, qty);
+      t = Math.max(0, t - qty);
       break;
     case 'misc': {
-      var shortfall = sub(qty, m); // max(0, qty - misc): sold beyond MiscInNursery
-      m = sub(m, qty);
-      p = sub(p, shortfall);       // overflow draws down pots, clamped at 0
+      // Access ClampSub_(qty, m): shortfall is misc sold beyond MiscInNursery, then drawn from pots.
+      var shortfall = Math.max(0, qty - m);
+      m = Math.max(0, m - qty);
+      p = Math.max(0, p - shortfall);
       break;
     }
   }
@@ -591,7 +591,12 @@ function computeSalesDeduction(unit, qty, pots, tubes, misc) {
  * Returns one entry per touched plant row: { rowIndex, pots, tubes, misc } (0-based in values).
  */
 function predictStockUpdates(plantsValues, exportHeader, appendedRows, kind) {
-  if (!plantsValues || plantsValues.length < 2 || !(appendedRows || []).length) return [];
+  var deduct = kind === 'sales' ? computeSalesDeduction
+    : kind === 'culls' ? computeCullDeduction
+    : null;
+  if (!deduct || !plantsValues || plantsValues.length < 2 || !appendedRows || !appendedRows.length) {
+    return [];
+  }
   var pHeader = plantsValues[0];
   var iAcc = accessionColIndex(pHeader);
   var iPots = headerColIndex(pHeader, 'potsinnursery');
@@ -632,14 +637,7 @@ function predictStockUpdates(plantsValues, exportHeader, appendedRows, kind) {
       touched[accession] = state;
     }
 
-    var next;
-    if (kind === 'sales') {
-      next = computeSalesDeduction(unit, rowNum(row, iQty), state.pots, state.tubes, state.misc);
-    } else if (kind === 'culls') {
-      next = computeCullDeduction(unit, rowNum(row, iQty), state.pots, state.tubes, state.misc);
-    } else {
-      continue;
-    }
+    var next = deduct(unit, rowNum(row, iQty), state.pots, state.tubes, state.misc);
     state.pots = next.pots;
     state.tubes = next.tubes;
     state.misc = next.misc;
