@@ -15,4 +15,5 @@
 14-receipts|Receipts
 15-receipt-detail|Receipt detail
 16-culls|Culls
-17-plants|Plants
+17-labels|Labels
+18-plants|Plants

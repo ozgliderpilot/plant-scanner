@@ -1,7 +1,7 @@
 appId: com.nursery.scanner.test
 ---
 # Volunteer-critical gallery walk (#72).
-# Order: Actions (Sell → Cull → Print) → History (Receipts → Culls) → Plants.
+# Order: Actions (Sell → Cull → Print) → History (Receipts → Culls → Labels) → Plants.
 # Prefer id (Compose testTag) for primary actions; text for fields / asserts.
 # Screenshot paths are relative to the Maestro workspace (repo root), not --output.
 # Frame ids/captions: .maestro/gallery-frames.txt
@@ -166,7 +166,7 @@ appId: com.nursery.scanner.test
 - tapOn:
     id: done
 
-# --- History: list → receipts → culls ---
+# --- History: list → receipts → culls → labels ---
 - tapOn: "History"
 - takeScreenshot:
     path: maestro-out/13-history
@@ -186,6 +186,11 @@ appId: com.nursery.scanner.test
 - takeScreenshot:
     path: maestro-out/16-culls
 - back
+- tapOn:
+    id: view_labels
+- takeScreenshot:
+    path: maestro-out/17-labels
+- back
 - tapOn: "Plants"
 - takeScreenshot:
-    path: maestro-out/17-plants
+    path: maestro-out/18-plants
