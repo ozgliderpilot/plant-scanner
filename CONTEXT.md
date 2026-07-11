@@ -47,11 +47,12 @@ a `queue_id` that uses the receipt-number scheme. Not for new accessions or repo
 _Avoid_: print job, label order
 
 **Repot**:
-A volunteer update of an accession’s Tubes / Pots / Misc. counts (absolute values), commonly tubes
-becoming pots, plus an optional Ready for sale tick. Recorded locally and exported like culls;
-Access applies stock. Not-found accessions are blocked (contact database manager). Stock plant
-(`StockInNursery`) is display-only here; tray/cuttings belong under New accession. Hanging baskets
-use Misc. See `docs/superpowers/specs/2026-07-11-repot-stock-update-design.md`.
+A volunteer update of an accession’s Tubes / Pots / Misc. / Stock plant counts (absolute values),
+commonly tubes becoming pots, plus three Ready for sale ticks (Tubes / Pots / Misc. only — stock
+plants are never for sale). Recorded locally and exported like culls; Access applies stock.
+Not-found accessions are blocked (contact database manager). Tray/cuttings belong under New
+accession. Hanging baskets use Misc. See
+`docs/superpowers/specs/2026-07-11-repot-stock-update-design.md`.
 _Avoid_: transfer-only, inventory adjust (as a separate concept), restock
 
 **Nursery stock total**:
