@@ -19,6 +19,17 @@ class CloudSyncTest {
         assertNull(outcome.errorMessage)
         assertEquals(2, outcome.salesCount)
         assertEquals(1, outcome.cullCount)
+        assertEquals(0, outcome.labelCount)
+    }
+
+    @Test
+    fun `label count is carried through when export ok`() {
+        val outcome = CloudSync.combine(
+            export = CloudSync.ExportStep.Ok(salesCount = 1, cullCount = 0, labelCount = 4),
+            import = CloudSync.ImportStep.Ok,
+        )
+        assertEquals(4, outcome.labelCount)
+        assertNull(outcome.errorMessage)
     }
 
     @Test

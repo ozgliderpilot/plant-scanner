@@ -84,6 +84,22 @@ class SyncViewModelTest {
     }
 
     @Test
+    fun syncNowIncludesLabelCountInDoneMessage() = runTest {
+        val sync = RecordingCloudSync(
+            SyncResult.Done(salesCount = 1, cullCount = 0, labelCount = 2),
+        )
+        val vm = SyncViewModel(
+            sync,
+            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60))),
+        )
+
+        vm.syncNow()
+        runCurrent()
+
+        assertEquals("Synced (1 sales, 2 label)", vm.message.value)
+    }
+
+    @Test
     fun syncNowSurfacesNotConfiguredWithoutCallingFailurePath() = runTest {
         val sync = RecordingCloudSync(SyncResult.NotConfigured)
         val vm = SyncViewModel(

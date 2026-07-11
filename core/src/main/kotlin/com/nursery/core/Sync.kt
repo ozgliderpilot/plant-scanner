@@ -18,6 +18,12 @@ object Sync {
     fun markExported(receipt: Receipt): Receipt = receipt.copy(status = ReceiptStatus.EXPORTED)
 
     /** Combined pending count for the status chip, success screens, and Data export tile. */
-    fun totalPendingCount(receipts: List<Receipt>, culls: List<CullRecord>): Int =
-        pendingCount(receipts) + culls.count { it.status == CullStatus.PENDING }
+    fun totalPendingCount(
+        receipts: List<Receipt>,
+        culls: List<CullRecord>,
+        labelPrints: List<LabelPrintRequest>,
+    ): Int =
+        pendingCount(receipts) +
+            CullSync.pendingCount(culls) +
+            LabelPrintSync.pendingCount(labelPrints)
 }

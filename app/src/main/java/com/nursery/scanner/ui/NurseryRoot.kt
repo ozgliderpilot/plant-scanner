@@ -30,10 +30,16 @@ import com.nursery.scanner.ui.culls.CullListScreen
 import com.nursery.scanner.ui.culls.CullListViewModel
 import com.nursery.scanner.ui.history.HistoryScreen
 import com.nursery.scanner.ui.home.ActionsTabScreen
+import com.nursery.scanner.ui.labels.LabelListScreen
+import com.nursery.scanner.ui.labels.LabelListViewModel
 import com.nursery.scanner.ui.nav.Routes
 import com.nursery.scanner.ui.nav.TabRoutes
 import com.nursery.scanner.ui.plants.PlantListScreen
 import com.nursery.scanner.ui.plants.PlantListViewModel
+import com.nursery.scanner.ui.printlabel.LabelPrintCopiesScreen
+import com.nursery.scanner.ui.printlabel.LabelPrintScanScreen
+import com.nursery.scanner.ui.printlabel.LabelPrintSuccessScreen
+import com.nursery.scanner.ui.printlabel.LabelPrintViewModel
 import com.nursery.scanner.ui.receipts.ReceiptDetailScreen
 import com.nursery.scanner.ui.receipts.ReceiptsScreen
 import com.nursery.scanner.ui.receipts.ReceiptsViewModel
@@ -90,6 +96,7 @@ private fun NurseryNavHost(
                 online = online,
                 onSell = { navController.navigate(Routes.SELL_GRAPH) },
                 onCull = { navController.navigate(Routes.CULL_GRAPH) },
+                onPrintLabel = { navController.navigate(Routes.PRINT_LABEL_GRAPH) },
             )
         }
 
@@ -99,6 +106,7 @@ private fun NurseryNavHost(
                 vm = vm,
                 onViewReceipts = { navController.navigate(Routes.RECEIPTS) },
                 onViewCulls = { navController.navigate(Routes.CULLS) },
+                onViewLabels = { navController.navigate(Routes.LABELS) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
             )
         }
@@ -138,6 +146,11 @@ private fun NurseryNavHost(
         composable(Routes.CULLS) {
             val vm: CullListViewModel = viewModel(factory = container.viewModelFactory)
             CullListScreen(vm, onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.LABELS) {
+            val vm: LabelListViewModel = viewModel(factory = container.viewModelFactory)
+            LabelListScreen(vm, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.SETTINGS) {
@@ -250,6 +263,43 @@ private fun NurseryNavHost(
                 )
             }
         }
+
+        // Print label flow — nested graph so one LabelPrintViewModel is shared across its screens.
+        navigation(startDestination = Routes.PRINT_LABEL_SCAN, route = Routes.PRINT_LABEL_GRAPH) {
+            composable(Routes.PRINT_LABEL_SCAN) { entry ->
+                val vm = labelPrintViewModel(navController, container, entry)
+                LabelPrintScanScreen(
+                    vm = vm,
+                    onResolved = { navController.navigate(Routes.PRINT_LABEL_COPIES) },
+                    onClose = { navController.popBackStack(Routes.ACTIONS, inclusive = false) },
+                )
+            }
+            composable(Routes.PRINT_LABEL_COPIES) { entry ->
+                val vm = labelPrintViewModel(navController, container, entry)
+                LabelPrintCopiesScreen(
+                    vm = vm,
+                    onRecorded = { navController.navigate(Routes.PRINT_LABEL_SUCCESS) },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.PRINT_LABEL_SUCCESS) { entry ->
+                val vm = labelPrintViewModel(navController, container, entry)
+                LabelPrintSuccessScreen(
+                    vm = vm,
+                    onPrintAnother = {
+                        navController.navigate(Routes.PRINT_LABEL_SCAN) {
+                            popUpTo(Routes.PRINT_LABEL_GRAPH) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                        vm.reset()
+                    },
+                    onDone = {
+                        navController.popBackStack(Routes.ACTIONS, inclusive = false)
+                        vm.reset()
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -275,6 +325,19 @@ private fun cullViewModel(
 ): CullViewModel {
     val parentEntry = androidx.compose.runtime.remember(entry) {
         navController.getBackStackEntry(Routes.CULL_GRAPH)
+    }
+    return viewModel(viewModelStoreOwner = parentEntry, factory = container.viewModelFactory)
+}
+
+/** Shared LabelPrintViewModel scoped to the print-label nav graph back-stack entry. */
+@Composable
+private fun labelPrintViewModel(
+    navController: NavHostController,
+    container: AppContainer,
+    entry: NavBackStackEntry,
+): LabelPrintViewModel {
+    val parentEntry = androidx.compose.runtime.remember(entry) {
+        navController.getBackStackEntry(Routes.PRINT_LABEL_GRAPH)
     }
     return viewModel(viewModelStoreOwner = parentEntry, factory = container.viewModelFactory)
 }

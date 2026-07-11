@@ -3,6 +3,8 @@ package com.nursery.scanner.data.local
 import com.nursery.core.CullReason
 import com.nursery.core.CullRecord
 import com.nursery.core.CullStatus
+import com.nursery.core.LabelPrintRequest
+import com.nursery.core.LabelPrintStatus
 import com.nursery.core.LineItem
 import com.nursery.core.PaymentMethod
 import com.nursery.core.Plant
@@ -10,6 +12,7 @@ import com.nursery.core.Receipt
 import com.nursery.core.ReceiptStatus
 import com.nursery.core.SaleUnit
 import com.nursery.scanner.data.local.entity.CullEntity
+import com.nursery.scanner.data.local.entity.LabelPrintEntity
 import com.nursery.scanner.data.local.entity.LineItemEntity
 import com.nursery.scanner.data.local.entity.PlantEntity
 import com.nursery.scanner.data.local.entity.ReceiptEntity
@@ -131,4 +134,28 @@ fun CullRecord.toEntity(): CullEntity =
         unit = unit.name,
         reason = reason.name,
         notes = notes,
+    )
+
+// ---- Label print ----
+
+fun LabelPrintEntity.toCore(): LabelPrintRequest =
+    LabelPrintRequest(
+        localId = localId,
+        queueId = queueId,
+        createdAtEpochMs = createdAtEpochMs,
+        status = LabelPrintStatus.valueOf(status),
+        accession = accession,
+        name = name,
+        copies = copies,
+    )
+
+fun LabelPrintRequest.toEntity(): LabelPrintEntity =
+    LabelPrintEntity(
+        localId = localId,
+        queueId = queueId,
+        createdAtEpochMs = createdAtEpochMs,
+        status = status.name,
+        accession = accession,
+        name = name,
+        copies = copies,
     )

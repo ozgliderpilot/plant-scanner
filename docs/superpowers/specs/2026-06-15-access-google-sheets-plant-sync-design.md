@@ -43,7 +43,8 @@ client on the PC or a separate serverless function precisely because the web app
 - **`Species`** (5,201 rows) — the plant master (genus/species/cultivar, plant type, sun/shade,
   tolerances, dimensions, etc.), keyed by `Id No`. A species can span many batches (up to 75).
 - The other ~20 tables are single-column lookups and nursery-ops tables (`Genus`, `Soil Types`,
-  `PrintQueue`, …) — not synced.
+  …). **`PrintQueue`** is reverse-synced from the Sheets `PrintQueue` tab (issue #77): phone label
+  print requests land there for NiceLabel, with Batches print-tracking fields updated on apply.
 
 Key fact: **accession == `Batches.[Ac Number]`**, not `Species.[Id No]`. The datasheet shows column
 *captions* (`Ac No.`, `Species Id No`) that differ from the real field *names* (`Ac Number`, `Id No`);

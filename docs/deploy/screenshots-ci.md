@@ -27,9 +27,12 @@ auto-export, camera placeholder + permission skip, seed fixtures every cold star
 (Maestro `clearState`).
 
 Fixtures: prefix `99`, dummy endpoint, plants `1001`/`1002`/`1003`, one SAVED receipt, one PENDING
-cull. Walked sale is `1001` pot @ `$5.00` (−10%) plus `1003` pot @ `$4.00` before confirm
+cull. Walk order: Actions (Sell → Cull → Print) → History (Receipts → Culls → Labels) → Plants.
+Walked sale is `1001` pot @ `$5.00` (−10%) plus `1003` pot @ `$4.00` before confirm
 (no extra frames). A second same-day sale (`1002` @ `$8.00`) runs after confirm so receipts
-shows two today. Walked cull uses `1002` with notes and qty 3.
+shows two today. Walked cull uses `1002` with notes and qty 3. Walked print label: unknown
+`9999` (not-found frame), then `1003` with copies bumped to 2. Labels frame shows that
+walked print request.
 
 ## Runner
 

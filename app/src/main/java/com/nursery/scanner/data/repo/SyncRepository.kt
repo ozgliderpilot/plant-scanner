@@ -5,9 +5,12 @@ import com.nursery.core.CullExport
 import com.nursery.core.CullStatus
 import com.nursery.core.DeviceConfig
 import com.nursery.core.Export
+import com.nursery.core.LabelPrintExport
+import com.nursery.core.LabelPrintStatus
 import com.nursery.core.ReceiptStatus
 import com.nursery.core.Retention
 import com.nursery.scanner.data.local.dao.CullDao
+import com.nursery.scanner.data.local.dao.LabelPrintDao
 import com.nursery.scanner.data.local.dao.ReceiptDao
 import com.nursery.scanner.data.local.toCore
 import com.nursery.scanner.data.remote.SheetsClient
@@ -40,6 +43,7 @@ sealed interface SyncResult {
     data class Done(
         val salesCount: Int,
         val cullCount: Int = 0,
+        val labelCount: Int = 0,
         val partialError: String? = null,
     ) : SyncResult
     data class Error(val message: String, val partialError: String? = null) : SyncResult
@@ -60,6 +64,7 @@ interface CloudSyncActions {
 class SyncRepository(
     private val receiptDao: ReceiptDao,
     private val cullDao: CullDao,
+    private val labelPrintDao: LabelPrintDao,
     private val settings: SettingsRepository,
     private val sheets: SheetsClient,
     private val plants: PlantRepository,
@@ -72,23 +77,26 @@ class SyncRepository(
 
     private val cloudMutex = Mutex()
 
+    private val pendingTotal = combine(
+        receiptDao.observePendingCount(ReceiptStatus.SAVED.name),
+        cullDao.observePendingCount(CullStatus.PENDING.name),
+        labelPrintDao.observePendingCount(LabelPrintStatus.PENDING.name),
+    ) { salesPending, cullsPending, labelsPending ->
+        salesPending + cullsPending + labelsPending
+    }
+
     override val state: StateFlow<SyncState> = combine(
-        combine(
-            receiptDao.observePendingCount(ReceiptStatus.SAVED.name),
-            cullDao.observePendingCount(CullStatus.PENDING.name),
-            settings.lastSyncedMs,
-            settings.lastPlantListUpdateMs,
-            connectivity.online,
-        ) { salesPending, cullsPending, lastSynced, lastPlantListUpdate, online ->
-            Quint(salesPending, cullsPending, lastSynced, lastPlantListUpdate, online)
-        },
+        pendingTotal,
+        settings.lastSyncedMs,
+        settings.lastPlantListUpdateMs,
+        connectivity.online,
         transient,
-    ) { q, t ->
+    ) { pendingCount, lastSynced, lastPlantListUpdate, online, t ->
         SyncState(
-            pendingCount = q.salesPending + q.cullsPending,
-            lastSyncedMs = q.lastSynced,
-            lastPlantListUpdateMs = q.lastPlantListUpdate,
-            online = q.online,
+            pendingCount = pendingCount,
+            lastSyncedMs = lastSynced,
+            lastPlantListUpdateMs = lastPlantListUpdate,
+            online = online,
             isBusy = t.busy,
             lastError = t.error,
         )
@@ -116,23 +124,29 @@ class SyncRepository(
             null -> SyncResult.Done(
                 salesCount = outcome.salesCount,
                 cullCount = outcome.cullCount,
+                labelCount = outcome.labelCount,
                 partialError = outcome.partialError,
             )
             else -> SyncResult.Error(err, partialError = outcome.partialError)
         }
     }
 
-    /** Push pending sales then culls, then retention GC. Queues are independent on partial failure. */
+    /**
+     * Push pending sales, culls, then print labels; then retention GC.
+     * Queues are independent on partial failure.
+     */
     private suspend fun exportStep(config: DeviceConfig): CloudSync.ExportStep {
         val salesPending = receiptDao.receiptsByStatus(ReceiptStatus.SAVED.name).map { it.toCore() }
         val cullsPending = cullDao.cullsByStatus(CullStatus.PENDING.name).map { it.toCore() }
-        if (salesPending.isEmpty() && cullsPending.isEmpty()) {
+        val labelsPending = labelPrintDao.requestsByStatus(LabelPrintStatus.PENDING.name).map { it.toCore() }
+        if (salesPending.isEmpty() && cullsPending.isEmpty() && labelsPending.isEmpty()) {
             purgeRetained()
-            return CloudSync.ExportStep.Ok(salesCount = 0, cullCount = 0)
+            return CloudSync.ExportStep.Ok(salesCount = 0, cullCount = 0, labelCount = 0)
         }
 
         var salesExported = 0
         var cullsExported = 0
+        var labelsExported = 0
 
         if (salesPending.isNotEmpty()) {
             val rows = Export.buildRows(salesPending, zone).map { Export.rowAsStrings(it) }
@@ -162,6 +176,7 @@ class SyncRepository(
                         return CloudSync.ExportStep.Ok(
                             salesCount = salesExported,
                             cullCount = 0,
+                            labelCount = 0,
                             partialError = "Cull export failed",
                         )
                     }
@@ -170,23 +185,46 @@ class SyncRepository(
             )
         }
 
+        if (labelsPending.isNotEmpty()) {
+            val rows = LabelPrintExport.buildRows(labelsPending, zone).map { LabelPrintExport.rowAsStrings(it) }
+            val result = sheets.appendPrintLabels(config, LabelPrintExport.HEADER, rows)
+            result.fold(
+                onSuccess = {
+                    labelPrintDao.markExported(
+                        labelsPending.map { r -> r.localId },
+                        LabelPrintStatus.EXPORTED.name,
+                    )
+                    labelsExported = labelsPending.size
+                },
+                onFailure = { e ->
+                    purgeRetained()
+                    if (salesExported > 0 || cullsExported > 0) {
+                        return CloudSync.ExportStep.Ok(
+                            salesCount = salesExported,
+                            cullCount = cullsExported,
+                            labelCount = 0,
+                            partialError = "Print label export failed",
+                        )
+                    }
+                    return CloudSync.ExportStep.Err(e.message ?: "Export failed")
+                },
+            )
+        }
+
         purgeRetained()
-        return CloudSync.ExportStep.Ok(salesCount = salesExported, cullCount = cullsExported)
+        return CloudSync.ExportStep.Ok(
+            salesCount = salesExported,
+            cullCount = cullsExported,
+            labelCount = labelsExported,
+        )
     }
 
     private suspend fun purgeRetained() {
         val cutoff = Retention.purgeCutoffEpochMs(now(), zone)
         receiptDao.deleteExportedOlderThan(ReceiptStatus.EXPORTED.name, cutoff)
         cullDao.deleteExportedOlderThan(CullStatus.EXPORTED.name, cutoff)
+        labelPrintDao.deleteExportedOlderThan(LabelPrintStatus.EXPORTED.name, cutoff)
     }
 
     private data class TransientState(val busy: Boolean = false, val error: String? = null)
-
-    private data class Quint(
-        val salesPending: Int,
-        val cullsPending: Int,
-        val lastSynced: Long?,
-        val lastPlantListUpdate: Long?,
-        val online: Boolean,
-    )
 }

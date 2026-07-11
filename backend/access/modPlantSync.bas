@@ -10,6 +10,9 @@ Option Explicit
 '       "NoMatch" when it can't be applied), then mark each row on the Sheet.
 '    1b. Culls-in (reverse sync): same handshake for "Pending" Culls rows, with
 '       a stricter single-type deduction rule and a StockPlant skip path.
+'    1c. Print-labels-in (reverse sync): Pending PrintQueue rows -> Access PrintQueue
+'       insert + Batches print-tracking fields (NoPrinted / NoLastPrinted /
+'       LabelsLastPrinted), ledgered by queue_id.
 '    2. Plant push ("replacePlants"): full-mirror rewrite of the "Plants" sheet
 '       from the in-stock plant view (qryPlantsExport).
 '  Sales-in runs FIRST so the same run's push already reflects the freshly
@@ -63,6 +66,11 @@ Private Const LEDGER_NAME As String = "tblAppliedSales"
 ' PK (cull_id). A row here means "this cull has already been processed in Access".
 Private Const CULL_LEDGER_NAME As String = "tblAppliedCulls"
 
+' Local idempotency ledger for print-label reverse sync. Auto-created on first run,
+' PK (queue_id). A row here means "this print request has already been applied to
+' PrintQueue + Batches print tracking".
+Private Const PRINT_LEDGER_NAME As String = "tblAppliedPrintLabels"
+
 ' The export query is (re)created automatically on first run if missing (see EnsureQueryDef_), so the
 ' nursery PC needs no manual query setup. This SELECT is the single source of truth for the export
 ' columns (Batches + Species joined on [Id No], in-stock only).
@@ -110,6 +118,7 @@ Public Sub SyncPlants(Optional ByVal force As Boolean = False, _
     On Error Resume Next
     ApplyPendingSales_ url, secret
     ApplyPendingCulls_ url, secret
+    ApplyPendingPrintLabels_ url, secret
     On Error GoTo Done
 
     ' ---- Phase 2: plant push (full-mirror replacePlants) -------------------------------------------
@@ -715,6 +724,228 @@ Private Function ParsePendingCulls_(ByVal body As String) As Collection
     Next i
 Done:
     Set ParsePendingCulls_ = result
+End Function
+
+' ============================================================================
+'  Print labels-in (reverse sync): Pending PrintQueue rows -> Access PrintQueue + Batches
+' ============================================================================
+
+' Pull every "Pending" PrintQueue Sheet row and apply each one to Access:
+'   * Insert PrintQueue (Ac No, Copies, DateQueued from phone confirm time)
+'   * Update Batches print tracking: NoPrinted += Copies, NoLastPrinted = Copies,
+'     LabelsLastPrinted = queued date
+'   * Ledger by queue_id so retries never double-insert / double-update
+' Already-ledgered ids are re-flipped on the Sheet only (never re-applied).
+Private Sub ApplyPendingPrintLabels_(ByVal url As String, ByVal secret As String)
+    Dim db As DAO.Database
+    Dim body As String, payload As String
+    Dim labels As Collection, marks As Collection, row As Variant
+    Dim i As Long
+    Dim queueId As String, accession As String, queuedDate As String
+    Dim copies As Long
+    Dim ledStatus As String
+
+    Set db = CurrentDb
+    EnsurePrintLedger_ db
+
+    payload = "{""action"":""pendingPrintLabels"",""secret"":""" & JsonEscape(secret) & """}"
+    If Not PostJsonResponse(url, payload, body) Then Exit Sub
+    Set labels = ParsePendingPrintLabels_(body)
+    If labels.Count = 0 Then Exit Sub
+
+    Set marks = New Collection
+    For i = 1 To labels.Count
+        row = labels.Item(i)
+        queueId = CStr(row(0))
+        queuedDate = CStr(row(1))
+        accession = CStr(row(2))
+        copies = row(3)
+
+        ledStatus = PrintLedgerStatus_(db, queueId)
+        If Len(ledStatus) > 0 Then
+            marks.Add PrintMarkJson_(queueId, ledStatus)
+        ElseIf CountBatchMatches_(db, accession) = 1 Then
+            If ApplyPrintLabel_(db, queueId, accession, copies, queuedDate) Then
+                marks.Add PrintMarkJson_(queueId, "Synced")
+            End If
+        Else
+            If ApplyPrintNoMatch_(db, queueId) Then
+                marks.Add PrintMarkJson_(queueId, "NoMatch")
+            End If
+        End If
+    Next i
+
+    If marks.Count > 0 Then
+        Dim arr() As String
+        ReDim arr(0 To marks.Count - 1)
+        For i = 1 To marks.Count
+            arr(i - 1) = marks.Item(i)
+        Next i
+        payload = "{""action"":""markPrintLabelsSynced""," & _
+                  """secret"":""" & JsonEscape(secret) & """," & _
+                  """keys"":[" & Join(arr, ",") & "]}"
+        PostJson url, payload
+    End If
+End Sub
+
+' Insert PrintQueue row + update Batches print-tracking fields + ledger, in ONE DAO transaction.
+Private Function ApplyPrintLabel_(ByRef db As DAO.Database, _
+                                  ByVal queueId As String, ByVal accession As String, _
+                                  ByVal copies As Long, ByVal queuedDateIso As String) As Boolean
+    Dim ws As DAO.Workspace
+    Dim rs As DAO.Recordset
+    Dim qd As DAO.QueryDef
+    Dim inTrans As Boolean
+    Dim queuedAt As Date
+    Dim printed As Long
+
+    On Error GoTo Fail
+    Set ws = DBEngine.Workspaces(0)
+    ws.BeginTrans
+    inTrans = True
+
+    queuedAt = ParseQueuedDate_(queuedDateIso)
+    If copies < 1 Then Err.Raise vbObjectError, , "invalid copies"
+
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pAc Number, pCopies Number, pAt DateTime; " & _
+        "INSERT INTO [PrintQueue] ([Ac No], [Copies], [DateQueued]) " & _
+        "VALUES ([pAc], [pCopies], [pAt]);")
+    qd.Parameters("pAc").Value = CDbl(Val(accession))
+    qd.Parameters("pCopies").Value = copies
+    qd.Parameters("pAt").Value = queuedAt
+    qd.Execute dbFailOnError
+    Set qd = Nothing
+
+    Set rs = OpenBatchByAccession_(db, accession, True)
+    If rs.EOF Then Err.Raise vbObjectError, , "batch vanished"
+
+    printed = Nz(rs![NoPrinted], 0)
+    rs.Edit
+    rs![NoPrinted] = printed + copies
+    rs![NoLastPrinted] = copies
+    rs![LabelsLastPrinted] = queuedAt
+    rs.Update
+    rs.Close
+    Set rs = Nothing
+
+    PrintLedgerInsert_ db, queueId, "Synced"
+
+    ws.CommitTrans
+    inTrans = False
+    ApplyPrintLabel_ = True
+    Exit Function
+Fail:
+    If Not rs Is Nothing Then
+        On Error Resume Next
+        rs.Close
+        On Error GoTo 0
+    End If
+    If inTrans Then ws.Rollback
+    ApplyPrintLabel_ = False
+End Function
+
+Private Function ApplyPrintNoMatch_(ByRef db As DAO.Database, ByVal queueId As String) As Boolean
+    On Error GoTo Fail
+    PrintLedgerInsert_ db, queueId, "NoMatch"
+    ApplyPrintNoMatch_ = True
+    Exit Function
+Fail:
+    ApplyPrintNoMatch_ = False
+End Function
+
+' Parse phone confirm ISO local datetime ("2026-07-01T12:00" / "...:00") into a Date.
+' Falls back to Now() when blank or unparseable so a bad date never blocks the queue.
+Private Function ParseQueuedDate_(ByVal iso As String) As Date
+    Dim s As String
+    s = Trim$(iso)
+    If Len(s) = 0 Then
+        ParseQueuedDate_ = Now()
+        Exit Function
+    End If
+    s = Replace(s, "T", " ")
+    On Error Resume Next
+    ParseQueuedDate_ = CDate(s)
+    If Err.Number <> 0 Then
+        Err.Clear
+        ParseQueuedDate_ = Now()
+    End If
+    On Error GoTo 0
+End Function
+
+Private Sub EnsurePrintLedger_(ByRef db As DAO.Database)
+    Dim tdf As DAO.TableDef
+    On Error Resume Next
+    Set tdf = db.TableDefs(PRINT_LEDGER_NAME)
+    On Error GoTo 0
+    If Not (tdf Is Nothing) Then Exit Sub
+    db.Execute _
+        "CREATE TABLE " & PRINT_LEDGER_NAME & " (" & _
+        "[queue_id] TEXT(255) NOT NULL, " & _
+        "[status] TEXT(50), " & _
+        "[applied_at] DATETIME, " & _
+        "CONSTRAINT PrimaryKey PRIMARY KEY ([queue_id]));", dbFailOnError
+End Sub
+
+Private Function PrintLedgerStatus_(ByRef db As DAO.Database, ByVal queueId As String) As String
+    Dim qd As DAO.QueryDef, rs As DAO.Recordset
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pId Text ( 255 ); " & _
+        "SELECT [status] FROM " & PRINT_LEDGER_NAME & " WHERE [queue_id]=[pId];")
+    qd.Parameters("pId").Value = queueId
+    Set rs = qd.OpenRecordset(dbOpenSnapshot)
+    If rs.EOF Then
+        PrintLedgerStatus_ = ""
+    Else
+        PrintLedgerStatus_ = Nz(rs!Status, "Synced")
+    End If
+    rs.Close
+    Set rs = Nothing
+End Function
+
+Private Sub PrintLedgerInsert_(ByRef db As DAO.Database, ByVal queueId As String, ByVal status As String)
+    Dim qd As DAO.QueryDef
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pId Text ( 255 ), pStatus Text ( 50 ), pAt DateTime; " & _
+        "INSERT INTO " & PRINT_LEDGER_NAME & " ([queue_id], [status], [applied_at]) " & _
+        "VALUES ([pId], [pStatus], [pAt]);")
+    qd.Parameters("pId").Value = queueId
+    qd.Parameters("pStatus").Value = status
+    qd.Parameters("pAt").Value = Now()
+    qd.Execute dbFailOnError
+End Sub
+
+Private Function PrintMarkJson_(ByVal queueId As String, ByVal status As String) As String
+    PrintMarkJson_ = "{""queue_id"":""" & JsonEscape(queueId) & """," & _
+                     """status"":""" & JsonEscape(status) & """}"
+End Function
+
+Private Function ParsePendingPrintLabels_(ByVal body As String) As Collection
+    Dim result As New Collection
+    Dim p As Long, q As Long, inner As String
+    Dim re As Object, matches As Object, obj As String, i As Long
+
+    p = InStr(1, body, """printLabels"":[")
+    If p = 0 Then GoTo Done
+    p = p + Len("""printLabels"":[")
+    q = InStr(p, body, "]")
+    If q = 0 Then GoTo Done
+    inner = Mid$(body, p, q - p)
+
+    Set re = CreateObject("VBScript.RegExp")
+    re.Global = True
+    re.Pattern = "\{[^{}]*\}"
+    Set matches = re.Execute(inner)
+    For i = 0 To matches.Count - 1
+        obj = matches.Item(i).Value
+        result.Add Array( _
+            JsonStr_(obj, "queue_id"), _
+            JsonStr_(obj, "date"), _
+            JsonStr_(obj, "accession"), _
+            CLng(Val(JsonNum_(obj, "copies"))))
+    Next i
+Done:
+    Set ParsePendingPrintLabels_ = result
 End Function
 
 ' Decrement the sale unit's stock count(s) for the single matching batch AND insert the ledger row, in

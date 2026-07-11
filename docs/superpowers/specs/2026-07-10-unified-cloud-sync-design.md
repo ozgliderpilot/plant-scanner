@@ -13,7 +13,8 @@ queue also short-circuited without touching the plant list.
 
 One **cloud sync** entry point (`SyncRepository.syncCloud`) always:
 
-1. Exports pending sales then culls (existing queue rules: flip to exported only on HTTP success).
+1. Exports pending sales, then culls, then label print requests (existing queue rules: flip to
+   exported only on HTTP success).
 2. Then imports the plant list, even if export failed or the queue was empty.
 
 History ↻, Plants ↻, and the background ticker all call that entry point. Both steps are skipped

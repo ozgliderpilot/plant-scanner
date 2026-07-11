@@ -4,11 +4,16 @@
 03-sell-line|Sell · line item
 04-sell-cart|Sell · cart
 05-sell-confirm|Sell · confirm
-06-history|History
-07-receipts|Receipts
-08-receipt-detail|Receipt detail
-09-cull-scan|Cull · scan
-10-cull-info|Cull · enter info
-11-cull-success|Cull · success
-12-culls|Culls
-13-plants|Plants
+06-cull-scan|Cull · scan
+07-cull-info|Cull · enter info
+08-cull-success|Cull · success
+09-print-scan|Print · scan
+10-print-not-found|Print · not found
+11-print-copies|Print · copies
+12-print-success|Print · success
+13-history|History
+14-receipts|Receipts
+15-receipt-detail|Receipt detail
+16-culls|Culls
+17-labels|Labels
+18-plants|Plants

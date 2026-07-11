@@ -5,6 +5,8 @@ const {
   findRowByKey, accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
   selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction,
   validateAppendCullsNotes, applyMarksToValues,
+  selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
+  PRINT_LABEL_COPIES_MAX,
 } = require('../shared.js');
 
 test('isAuthorized accepts the right secret only', () => {
@@ -649,4 +651,118 @@ test('filterNewRows dedupes culls by cull_id independently', () => {
   assert.strictEqual(result.skipped, 1);
   assert.strictEqual(result.rows.length, 2);
   assert.deepStrictEqual(result.rows.map((r) => r[0]), ['PP-1-1', 'PP-1-2']);
+});
+
+// ---- Reverse sync (PrintQueue -> Access) selection & marking --------------------------------------
+// Mirrors LabelPrintExport.HEADER in core/ (+ sheet-only sync_status).
+const PRINT_LABELS_HEADER = [
+  'queue_id', 'date', 'accession', 'name', 'copies',
+];
+const PRINT_LABELS_SHEET_HEADER = ensureSyncStatusColumn(PRINT_LABELS_HEADER);
+
+test('ensureSyncStatusColumn appends sync_status for PrintQueue header', () => {
+  assert.deepStrictEqual(
+    ensureSyncStatusColumn(PRINT_LABELS_HEADER),
+    [...PRINT_LABELS_HEADER, 'sync_status'],
+  );
+});
+
+test('selectPendingPrintLabels returns [] for an empty or header-only sheet', () => {
+  assert.deepStrictEqual(selectPendingPrintLabels(null), []);
+  assert.deepStrictEqual(selectPendingPrintLabels([]), []);
+  assert.deepStrictEqual(selectPendingPrintLabels([PRINT_LABELS_SHEET_HEADER]), []);
+});
+
+test('selectPendingPrintLabels selects only Pending rows, shaped {queue_id,date,accession,name,copies}', () => {
+  const values = [
+    PRINT_LABELS_SHEET_HEADER,
+    ['07-1-1', '2026-07-01T12:00', '31011', 'Acacia', 2, 'Pending'],
+    ['07-1-2', '2026-07-01T12:00', '8250', 'Banksia', 1, 'Synced'],
+    ['07-1-3', '2026-07-01T13:00', '9000', 'Grevillea', 3, 'Pending'],
+  ];
+  assert.deepStrictEqual(selectPendingPrintLabels(values), [
+    { queue_id: '07-1-1', date: '2026-07-01T12:00', accession: '31011', name: 'Acacia', copies: 2 },
+    { queue_id: '07-1-3', date: '2026-07-01T13:00', accession: '9000', name: 'Grevillea', copies: 3 },
+  ]);
+});
+
+test('resolvePrintLabelMarks maps each queue_id key to its values row index and status', () => {
+  const values = [
+    PRINT_LABELS_SHEET_HEADER,
+    ['07-1-1', '2026-07-01T12:00', '31011', 'A', 1, 'Pending'],
+    ['07-1-2', '2026-07-01T12:00', '8250', 'B', 2, 'Pending'],
+  ];
+  assert.deepStrictEqual(
+    resolvePrintLabelMarks(values, [{ queue_id: '07-1-2', status: 'Synced' }]),
+    [{ rowIndex: 2, status: 'Synced' }],
+  );
+});
+
+test('resolvePrintLabelMarks ignores keys with no matching row (not an error)', () => {
+  const values = [
+    PRINT_LABELS_SHEET_HEADER,
+    ['07-1-1', '2026-07-01T12:00', '31011', 'A', 1, 'Pending'],
+  ];
+  assert.deepStrictEqual(
+    resolvePrintLabelMarks(values, [
+      { queue_id: '07-1-1', status: 'Synced' },
+      { queue_id: '07-NOPE', status: 'Synced' },
+    ]),
+    [{ rowIndex: 1, status: 'Synced' }],
+  );
+});
+
+test('filterNewRows dedupes print labels by queue_id', () => {
+  const incoming = [
+    ['07-1-1', '2026-07-01T12:00', '31011'],
+    ['07-1-2', '2026-07-01T12:00', '31011'],
+    ['07-1-3', '2026-07-01T12:00', '8250'],
+  ];
+  const existing = ['07-1-3'];
+  const result = filterNewRows(incoming, existing, 0);
+  assert.strictEqual(result.skipped, 1);
+  assert.strictEqual(result.rows.length, 2);
+  assert.deepStrictEqual(result.rows.map((r) => r[0]), ['07-1-1', '07-1-2']);
+});
+
+test('applyMarksToValues flips PrintQueue sync_status without plant enrichment', () => {
+  const values = [
+    PRINT_LABELS_SHEET_HEADER,
+    ['07-1-1', '2026-07-01T12:00', '31011', 'Acacia', 2, 'Pending'],
+  ];
+  const marked = applyMarksToValues(values, [{ rowIndex: 1, status: 'Synced' }]);
+  assert.strictEqual(marked[1][5], 'Synced');
+  assert.strictEqual(marked[1][3], 'Acacia');
+});
+
+test('validateAppendPrintLabelCopies accepts integer copies from 1 to max', () => {
+  const rows = [
+    ['07-1-1', '2026-07-01T12:00', '31011', 'Acacia', 1],
+    ['07-1-2', '2026-07-01T12:00', '8250', 'Banksia', PRINT_LABEL_COPIES_MAX],
+  ];
+  assert.strictEqual(validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, rows), null);
+});
+
+test('validateAppendPrintLabelCopies rejects non-positive, non-integer, or extreme copies', () => {
+  const msg = 'Print label copies must be an integer from 1 to ' + PRINT_LABEL_COPIES_MAX;
+  assert.strictEqual(
+    validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, [['07-1', '2026-07-01T12:00', '31011', 'A', 0]]),
+    msg,
+  );
+  assert.strictEqual(
+    validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, [['07-1', '2026-07-01T12:00', '31011', 'A', -3]]),
+    msg,
+  );
+  assert.strictEqual(
+    validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, [['07-1', '2026-07-01T12:00', '31011', 'A', 1.5]]),
+    msg,
+  );
+  assert.strictEqual(
+    validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, [['07-1', '2026-07-01T12:00', '31011', 'A', PRINT_LABEL_COPIES_MAX + 1]]),
+    msg,
+  );
+  assert.strictEqual(
+    validateAppendPrintLabelCopies(PRINT_LABELS_HEADER, [['07-1', '2026-07-01T12:00', '31011', 'A', 'abc']]),
+    msg,
+  );
 });

@@ -37,12 +37,12 @@ class SyncViewModel(
 
     private fun describe(result: SyncResult): String = when (result) {
         is SyncResult.Done -> {
-            val base = when {
-                result.salesCount == 0 && result.cullCount == 0 -> "Synced (0 pending)"
-                result.cullCount == 0 -> "Synced (${result.salesCount} sales)"
-                result.salesCount == 0 -> "Synced (${result.cullCount} cull)"
-                else -> "Synced (${result.salesCount} sales, ${result.cullCount} cull)"
+            val parts = buildList {
+                if (result.salesCount > 0) add("${result.salesCount} sales")
+                if (result.cullCount > 0) add("${result.cullCount} cull")
+                if (result.labelCount > 0) add("${result.labelCount} label")
             }
+            val base = if (parts.isEmpty()) "Synced (0 pending)" else "Synced (${parts.joinToString(", ")})"
             withPartial(base, result.partialError)
         }
         is SyncResult.Error -> withPartial("Error: ${result.message}", result.partialError)
