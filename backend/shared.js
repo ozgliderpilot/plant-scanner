@@ -429,13 +429,6 @@ function resolveCullMarks(values, keys) {
 }
 
 /**
- * Normalised queue_id primary key for a PrintQueue row — trimmed string so " PP-1 " and "PP-1" collide.
- */
-function printLabelRowKey(queueId) {
-  return String(queueId === undefined || queueId === null ? '' : queueId).trim();
-}
-
-/**
  * Backing logic for the `pendingPrintLabels` action: select the reverse-sync work set from the raw
  * "PrintQueue" sheet values (row 0 = header). Returns every row whose `sync_status` is exactly
  * "Pending" (trimmed, case-insensitive), shaped as:
@@ -473,7 +466,7 @@ function selectPendingPrintLabels(values) {
 /**
  * Backing logic for the `markPrintLabelsSynced` action: resolve mark requests against the raw
  * "PrintQueue" sheet values (row 0 = header). Each request is `{queue_id, status}`; this finds the
- * data row whose `queue_id` primary key matches and pairs it with the requested status.
+ * data row whose `queue_id` primary key matches (see cullRowKey) and pairs it with the requested status.
  *
  * Returns `[{ rowIndex, status }]` (0-based into `values`). Unknown keys are silently ignored.
  */
@@ -485,13 +478,13 @@ function resolvePrintLabelMarks(values, keys) {
 
   var byKey = Object.create(null);
   for (var r = 1; r < values.length; r++) {
-    var k = printLabelRowKey(values[r][iQueueId]);
+    var k = cullRowKey(values[r][iQueueId]);
     if (byKey[k] === undefined) byKey[k] = r;
   }
 
   var out = [];
   (keys || []).forEach(function (req) {
-    var rowIndex = byKey[printLabelRowKey(req.queue_id)];
+    var rowIndex = byKey[cullRowKey(req.queue_id)];
     if (rowIndex !== undefined) {
       out.push({ rowIndex: rowIndex, status: req.status });
     }
@@ -570,7 +563,7 @@ if (typeof module !== 'undefined' && module.exports) {
     findRowByKey, accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
     selectPendingSales, resolveSalesMarks,
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
-    printLabelRowKey, selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
+    selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
     PRINT_LABEL_COPIES_MAX,
     isStockPlantCull, computeCullDeduction, applyMarksToValues,
   };

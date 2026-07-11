@@ -72,43 +72,44 @@ class SheetsClient(
         config: DeviceConfig,
         header: List<String>,
         rows: List<List<String>>,
-    ): Result<AppendOutcome> = withContext(Dispatchers.IO) {
-        runCatching {
-            val requestBody = json.encodeToString(
-                AppendSalesRequest(secret = config.sharedSecret, header = header, rows = rows),
-            )
-            val resp = json.decodeFromString<AppendSalesResponse>(postRaw(config.endpointUrl, requestBody))
-            if (!resp.ok) error(resp.error ?: "Server rejected the export")
-            AppendOutcome(appended = resp.appended, skipped = resp.skipped)
-        }
-    }
+    ): Result<AppendOutcome> =
+        appendRows(config, action = "appendSales", header = header, rows = rows,
+            rejectMessage = "Server rejected the export")
 
     suspend fun appendCulls(
         config: DeviceConfig,
         header: List<String>,
         rows: List<List<String>>,
-    ): Result<AppendOutcome> = withContext(Dispatchers.IO) {
-        runCatching {
-            val requestBody = json.encodeToString(
-                AppendCullsRequest(secret = config.sharedSecret, header = header, rows = rows),
-            )
-            val resp = json.decodeFromString<AppendCullsResponse>(postRaw(config.endpointUrl, requestBody))
-            if (!resp.ok) error(resp.error ?: "Server rejected the cull export")
-            AppendOutcome(appended = resp.appended, skipped = resp.skipped)
-        }
-    }
+    ): Result<AppendOutcome> =
+        appendRows(config, action = "appendCulls", header = header, rows = rows,
+            rejectMessage = "Server rejected the cull export")
 
     suspend fun appendPrintLabels(
         config: DeviceConfig,
         header: List<String>,
         rows: List<List<String>>,
+    ): Result<AppendOutcome> =
+        appendRows(config, action = "appendPrintLabels", header = header, rows = rows,
+            rejectMessage = "Server rejected the print label export")
+
+    private suspend fun appendRows(
+        config: DeviceConfig,
+        action: String,
+        header: List<String>,
+        rows: List<List<String>>,
+        rejectMessage: String,
     ): Result<AppendOutcome> = withContext(Dispatchers.IO) {
         runCatching {
             val requestBody = json.encodeToString(
-                AppendPrintLabelsRequest(secret = config.sharedSecret, header = header, rows = rows),
+                AppendExportRequest(
+                    secret = config.sharedSecret,
+                    header = header,
+                    rows = rows,
+                    action = action,
+                ),
             )
-            val resp = json.decodeFromString<AppendPrintLabelsResponse>(postRaw(config.endpointUrl, requestBody))
-            if (!resp.ok) error(resp.error ?: "Server rejected the print label export")
+            val resp = json.decodeFromString<AppendExportResponse>(postRaw(config.endpointUrl, requestBody))
+            if (!resp.ok) error(resp.error ?: rejectMessage)
             AppendOutcome(appended = resp.appended, skipped = resp.skipped)
         }
     }

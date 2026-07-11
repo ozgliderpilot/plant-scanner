@@ -52,7 +52,7 @@ fun LabelPrintCopiesScreen(
 
     if (draft == null) return
 
-    var copies by remember(draft) { mutableIntStateOf(draft.copies.coerceAtLeast(1)) }
+    var copies by remember(draft) { mutableIntStateOf(1) }
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(title = "Print label", onBack = { vm.discardDraft(); onBack() })

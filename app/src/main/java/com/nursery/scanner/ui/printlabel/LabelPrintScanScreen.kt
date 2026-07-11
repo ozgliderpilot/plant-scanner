@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nursery.core.LabelPrintRequest
 import com.nursery.scanner.ci.CiMode
 import com.nursery.scanner.scanner.ScannerSlot
 import com.nursery.scanner.ui.TestTags
@@ -119,7 +120,7 @@ fun LabelPrintScanScreen(
                             verticalArrangement = Arrangement.spacedBy(Dimens.GapSmall),
                         ) {
                             Text(
-                                ui.notFoundMessage ?: "Please contact database administrator",
+                                LabelPrintRequest.NOT_FOUND_MESSAGE,
                                 style = MaterialTheme.typography.titleMedium,
                             )
                             Text("Scanned: $notFound", style = MaterialTheme.typography.bodyMedium)

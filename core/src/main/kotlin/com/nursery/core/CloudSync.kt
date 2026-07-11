@@ -35,28 +35,30 @@ object CloudSync {
     )
 
     fun combine(export: ExportStep, import: ImportStep): Outcome {
-        val exportOk = when (export) {
-            is ExportStep.Ok -> export
-            is ExportStep.Err -> null
-        }
-        val exportErr = when (export) {
-            is ExportStep.Ok -> null
-            is ExportStep.Err -> export.message
-        }
         val importOk = import is ImportStep.Ok
         val importErr = when (import) {
             ImportStep.Ok -> null
             is ImportStep.Err -> import.message
         }
-
-        return Outcome(
-            salesCount = exportOk?.salesCount ?: 0,
-            cullCount = exportOk?.cullCount ?: 0,
-            labelCount = exportOk?.labelCount ?: 0,
-            advanceExportTimestamp = exportOk != null,
-            advancePlantListTimestamp = importOk,
-            errorMessage = exportErr ?: importErr,
-            partialError = exportOk?.partialError,
-        )
+        return when (export) {
+            is ExportStep.Ok -> Outcome(
+                salesCount = export.salesCount,
+                cullCount = export.cullCount,
+                labelCount = export.labelCount,
+                advanceExportTimestamp = true,
+                advancePlantListTimestamp = importOk,
+                errorMessage = importErr,
+                partialError = export.partialError,
+            )
+            is ExportStep.Err -> Outcome(
+                salesCount = 0,
+                cullCount = 0,
+                labelCount = 0,
+                advanceExportTimestamp = false,
+                advancePlantListTimestamp = importOk,
+                errorMessage = export.message,
+                partialError = null,
+            )
+        }
     }
 }

@@ -12,9 +12,6 @@ interface LabelPrintDao {
     @Insert
     suspend fun insert(request: LabelPrintEntity): Long
 
-    @Query("SELECT * FROM label_print_requests ORDER BY createdAtEpochMs DESC")
-    fun observeRequests(): Flow<List<LabelPrintEntity>>
-
     @Query("SELECT * FROM label_print_requests WHERE status = :status ORDER BY localId")
     suspend fun requestsByStatus(status: String): List<LabelPrintEntity>
 

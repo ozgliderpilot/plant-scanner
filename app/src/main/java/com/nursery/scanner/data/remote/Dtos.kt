@@ -36,47 +36,15 @@ data class GetPlantsResponse(
 )
 
 @Serializable
-data class AppendSalesRequest(
+data class AppendExportRequest(
     val secret: String,
     val header: List<String>,
     val rows: List<List<String>>,
-    val action: String = "appendSales",
+    val action: String,
 )
 
 @Serializable
-data class AppendSalesResponse(
-    val ok: Boolean,
-    val appended: Int = 0,
-    val skipped: Int = 0,
-    val error: String? = null,
-)
-
-@Serializable
-data class AppendCullsRequest(
-    val secret: String,
-    val header: List<String>,
-    val rows: List<List<String>>,
-    val action: String = "appendCulls",
-)
-
-@Serializable
-data class AppendCullsResponse(
-    val ok: Boolean,
-    val appended: Int = 0,
-    val skipped: Int = 0,
-    val error: String? = null,
-)
-
-@Serializable
-data class AppendPrintLabelsRequest(
-    val secret: String,
-    val header: List<String>,
-    val rows: List<List<String>>,
-    val action: String = "appendPrintLabels",
-)
-
-@Serializable
-data class AppendPrintLabelsResponse(
+data class AppendExportResponse(
     val ok: Boolean,
     val appended: Int = 0,
     val skipped: Int = 0,

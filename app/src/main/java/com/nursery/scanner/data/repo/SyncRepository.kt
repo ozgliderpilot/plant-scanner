@@ -77,23 +77,23 @@ class SyncRepository(
 
     private val cloudMutex = Mutex()
 
+    private val pendingTotal = combine(
+        receiptDao.observePendingCount(ReceiptStatus.SAVED.name),
+        cullDao.observePendingCount(CullStatus.PENDING.name),
+        labelPrintDao.observePendingCount(LabelPrintStatus.PENDING.name),
+    ) { salesPending, cullsPending, labelsPending ->
+        salesPending + cullsPending + labelsPending
+    }
+
     override val state: StateFlow<SyncState> = combine(
-        combine(
-            combine(
-                receiptDao.observePendingCount(ReceiptStatus.SAVED.name),
-                cullDao.observePendingCount(CullStatus.PENDING.name),
-            ) { salesPending, cullsPending -> salesPending to cullsPending },
-            labelPrintDao.observePendingCount(LabelPrintStatus.PENDING.name),
-        ) { salesCulls, labelsPending ->
-            Triple(salesCulls.first, salesCulls.second, labelsPending)
-        },
+        pendingTotal,
         settings.lastSyncedMs,
         settings.lastPlantListUpdateMs,
         connectivity.online,
         transient,
-    ) { pending, lastSynced, lastPlantListUpdate, online, t ->
+    ) { pendingCount, lastSynced, lastPlantListUpdate, online, t ->
         SyncState(
-            pendingCount = pending.first + pending.second + pending.third,
+            pendingCount = pendingCount,
             lastSyncedMs = lastSynced,
             lastPlantListUpdateMs = lastPlantListUpdate,
             online = online,

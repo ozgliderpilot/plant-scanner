@@ -17,7 +17,7 @@ object NurseryStock {
 
     /**
      * Null when [copies] is allowed for [stockTotal]; otherwise a volunteer-facing block message.
-     * Callers should also enforce [LabelPrintRequest.validationError] (copies ≥ 1) separately.
+     * Callers should also enforce [LabelPrintRequest.validationError] separately (copies ≥ 1).
      */
     fun copiesCapError(copies: Int, stockTotal: Int): String? {
         if (copies <= stockTotal) return null

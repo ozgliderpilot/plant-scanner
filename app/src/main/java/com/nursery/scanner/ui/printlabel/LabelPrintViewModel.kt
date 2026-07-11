@@ -3,7 +3,6 @@ package com.nursery.scanner.ui.printlabel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nursery.core.LabelPrintRequest
-import com.nursery.core.LabelPrintStatus
 import com.nursery.core.NurseryStock
 import com.nursery.core.Plant
 import com.nursery.core.PlantBook
@@ -27,7 +26,6 @@ data class LabelPrintDraft(
     val group: String?,
     val stockSummary: String,
     val stockTotal: Int,
-    val copies: Int = 1,
 ) {
     companion object {
         fun fromPlant(p: Plant) = LabelPrintDraft(
@@ -36,7 +34,6 @@ data class LabelPrintDraft(
             group = p.group,
             stockSummary = PlantStock.summary(p),
             stockTotal = NurseryStock.total(p),
-            copies = 1,
         )
     }
 }
@@ -44,7 +41,6 @@ data class LabelPrintDraft(
 data class LabelPrintUiState(
     val draft: LabelPrintDraft? = null,
     val notFoundCode: String? = null,
-    val notFoundMessage: String? = null,
     val submitError: String? = null,
     val saved: LabelPrintRequest? = null,
 )
@@ -78,7 +74,6 @@ class LabelPrintViewModel(
                 it.copy(
                     draft = LabelPrintDraft.fromPlant(plant),
                     notFoundCode = null,
-                    notFoundMessage = null,
                     submitError = null,
                 )
             }
@@ -87,16 +82,13 @@ class LabelPrintViewModel(
             _ui.update {
                 it.copy(
                     notFoundCode = trimmed,
-                    notFoundMessage = LabelPrintRequest.NOT_FOUND_MESSAGE,
                     draft = null,
                 )
             }
         }
     }
 
-    fun clearNotFound() = _ui.update {
-        it.copy(notFoundCode = null, notFoundMessage = null)
-    }
+    fun clearNotFound() = _ui.update { it.copy(notFoundCode = null) }
 
     fun discardDraft() = _ui.update { it.copy(draft = null, submitError = null) }
 
@@ -106,16 +98,7 @@ class LabelPrintViewModel(
         val d = _ui.value.draft ?: return
         if (_ui.value.saved != null || isSaving) return
 
-        val request = LabelPrintRequest(
-            localId = 0,
-            queueId = "",
-            createdAtEpochMs = 0,
-            status = LabelPrintStatus.PENDING,
-            accession = d.accession,
-            name = d.name,
-            copies = copies,
-        )
-        LabelPrintRequest.validationError(request)?.let { msg ->
+        LabelPrintRequest.validationError(copies)?.let { msg ->
             _ui.update { it.copy(submitError = msg) }
             return
         }

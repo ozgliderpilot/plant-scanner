@@ -41,7 +41,7 @@ class SyncTest {
             cull(2, CullStatus.PENDING),
             cull(3, CullStatus.EXPORTED),
         )
-        assertEquals(4, Sync.totalPendingCount(receipts, culls)) // 2 SAVED + 2 PENDING
+        assertEquals(4, Sync.totalPendingCount(receipts, culls, emptyList())) // 2 SAVED + 2 PENDING
     }
 
     @Test fun `totalPendingCount includes PENDING label print requests`() {

@@ -21,9 +21,9 @@ object Sync {
     fun totalPendingCount(
         receipts: List<Receipt>,
         culls: List<CullRecord>,
-        labelPrints: List<LabelPrintRequest> = emptyList(),
+        labelPrints: List<LabelPrintRequest>,
     ): Int =
         pendingCount(receipts) +
-            culls.count { it.status == CullStatus.PENDING } +
-            labelPrints.count { it.status == LabelPrintStatus.PENDING }
+            CullSync.pendingCount(culls) +
+            LabelPrintSync.pendingCount(labelPrints)
 }

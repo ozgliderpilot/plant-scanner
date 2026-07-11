@@ -29,8 +29,8 @@ data class LabelPrintRequest(
         const val NOT_FOUND_MESSAGE = "Please contact database administrator"
 
         /** Null when valid; otherwise a short reason the save should be rejected. */
-        fun validationError(request: LabelPrintRequest): String? = when {
-            request.copies < 1 -> "Copies must be at least 1"
+        fun validationError(copies: Int): String? = when {
+            copies < 1 -> "Copies must be at least 1"
             else -> null
         }
     }
