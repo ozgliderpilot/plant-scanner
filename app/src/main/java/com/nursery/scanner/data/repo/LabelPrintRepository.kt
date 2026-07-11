@@ -1,6 +1,7 @@
 package com.nursery.scanner.data.repo
 
 import com.nursery.core.DeviceConfig
+import com.nursery.core.LabelPrintList
 import com.nursery.core.LabelPrintRequest
 import com.nursery.core.LabelPrintStatus
 import com.nursery.core.ReceiptNumbering
@@ -8,6 +9,8 @@ import com.nursery.scanner.data.local.dao.LabelPrintDao
 import com.nursery.scanner.data.local.entity.LabelPrintEntity
 import com.nursery.scanner.data.local.toCore
 import com.nursery.scanner.data.settings.SettingsRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.ZoneId
 
@@ -18,6 +21,9 @@ class LabelPrintRepository(
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: ZoneId = ZoneId.systemDefault(),
 ) {
+    val requests: Flow<List<LabelPrintRequest>> =
+        labelPrintDao.observeRequests().map { list -> LabelPrintList.grouped(list.map { it.toCore() }) }
+
     suspend fun saveRequest(
         accession: String,
         name: String,

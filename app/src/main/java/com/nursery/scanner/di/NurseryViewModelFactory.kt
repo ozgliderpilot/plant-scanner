@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.nursery.scanner.ui.cull.CullViewModel
 import com.nursery.scanner.ui.culls.CullListViewModel
+import com.nursery.scanner.ui.labels.LabelListViewModel
 import com.nursery.scanner.ui.plants.PlantListViewModel
 import com.nursery.scanner.ui.printlabel.LabelPrintViewModel
 import com.nursery.scanner.ui.receipts.ReceiptsViewModel
@@ -30,6 +31,8 @@ class NurseryViewModelFactory(private val c: AppContainer) : ViewModelProvider.F
                 PlantListViewModel(c.plantRepository)
             modelClass.isAssignableFrom(CullListViewModel::class.java) ->
                 CullListViewModel(c.cullRepository)
+            modelClass.isAssignableFrom(LabelListViewModel::class.java) ->
+                LabelListViewModel(c.labelPrintRepository)
             modelClass.isAssignableFrom(SettingsViewModel::class.java) ->
                 SettingsViewModel(c.settingsRepository)
             else -> throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")

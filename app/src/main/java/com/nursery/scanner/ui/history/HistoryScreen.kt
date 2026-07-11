@@ -40,6 +40,7 @@ fun HistoryScreen(
     vm: SyncViewModel,
     onViewReceipts: () -> Unit,
     onViewCulls: () -> Unit,
+    onViewLabels: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -82,11 +83,11 @@ fun HistoryScreen(
                 modifier = Modifier.testTag(TestTags.VIEW_CULLED),
             )
             BigButton(
-                text = "View Labels — coming soon",
-                onClick = {},
-                enabled = false,
+                text = "View Labels",
+                onClick = onViewLabels,
                 leadingIcon = Icons.Filled.Label,
-                style = BigButtonStyle.Secondary,
+                style = BigButtonStyle.Primary,
+                modifier = Modifier.testTag(TestTags.VIEW_LABELS),
             )
         }
 

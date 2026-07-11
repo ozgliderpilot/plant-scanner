@@ -25,6 +25,7 @@ object Routes {
     const val CULL_INFO = "cull/info"
     const val CULL_SUCCESS = "cull/success"
     const val CULLS = "culls"
+    const val LABELS = "labels"
 
     const val PRINT_LABEL_GRAPH = "printlabel"
     const val PRINT_LABEL_SCAN = "printlabel/scan"

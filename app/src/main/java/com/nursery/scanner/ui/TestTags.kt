@@ -12,6 +12,7 @@ object TestTags {
     const val DONE = "done"
     const val VIEW_RECEIPTS = "view_receipts"
     const val VIEW_CULLED = "view_culled"
+    const val VIEW_LABELS = "view_labels"
     const val RECORD_CULL = "record_cull"
     const val PRINT_LABEL = "print_label"
     const val CONFIRM_PRINT = "confirm_print"

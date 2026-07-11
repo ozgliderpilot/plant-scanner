@@ -30,6 +30,8 @@ import com.nursery.scanner.ui.culls.CullListScreen
 import com.nursery.scanner.ui.culls.CullListViewModel
 import com.nursery.scanner.ui.history.HistoryScreen
 import com.nursery.scanner.ui.home.ActionsTabScreen
+import com.nursery.scanner.ui.labels.LabelListScreen
+import com.nursery.scanner.ui.labels.LabelListViewModel
 import com.nursery.scanner.ui.nav.Routes
 import com.nursery.scanner.ui.nav.TabRoutes
 import com.nursery.scanner.ui.plants.PlantListScreen
@@ -104,6 +106,7 @@ private fun NurseryNavHost(
                 vm = vm,
                 onViewReceipts = { navController.navigate(Routes.RECEIPTS) },
                 onViewCulls = { navController.navigate(Routes.CULLS) },
+                onViewLabels = { navController.navigate(Routes.LABELS) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
             )
         }
@@ -143,6 +146,11 @@ private fun NurseryNavHost(
         composable(Routes.CULLS) {
             val vm: CullListViewModel = viewModel(factory = container.viewModelFactory)
             CullListScreen(vm, onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.LABELS) {
+            val vm: LabelListViewModel = viewModel(factory = container.viewModelFactory)
+            LabelListScreen(vm, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.SETTINGS) {
