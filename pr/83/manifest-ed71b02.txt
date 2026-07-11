@@ -1,0 +1,17 @@
+01-actions|01-actions-ed71b02.png
+02-sell-scan|02-sell-scan-ed71b02.png
+03-sell-line|03-sell-line-ed71b02.png
+04-sell-cart|04-sell-cart-ed71b02.png
+05-sell-confirm|05-sell-confirm-ed71b02.png
+06-cull-scan|06-cull-scan-ed71b02.png
+07-cull-info|07-cull-info-ed71b02.png
+08-cull-success|08-cull-success-ed71b02.png
+09-print-scan|09-print-scan-ed71b02.png
+10-print-not-found|10-print-not-found-ed71b02.png
+11-print-copies|11-print-copies-ed71b02.png
+12-print-success|12-print-success-ed71b02.png
+13-history|13-history-ed71b02.png
+14-receipts|14-receipts-ed71b02.png
+15-receipt-detail|15-receipt-detail-ed71b02.png
+16-culls|16-culls-ed71b02.png
+17-plants|17-plants-ed71b02.png
