@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nursery.core.LabelPrintRequest
 import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.PlantCard
@@ -53,6 +54,7 @@ fun LabelPrintCopiesScreen(
     if (draft == null) return
 
     var copies by remember(draft) { mutableIntStateOf(1) }
+    val copiesCeiling = minOf(draft.stockTotal, LabelPrintRequest.COPIES_MAX).coerceAtLeast(1)
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(title = "Print label", onBack = { vm.discardDraft(); onBack() })
@@ -96,8 +98,10 @@ fun LabelPrintCopiesScreen(
                 Text("$copies", style = MaterialTheme.typography.displaySmall)
                 FilledTonalIconButton(
                     onClick = {
-                        copies++
-                        vm.clearSubmitError()
+                        if (copies < copiesCeiling) {
+                            copies++
+                            vm.clearSubmitError()
+                        }
                     },
                     modifier = Modifier.size(64.dp).testTag(TestTags.QTY_PLUS),
                 ) {

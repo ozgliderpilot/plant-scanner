@@ -28,9 +28,16 @@ data class LabelPrintRequest(
         /** Exact copy shown when the scanned/typed accession is not in the local plant list. */
         const val NOT_FOUND_MESSAGE = "Please contact database administrator"
 
+        /**
+         * Hard upper bound on copies per request — must stay aligned with backend
+         * `PRINT_LABEL_COPIES_MAX` in `shared.js` (append validation).
+         */
+        const val COPIES_MAX = 10_000
+
         /** Null when valid; otherwise a short reason the save should be rejected. */
         fun validationError(copies: Int): String? = when {
             copies < 1 -> "Copies must be at least 1"
+            copies > COPIES_MAX -> "Copies must be at most $COPIES_MAX"
             else -> null
         }
     }
