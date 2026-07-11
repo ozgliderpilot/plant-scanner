@@ -1,3 +1,13 @@
 # Pot-type defaults diverge for sell vs cull
 
-Sell and cull both pick a default pot type from nursery counts, but with opposite priorities: sell prefers **Pots → Misc → Tubes**; cull prefers **Tubes → Pots → Misc**. That matches how volunteers typically sell vs discard stock; the rules live in `SaleUnit.defaultFor` and `CullUnit.defaultFor` in `core/`.
+## Context
+
+Each accession carries Tubes / Pots / Misc counts. Volunteers sell and cull different mixes of those units, so a single default rule produces the wrong first tap often enough to matter on an accessibility-first UI.
+
+## Decision
+
+Sell defaults **Pots → Misc → Tubes**; cull defaults **Tubes → Pots → Misc**. Rules live in `SaleUnit.defaultFor` and `CullUnit.defaultFor` in `core/`.
+
+## Consequences
+
+Flow-specific defaults must stay tested separately. Changing one rule must not silently change the other.
