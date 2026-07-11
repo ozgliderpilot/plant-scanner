@@ -27,8 +27,8 @@ import com.nursery.scanner.ui.theme.Dimens
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /**
- * Scrollable, read-only plant list with search. As a bottom-tab root it shows an import header
- * with manual ↻; as a sub-screen it shows a back header instead.
+ * Scrollable, read-only plant list with search. As a bottom-tab root it shows a cloud-sync
+ * header with manual ↻; as a sub-screen it shows a back header instead.
  */
 @Composable
 fun PlantListScreen(

@@ -24,7 +24,7 @@ Three parts, deploy in this order:
 - [ ] App built (`:app:assembleProdRelease`) and installed on each device.
 - [ ] *(test environment, optional)* Second Sheet + Apps Script deployed; **test** APK
       (`:app:assembleQaRelease`, "Nursery TEST") installed beside prod and pointed at the test URL.
-- [ ] Each device: prefix + URL + access code entered; **Update plant list** succeeds.
+- [ ] Each device: prefix + URL + access code entered; **Plants ↻** (cloud sync) succeeds.
 - [ ] Test sale appears in the **`Sales`** tab.
 - [ ] Nursery PC: VBA module imported, `GFRBG_SYNC_URL` / `GFRBG_SYNC_SECRET` set, Form Timer wired;
       **Sync now** writes the `Plants` tab and stamps the **`SyncStatus`** tab.
