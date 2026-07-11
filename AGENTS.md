@@ -6,7 +6,7 @@ Agent instructions for working with code in this repository.
 
 An offline-first Android app for a volunteer plant nursery: scan barcodes, record sales and culls
 locally, sync to Google Sheets. UI is tuned for elderly volunteers: big buttons/text, high contrast,
-no flicker, tap-not-gesture.
+no flicker, tap-not-gesture ([ADR-0015](./docs/adr/0015-accessibility-first-ui.md)).
 
 **Before naming domain concepts** (in issues, tests, commits, or UI copy), read [`CONTEXT.md`](./CONTEXT.md).
 
@@ -14,6 +14,7 @@ no flicker, tap-not-gesture.
 
 **All business logic that is easy to get wrong lives in `core/` — a pure Kotlin/JVM module with no
 Android types — and is unit-tested there.** The Android `app/` module is thin, declarative glue.
+See [ADR-0003](./docs/adr/0003-business-logic-in-core.md).
 
 When you add or change logic (money math, receipt numbering, sync selection, export shaping,
 validation, search/filter), put it in `core/` and cover it with a `core/` test.
@@ -44,16 +45,18 @@ Per-module detail: [`core/AGENTS.md`](./core/AGENTS.md), [`backend/AGENTS.md`](.
 ## Invariants (do not break)
 
 These are behavioural guarantees, not reference data — see `Sync`, `CullSync`, `Money`, `Export`,
-`CullExport`, and `PlantBook` in `core/` for specifics.
+`CullExport`, and `PlantBook` in `core/` for specifics. Decisions behind them: [`docs/adr/`](./docs/adr/).
 
 - Local `status` is the sync queue for receipts, culls, and label print requests. Export only
   pending rows; flip to exported **only on HTTP success**. Nothing lost, no double-counting.
-- **Money is integer cents** — never floats.
+  ([ADR-0006](./docs/adr/0006-status-is-sync-queue.md), [ADR-0008](./docs/adr/0008-independent-queues-header-contract.md))
+- **Money is integer cents** — never floats. ([ADR-0010](./docs/adr/0010-money-integer-cents.md))
 - **Not-found scans are never dropped** for sales/culls — record as unknown with the scanned code
   kept. Label print requests are the exception: missing accessions are blocked (administrator
-  message) and not enqueued.
+  message) and not enqueued. ([ADR-0011](./docs/adr/0011-unknown-scans-kept.md))
 - **Export `HEADER` column order is a backend contract** — keep stable; coordinate `core/` and
   `backend/` changes together (`Export`, `CullExport`, `LabelPrintExport`).
+  ([ADR-0008](./docs/adr/0008-independent-queues-header-contract.md))
 
 ## Verify changes
 
@@ -80,10 +83,9 @@ Single-context: `CONTEXT.md` + `docs/adr/`. See [`docs/agents/domain.md`](./docs
 
 ## Docs
 
-- [`docs/tech-stack.md`](./docs/tech-stack.md) — technology decisions
+- [`docs/adr/`](./docs/adr/) — architectural decisions
 - [`docs/deploy/`](./docs/deploy/) — backend → android → connect → access
 - [`docs/deploy/screenshots-ci.md`](./docs/deploy/screenshots-ci.md) — PR screenshot gallery (emulator + Maestro)
-- [`docs/superpowers/specs/`](./docs/superpowers/specs/) — approved feature designs
 
 ## Gotchas
 
