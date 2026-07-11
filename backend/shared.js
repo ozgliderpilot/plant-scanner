@@ -556,6 +556,104 @@ function computeCullDeduction(unit, qty, pots, tubes, misc) {
   return { pots: p, tubes: t, misc: m };
 }
 
+/**
+ * Pure sales deduction arithmetic (#80): mirrors Access ComputeDeduction_ / DeductSelfTest.
+ * Subtract qty from the named container, clamped at zero. Misc oversell overflows into pots.
+ * Blank/unrecognized unit moves nothing. StockInNursery is never touched.
+ * Unit strings must match SaleUnit in core/ (pots/tubes/misc).
+ */
+function computeSalesDeduction(unit, qty, pots, tubes, misc) {
+  var u = String(unit === undefined || unit === null ? '' : unit).trim().toLowerCase();
+  if (qty < 0) qty = 0;
+  var p = pots, t = tubes, m = misc;
+  function sub(cur, n) { return cur - n < 0 ? 0 : cur - n; }
+  switch (u) {
+    case 'pots':
+      p = sub(p, qty);
+      break;
+    case 'tubes':
+      t = sub(t, qty);
+      break;
+    case 'misc': {
+      var shortfall = sub(qty, m); // max(0, qty - misc): sold beyond MiscInNursery
+      m = sub(m, qty);
+      p = sub(p, shortfall);       // overflow draws down pots, clamped at 0
+      break;
+    }
+  }
+  return { pots: p, tubes: t, misc: m };
+}
+
+/**
+ * Predict Plants-tab stock cell updates for newly appended sales or cull rows (#80).
+ * Only accessions present on the Plants tab are updated; unknown scans are skipped.
+ * Stock-plant culls are skipped. StockInNursery is never included in the result.
+ * Returns one entry per touched plant row: { rowIndex, pots, tubes, misc } (0-based in values).
+ */
+function predictStockUpdates(plantsValues, exportHeader, appendedRows, kind) {
+  if (!plantsValues || plantsValues.length < 2 || !(appendedRows || []).length) return [];
+  var pHeader = plantsValues[0];
+  var iAcc = accessionColIndex(pHeader);
+  var iPots = headerColIndex(pHeader, 'potsinnursery');
+  var iTubes = headerColIndex(pHeader, 'tubesinnursery');
+  var iMisc = headerColIndex(pHeader, 'miscinnursery');
+  if (iAcc < 0 || iPots < 0 || iTubes < 0 || iMisc < 0) return [];
+
+  var iRowAcc = headerColIndex(exportHeader, 'accession');
+  var iQty = headerColIndex(exportHeader, 'qty');
+  var iUnit = headerColIndex(exportHeader, 'unit');
+  var iNotes = headerColIndex(exportHeader, 'notes');
+  if (iRowAcc < 0 || iQty < 0 || iUnit < 0) return [];
+
+  var byAcc = Object.create(null);
+  for (var r = 1; r < plantsValues.length; r++) {
+    var acc = String(plantsValues[r][iAcc]).trim();
+    if (acc && byAcc[acc] === undefined) byAcc[acc] = r;
+  }
+
+  var touched = Object.create(null); // accession -> { rowIndex, pots, tubes, misc }
+  for (var i = 0; i < appendedRows.length; i++) {
+    var row = appendedRows[i];
+    var accession = rowStr(row, iRowAcc);
+    var plantRow = byAcc[accession];
+    if (plantRow === undefined) continue;
+
+    var unit = rowStr(row, iUnit);
+    if (kind === 'culls' && isStockPlantCull(rowStr(row, iNotes), unit)) continue;
+
+    var state = touched[accession];
+    if (!state) {
+      state = {
+        rowIndex: plantRow,
+        pots: rowNum(plantsValues[plantRow], iPots),
+        tubes: rowNum(plantsValues[plantRow], iTubes),
+        misc: rowNum(plantsValues[plantRow], iMisc),
+      };
+      touched[accession] = state;
+    }
+
+    var next;
+    if (kind === 'sales') {
+      next = computeSalesDeduction(unit, rowNum(row, iQty), state.pots, state.tubes, state.misc);
+    } else if (kind === 'culls') {
+      next = computeCullDeduction(unit, rowNum(row, iQty), state.pots, state.tubes, state.misc);
+    } else {
+      continue;
+    }
+    state.pots = next.pots;
+    state.tubes = next.tubes;
+    state.misc = next.misc;
+  }
+
+  var out = [];
+  Object.keys(touched).forEach(function (k) {
+    var s = touched[k];
+    out.push({ rowIndex: s.rowIndex, pots: s.pots, tubes: s.tubes, misc: s.misc });
+  });
+  out.sort(function (a, b) { return a.rowIndex - b.rowIndex; });
+  return out;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     isAuthorized, emptyToNull, rowStr, rowNum, composePlantName, isUnknownPlantName,
@@ -565,6 +663,7 @@ if (typeof module !== 'undefined' && module.exports) {
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
     selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
     PRINT_LABEL_COPIES_MAX,
-    isStockPlantCull, computeCullDeduction, applyMarksToValues,
+    isStockPlantCull, computeCullDeduction, computeSalesDeduction, predictStockUpdates,
+    applyMarksToValues,
   };
 }
