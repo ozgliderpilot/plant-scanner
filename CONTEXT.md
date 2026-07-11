@@ -46,6 +46,14 @@ A volunteer request to reprint labels for an existing accession (lost or worn la
 a `queue_id` that uses the receipt-number scheme. Not for new accessions or repot/split flows.
 _Avoid_: print job, label order
 
+**Repot**:
+A volunteer update of an accession’s Tubes / Pots / Misc. counts (absolute values), commonly tubes
+becoming pots, plus an optional Ready for sale tick. Recorded locally and exported like culls;
+Access applies stock. Not-found accessions are blocked (contact database manager). Stock plant
+(`StockInNursery`) is display-only here; tray/cuttings belong under New accession. Hanging baskets
+use Misc. See `docs/superpowers/specs/2026-07-11-repot-stock-update-design.md`.
+_Avoid_: transfer-only, inventory adjust (as a separate concept), restock
+
 **Nursery stock total**:
 For one accession, the sum of `PotsInNursery + TubesInNursery + MiscInNursery + StockInNursery`.
 Used as the per-request cap on how many labels may be requested.
