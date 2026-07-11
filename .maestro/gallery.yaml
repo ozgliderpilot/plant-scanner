@@ -1,7 +1,7 @@
 appId: com.nursery.scanner.test
 ---
 # Volunteer-critical gallery walk (#72).
-# Order: Actions → sell → History/receipts → cull → print → culls list → Plants.
+# Order: Actions (Sell → Cull → Print) → History (Receipts → Culls) → Plants.
 # Prefer id (Compose testTag) for primary actions; text for fields / asserts.
 # Screenshot paths are relative to the Maestro workspace (repo root), not --output.
 # Frame ids/captions: .maestro/gallery-frames.txt
@@ -96,28 +96,11 @@ appId: com.nursery.scanner.test
 - tapOn:
     id: done
 
-# --- History + receipts ---
-- tapOn: "History"
-- takeScreenshot:
-    path: maestro-out/06-history
-- tapOn:
-    id: view_receipts
-- takeScreenshot:
-    path: maestro-out/07-receipts
-# Seeded receipt number is stable across CI runs (CiFixtures).
-- tapOn: "99-1700000000-1"
-- assertVisible: "Payment:.*"
-- takeScreenshot:
-    path: maestro-out/08-receipt-detail
-- back
-- back
-
 # --- Cull walk ---
-- tapOn: "Actions"
 - tapOn:
     id: cull_plants
 - takeScreenshot:
-    path: maestro-out/09-cull-scan
+    path: maestro-out/06-cull-scan
 - tapOn:
     id: type_number
 - tapOn:
@@ -136,21 +119,21 @@ appId: com.nursery.scanner.test
 - tapOn:
     id: qty_plus
 - takeScreenshot:
-    path: maestro-out/10-cull-info
+    path: maestro-out/07-cull-info
 - tapOn:
     id: record_cull
 # Wait for async recordCull → CullSuccessScreen (enter-info stays up until persist completes).
 - assertVisible: "Cull another"
 - takeScreenshot:
-    path: maestro-out/11-cull-success
+    path: maestro-out/08-cull-success
 - tapOn:
     id: done
 
-# --- Print label walk (after Cull; Actions order Sell → Cull → Print) ---
+# --- Print label walk ---
 - tapOn:
     id: print_label
 - takeScreenshot:
-    path: maestro-out/12-print-scan
+    path: maestro-out/09-print-scan
 - tapOn:
     id: type_number
 - tapOn:
@@ -161,7 +144,7 @@ appId: com.nursery.scanner.test
     id: find
 - assertVisible: "Please contact database administrator"
 - takeScreenshot:
-    path: maestro-out/13-print-not-found
+    path: maestro-out/10-print-not-found
 - tapOn: "Retry"
 - tapOn:
     text: "Accession number"
@@ -173,18 +156,31 @@ appId: com.nursery.scanner.test
 - tapOn:
     id: qty_plus
 - takeScreenshot:
-    path: maestro-out/14-print-copies
+    path: maestro-out/11-print-copies
 - tapOn:
     id: confirm_print
 # Wait for async confirmPrint → LabelPrintSuccessScreen.
 - assertVisible: "Print another"
 - takeScreenshot:
-    path: maestro-out/15-print-success
+    path: maestro-out/12-print-success
 - tapOn:
     id: done
 
-# --- Culls list (seeded + walked) then Plants catalog ---
+# --- History: list → receipts → culls ---
 - tapOn: "History"
+- takeScreenshot:
+    path: maestro-out/13-history
+- tapOn:
+    id: view_receipts
+- takeScreenshot:
+    path: maestro-out/14-receipts
+# Seeded receipt number is stable across CI runs (CiFixtures).
+- tapOn: "99-1700000000-1"
+- assertVisible: "Payment:.*"
+- takeScreenshot:
+    path: maestro-out/15-receipt-detail
+- back
+- back
 - tapOn:
     id: view_culled
 - takeScreenshot:

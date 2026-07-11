@@ -76,10 +76,6 @@ fun LabelPrintCopiesScreen(
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
-            Text(
-                "Stock total: ${draft.stockTotal}",
-                style = MaterialTheme.typography.bodyLarge,
-            )
 
             Text("Copies", style = MaterialTheme.typography.titleMedium)
             Row(
