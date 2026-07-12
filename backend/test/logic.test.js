@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   isAuthorized, emptyToNull, parsePlants, composePlantName, filterNewRows, planPlantReplace,
-  findRowByKey, planSyncStatusLog, SYNC_STATUS_MAX_ROWS,
+  planSyncStatusLog, SYNC_STATUS_MAX_ROWS,
   accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
   selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction, computeSalesDeduction,
   predictStockUpdates,
@@ -178,15 +178,6 @@ test('planPlantReplace finds accession by header name even if not first column',
 test('planPlantReplace on empty inputs', () => {
   assert.deepStrictEqual(planPlantReplace([], []), { header: [], rows: [] });
   assert.deepStrictEqual(planPlantReplace(PLANTS_HEADER, []).rows, []);
-});
-
-test('findRowByKey returns the data-row index of the matching event, else -1', () => {
-  const keys = [['Plants from Access'], ['Sales from device']];
-  assert.strictEqual(findRowByKey(keys, 'Plants from Access'), 0);
-  assert.strictEqual(findRowByKey(keys, 'Sales from device'), 1);
-  assert.strictEqual(findRowByKey(keys, 'Plant list to device'), -1);
-  assert.strictEqual(findRowByKey([], 'anything'), -1);
-  assert.strictEqual(findRowByKey(null, 'anything'), -1);
 });
 
 test('planSyncStatusLog prepends the new event as the first data row', () => {

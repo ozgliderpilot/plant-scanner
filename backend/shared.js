@@ -247,28 +247,16 @@ function planPlantReplace(header, rows) {
   return { header: header, rows: order.map(function (k) { return byKey[k]; }) };
 }
 
-/**
- * Index of the first row in `rows` whose first cell equals `key` (data rows only, no header), or -1.
- */
-function findRowByKey(rows, key) {
-  rows = rows || [];
-  for (var i = 0; i < rows.length; i++) {
-    if (String(rows[i][0]) === String(key)) return i;
-  }
-  return -1;
-}
-
 /** Max data rows kept in the SyncStatus rolling log (header excluded). */
 var SYNC_STATUS_MAX_ROWS = 100;
 
 /**
- * Prepend `newRow` to SyncStatus data rows (newest first) and trim to `maxRows`.
- * Does not mutate `existingRows`. Default cap is SYNC_STATUS_MAX_ROWS.
+ * Prepend `newRow` to SyncStatus data rows (newest first) and trim to SYNC_STATUS_MAX_ROWS.
+ * Does not mutate `existingRows`.
  */
-function planSyncStatusLog(existingRows, newRow, maxRows) {
-  if (maxRows == null) maxRows = SYNC_STATUS_MAX_ROWS;
+function planSyncStatusLog(existingRows, newRow) {
   var rows = [newRow].concat(existingRows || []);
-  if (rows.length > maxRows) rows = rows.slice(0, maxRows);
+  if (rows.length > SYNC_STATUS_MAX_ROWS) rows = rows.slice(0, SYNC_STATUS_MAX_ROWS);
   return rows;
 }
 
@@ -719,7 +707,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     isAuthorized, emptyToNull, rowStr, rowNum, composePlantName, isUnknownPlantName,
     pickPlantEnrichment, PLANT_ENRICHMENT_FIELDS, parsePlants, filterNewRows, planPlantReplace,
-    findRowByKey, planSyncStatusLog, SYNC_STATUS_MAX_ROWS,
+    planSyncStatusLog, SYNC_STATUS_MAX_ROWS,
     accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
     selectPendingSales, resolveSalesMarks,
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
