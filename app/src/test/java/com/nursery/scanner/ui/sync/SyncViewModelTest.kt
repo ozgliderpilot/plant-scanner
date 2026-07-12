@@ -33,6 +33,7 @@ class SyncViewModelTest {
         runCurrent()
 
         assertEquals(1, sync.calls)
+        assertEquals(true, sync.lastForceFullPull)
         assertEquals("Synced (2 sales, 1 cull)", vm.message.value)
     }
 
@@ -123,8 +124,12 @@ private class RecordingCloudSync(
 
     override val state: StateFlow<SyncState> = MutableStateFlow(SyncState())
 
-    override suspend fun syncCloud(): SyncResult {
+    override suspend fun syncCloud(forceFullPull: Boolean): SyncResult {
         calls++
+        lastForceFullPull = forceFullPull
         return result
     }
+
+    var lastForceFullPull: Boolean? = null
+        private set
 }

@@ -32,7 +32,7 @@ class SyncViewModel(
     }
 
     fun syncNow() = viewModelScope.launch {
-        _message.value = describe(sync.syncCloud())
+        _message.value = describe(sync.syncCloud(forceFullPull = true))
     }
 
     private fun describe(result: SyncResult): String = when (result) {

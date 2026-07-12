@@ -30,7 +30,7 @@ class AutoExportTicker(
             while (isActive) {
                 val config = settings.config.first()
                 if (config.isComplete && connectivity.isOnline()) {
-                    runCatching { sync.syncCloud() }
+                    runCatching { sync.syncCloud(forceFullPull = false) }
                 }
                 delay(config.autoExportSeconds * 1000L)
             }

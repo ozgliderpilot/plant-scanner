@@ -134,6 +134,56 @@ function parsePlants(values) {
 }
 
 /**
+ * Opaque plant-list fingerprint from the parsed `getPlants` plant objects (not raw sheet cells).
+ * Deterministic across Node and Apps Script — no GAS-only APIs.
+ */
+function computePlantListFingerprint(plants) {
+  var lines = (plants || []).map(function (p) {
+    return [
+      String(p.accession || ''),
+      String(p.name || ''),
+      String(p.genus || ''),
+      String(p.species || ''),
+      String(p.cultivar || ''),
+      String(p.commonName || ''),
+      p.group == null ? '' : String(p.group),
+      p.light == null ? '' : String(p.light),
+      String(Number(p.potsInNursery) || 0),
+      String(Number(p.tubesInNursery) || 0),
+      String(Number(p.miscInNursery) || 0),
+      String(Number(p.stockInNursery) || 0),
+    ].join('\t');
+  });
+  return hashPlantListCanonical_(lines.join('\n'));
+}
+
+/** True when the device-sent fingerprint matches the server cache (both non-blank). */
+function plantListFingerprintMatches(requestFingerprint, cachedFingerprint) {
+  var req = String(requestFingerprint == null ? '' : requestFingerprint).trim();
+  var cached = String(cachedFingerprint == null ? '' : cachedFingerprint).trim();
+  return req !== '' && cached !== '' && req === cached;
+}
+
+/** FNV-1a 32-bit × 2 → 16 hex chars. Pure JS so Node tests and GAS share one implementation. */
+function hashPlantListCanonical_(s) {
+  var h1 = 2166136261;
+  var h2 = 2166136261 ^ 0x9e3779b9;
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    h1 ^= c;
+    h1 = Math.imul(h1, 16777619) >>> 0;
+    h2 ^= c;
+    h2 = Math.imul(h2, 16777619) >>> 0;
+  }
+  return toHex8_(h1) + toHex8_(h2);
+}
+
+function toHex8_(n) {
+  var h = n.toString(16);
+  return ('00000000' + h).slice(-8);
+}
+
+/**
  * Return a header row with a trailing sync_status column when absent. If sync_status already exists
  * anywhere in the row (any casing), the header is returned unchanged — never duplicated.
  */
@@ -663,5 +713,6 @@ if (typeof module !== 'undefined' && module.exports) {
     PRINT_LABEL_COPIES_MAX,
     isStockPlantCull, computeCullDeduction, computeSalesDeduction, predictStockUpdates,
     applyMarksToValues,
+    computePlantListFingerprint, plantListFingerprintMatches,
   };
 }

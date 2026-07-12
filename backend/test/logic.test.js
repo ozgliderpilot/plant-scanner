@@ -8,6 +8,7 @@ const {
   validateAppendCullsNotes, applyMarksToValues,
   selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
   PRINT_LABEL_COPIES_MAX,
+  computePlantListFingerprint, plantListFingerprintMatches,
 } = require('../shared.js');
 
 test('isAuthorized accepts the right secret only', () => {
@@ -54,6 +55,57 @@ test('parsePlants tolerates reordered / missing optional columns', () => {
   assert.strictEqual(plants[0].accession, '2022-0100');
   assert.strictEqual(plants[0].name, 'Wattle');
   assert.strictEqual(plants[0].group, null);
+});
+
+test('computePlantListFingerprint is stable for the same parsed plants', () => {
+  const plants = parsePlants([
+    ['accession', 'name', 'potsInNursery', 'tubesInNursery', 'miscInNursery', 'stockInNursery'],
+    ['2021-0345', 'Banksia', 2, 0, 0, 1],
+    ['2022-0100', 'Wattle', 0, 3, 0, 0],
+  ]);
+  const a = computePlantListFingerprint(plants);
+  const b = computePlantListFingerprint(plants);
+  assert.strictEqual(typeof a, 'string');
+  assert.ok(a.length > 0);
+  assert.strictEqual(a, b);
+});
+
+test('computePlantListFingerprint changes when stock counts change', () => {
+  const header = ['accession', 'name', 'potsInNursery', 'tubesInNursery', 'miscInNursery', 'stockInNursery'];
+  const before = computePlantListFingerprint(parsePlants([
+    header, ['2021-0345', 'Banksia', 2, 0, 0, 1],
+  ]));
+  const after = computePlantListFingerprint(parsePlants([
+    header, ['2021-0345', 'Banksia', 1, 0, 0, 1],
+  ]));
+  assert.notStrictEqual(before, after);
+});
+
+test('computePlantListFingerprint changes when accession order changes', () => {
+  const header = ['accession', 'name', 'potsInNursery', 'tubesInNursery', 'miscInNursery', 'stockInNursery'];
+  const a = computePlantListFingerprint(parsePlants([
+    header, ['2021-0345', 'Banksia', 1, 0, 0, 0], ['2022-0100', 'Wattle', 1, 0, 0, 0],
+  ]));
+  const b = computePlantListFingerprint(parsePlants([
+    header, ['2022-0100', 'Wattle', 1, 0, 0, 0], ['2021-0345', 'Banksia', 1, 0, 0, 0],
+  ]));
+  assert.notStrictEqual(a, b);
+});
+
+test('computePlantListFingerprint for empty list is stable and non-empty', () => {
+  const fp = computePlantListFingerprint([]);
+  assert.strictEqual(fp, computePlantListFingerprint([]));
+  assert.ok(fp.length > 0);
+});
+
+test('plantListFingerprintMatches requires both sides non-blank and equal', () => {
+  assert.strictEqual(plantListFingerprintMatches('abc', 'abc'), true);
+  assert.strictEqual(plantListFingerprintMatches(' abc ', 'abc'), true);
+  assert.strictEqual(plantListFingerprintMatches('abc', 'xyz'), false);
+  assert.strictEqual(plantListFingerprintMatches('', 'abc'), false);
+  assert.strictEqual(plantListFingerprintMatches('abc', ''), false);
+  assert.strictEqual(plantListFingerprintMatches(null, 'abc'), false);
+  assert.strictEqual(plantListFingerprintMatches('abc', null), false);
 });
 
 test('filterNewRows skips already-exported receipts, keeps all lines of new ones', () => {
