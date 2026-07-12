@@ -16,8 +16,8 @@
  *   - pendingPrintLabels -> returns every "PrintQueue" row whose sync_status is "Pending" (Access reverse sync)
  *   - markPrintLabelsSynced -> sets sync_status by queue_id key (Access reverse sync, status-agnostic)
  *
- * Every action also stamps a "SyncStatus" sheet (one row per event) with the last time it ran, so the
- * Sheet shows when plants were last pushed from Access and last pulled to / pushed from the device.
+ * Every action also stamps a "SyncStatus" sheet (rolling log of the last 100 sync events, newest
+ * first) so the Sheet shows recent plant pushes from Access and pulls / pushes with the device.
  *
  * Plant-list fingerprints for conditional getPlants are cached in Script Properties
  * (key PLANT_LIST_FINGERPRINT) — see ADR-0016.
@@ -403,10 +403,11 @@ function stampPending_(sheet, startRow, numRows, statusCol) {
 }
 
 /**
- * Upsert one row in the "SyncStatus" sheet for `event`, stamping the current time and a short detail.
- * One row per event label, so the sheet always shows the LAST time each sync ran. Wrapped in try/catch
- * so a logging hiccup can never fail the actual sync. Callers inside handleReplacePlants_/
- * handleAppendSales_ already hold the document lock; handleGetPlants_ calls it lock-free (rare, benign).
+ * Append one history row to the "SyncStatus" sheet (newest first), keeping at most
+ * SYNC_STATUS_MAX_ROWS data rows. Existing rows are preserved as history — never wiped.
+ * Wrapped in try/catch so a logging hiccup can never fail the actual sync. Callers inside
+ * handleReplacePlants_/handleAppendSales_ already hold the document lock; handleGetPlants_
+ * calls it lock-free (rare, benign).
  */
 function recordSync_(event, direction, detail) {
   try {
@@ -418,10 +419,18 @@ function recordSync_(event, direction, detail) {
       sheet.setFrozenRows(1);
     }
     var lastRow = sheet.getLastRow();
-    var keys = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 1).getValues() : [];
-    var idx = findRowByKey(keys, event);
-    var rowNum = idx >= 0 ? idx + 2 : (lastRow < 1 ? 2 : lastRow + 1); // +2: skip header + 0-based->1-based
-    sheet.getRange(rowNum, 1, 1, 4).setValues([[event, direction, new Date(), detail]]);
+    var existing = lastRow > 1
+      ? sheet.getRange(2, 1, lastRow - 1, 4).getValues()
+      : [];
+    var planned = planSyncStatusLog(existing, [event, direction, new Date(), detail]);
+    if (planned.length > 0) {
+      sheet.getRange(2, 1, planned.length, 4).setValues(planned);
+    }
+    // Drop any rows past the planned length (header + planned).
+    var excess = sheet.getLastRow() - (1 + planned.length);
+    if (excess > 0) {
+      sheet.deleteRows(2 + planned.length, excess);
+    }
   } catch (e) {
     console.error(e);
   }

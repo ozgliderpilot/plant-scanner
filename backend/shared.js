@@ -249,7 +249,6 @@ function planPlantReplace(header, rows) {
 
 /**
  * Index of the first row in `rows` whose first cell equals `key` (data rows only, no header), or -1.
- * Used by the SyncStatus log to upsert one row per sync event keyed on the event label.
  */
 function findRowByKey(rows, key) {
   rows = rows || [];
@@ -257,6 +256,20 @@ function findRowByKey(rows, key) {
     if (String(rows[i][0]) === String(key)) return i;
   }
   return -1;
+}
+
+/** Max data rows kept in the SyncStatus rolling log (header excluded). */
+var SYNC_STATUS_MAX_ROWS = 100;
+
+/**
+ * Prepend `newRow` to SyncStatus data rows (newest first) and trim to `maxRows`.
+ * Does not mutate `existingRows`. Default cap is SYNC_STATUS_MAX_ROWS.
+ */
+function planSyncStatusLog(existingRows, newRow, maxRows) {
+  if (maxRows == null) maxRows = SYNC_STATUS_MAX_ROWS;
+  var rows = [newRow].concat(existingRows || []);
+  if (rows.length > maxRows) rows = rows.slice(0, maxRows);
+  return rows;
 }
 
 /** Index of a named column in a sheet header row (trimmed, case-insensitive), or -1 if absent. */
@@ -706,7 +719,8 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     isAuthorized, emptyToNull, rowStr, rowNum, composePlantName, isUnknownPlantName,
     pickPlantEnrichment, PLANT_ENRICHMENT_FIELDS, parsePlants, filterNewRows, planPlantReplace,
-    findRowByKey, accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
+    findRowByKey, planSyncStatusLog, SYNC_STATUS_MAX_ROWS,
+    accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
     selectPendingSales, resolveSalesMarks,
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
     selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
