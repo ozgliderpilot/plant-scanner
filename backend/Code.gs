@@ -420,7 +420,8 @@ function recordSync_(event, direction, detail) {
       sheet.setFrozenRows(1);
     }
     sheet.insertRows(2, 1);
-    sheet.getRange(2, 1, 1, 4).setValues([[event, direction, new Date(), detail]]);
+    var when = Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'dd/MM/yyyy HH:mm:ss');
+    sheet.getRange(2, 1, 1, 4).setValues([[event, direction, when, detail]]);
     var excess = sheet.getLastRow() - 101; // header + 100 data rows
     if (excess > 0) {
       sheet.deleteRows(102, excess);
