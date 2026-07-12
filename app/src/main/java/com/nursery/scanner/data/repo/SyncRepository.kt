@@ -7,6 +7,7 @@ import com.nursery.core.DeviceConfig
 import com.nursery.core.Export
 import com.nursery.core.LabelPrintExport
 import com.nursery.core.LabelPrintStatus
+import com.nursery.core.PlantListImport
 import com.nursery.core.ReceiptStatus
 import com.nursery.core.Retention
 import com.nursery.scanner.data.local.dao.CullDao
@@ -53,7 +54,8 @@ sealed interface SyncResult {
 /** Narrow façade SyncViewModel needs — keeps UI tests free of Room/OkHttp. */
 interface CloudSyncActions {
     val state: StateFlow<SyncState>
-    suspend fun syncCloud(): SyncResult
+    /** @param forceFullPull when true (manual ↻), omit the stored fingerprint so the server full-pulls. */
+    suspend fun syncCloud(forceFullPull: Boolean = false): SyncResult
 }
 
 /**
@@ -102,15 +104,27 @@ class SyncRepository(
         )
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), SyncState())
 
-    override suspend fun syncCloud(): SyncResult = cloudMutex.withLock {
+    override suspend fun syncCloud(forceFullPull: Boolean): SyncResult = cloudMutex.withLock {
         val config = settings.config.first()
         if (!config.isComplete) return@withLock SyncResult.NotConfigured
 
         transient.update { it.copy(busy = true, error = null) }
 
         val exportStep = exportStep(config)
-        val importStep = plants.updateFromCloud(config).fold(
-            onSuccess = { CloudSync.ImportStep.Ok },
+        val localCount = plants.count.first()
+        val storedFingerprint = settings.plantListFingerprint.first()
+        val importStep = plants.updateFromCloud(
+            config = config,
+            forceFullPull = forceFullPull,
+            localPlantCount = localCount,
+            storedFingerprint = storedFingerprint,
+        ).fold(
+            onSuccess = { outcome ->
+                if (outcome is PlantListImport.Outcome.Apply) {
+                    settings.setPlantListFingerprint(outcome.fingerprintToStore)
+                }
+                CloudSync.ImportStep.Ok
+            },
             onFailure = { e -> CloudSync.ImportStep.Err(e.message ?: "Update failed") },
         )
         val outcome = CloudSync.combine(exportStep, importStep)

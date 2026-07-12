@@ -19,6 +19,9 @@
  * Every action also stamps a "SyncStatus" sheet (one row per event) with the last time it ran, so the
  * Sheet shows when plants were last pushed from Access and last pulled to / pushed from the device.
  *
+ * Plant-list fingerprints for conditional getPlants are cached in Script Properties
+ * (key PLANT_LIST_FINGERPRINT) — see ADR-0016.
+ *
  * Requires a second script file `shared.gs` containing the contents of shared.js.
  */
 
@@ -30,7 +33,7 @@ function doPost(e) {
       return json_({ ok: false, error: 'Unauthorized' });
     }
     switch (body.action) {
-      case 'getPlants': return handleGetPlants_();
+      case 'getPlants': return handleGetPlants_(body);
       case 'replacePlants': return handleReplacePlants_(body);
       case 'appendSales': return handleAppendSales_(body);
       case 'appendCulls': return handleAppendCulls_(body);
@@ -59,6 +62,29 @@ function getSecret_() {
   return PropertiesService.getScriptProperties().getProperty('SHARED_SECRET');
 }
 
+var PLANT_LIST_FINGERPRINT_KEY_ = 'PLANT_LIST_FINGERPRINT';
+
+function getCachedPlantListFingerprint_() {
+  return PropertiesService.getScriptProperties().getProperty(PLANT_LIST_FINGERPRINT_KEY_);
+}
+
+function setCachedPlantListFingerprint_(fingerprint) {
+  PropertiesService.getScriptProperties().setProperty(PLANT_LIST_FINGERPRINT_KEY_, String(fingerprint || ''));
+}
+
+/** Recompute and store the plant-list fingerprint from the current Plants sheet. */
+function refreshPlantListFingerprint_() {
+  var sheet = SpreadsheetApp.getActive().getSheetByName('Plants');
+  if (!sheet) {
+    setCachedPlantListFingerprint_('');
+    return '';
+  }
+  var plants = parsePlants(sheet.getDataRange().getValues());
+  var fp = computePlantListFingerprint(plants);
+  setCachedPlantListFingerprint_(fp);
+  return fp;
+}
+
 function withDocumentLock_(fn) {
   var lock = LockService.getDocumentLock();
   try {
@@ -73,14 +99,31 @@ function withDocumentLock_(fn) {
   }
 }
 
-function handleGetPlants_() {
+function handleGetPlants_(body) {
   return withDocumentLock_(function () {
+    var cached = getCachedPlantListFingerprint_();
+    if (plantListFingerprintMatches(body && body.plantListFingerprint, cached)) {
+      return json_({
+        ok: true,
+        unchanged: true,
+        plantListFingerprint: String(cached).trim(),
+      });
+    }
+
     var sheet = SpreadsheetApp.getActive().getSheetByName('Plants');
     if (!sheet) return json_({ ok: false, error: 'No "Plants" sheet found' });
     var values = sheet.getDataRange().getValues();
     var plants = parsePlants(values);
+    var fingerprint = computePlantListFingerprint(plants);
+    setCachedPlantListFingerprint_(fingerprint);
     recordSync_('Plant list to device', 'Sheet → device', plants.length + ' plants');
-    return json_({ ok: true, plants: plants, count: plants.length, updatedAt: new Date().toISOString() });
+    return json_({
+      ok: true,
+      plants: plants,
+      count: plants.length,
+      plantListFingerprint: fingerprint,
+      updatedAt: new Date().toISOString(),
+    });
   });
 }
 
@@ -102,6 +145,9 @@ function handleReplacePlants_(body) {
     sheet.clearContents();
     if (plan.rows.length > 0) forceTextColumn_(sheet, 2, plan.rows.length, accCol);
     sheet.getRange(1, 1, out.length, plan.header.length).setValues(out);
+
+    var fingerprint = computePlantListFingerprint(parsePlants(out));
+    setCachedPlantListFingerprint_(fingerprint);
 
     recordSync_('Plants from Access', 'Access → Sheet', plan.rows.length + ' plants');
     return json_({ ok: true, written: plan.rows.length });
@@ -197,9 +243,16 @@ function predictPlantsStock_(exportHeader, appendedRows, kind) {
   var iMisc = headerColIndex(header, 'miscinnursery');
   if (iPots < 0 || iTubes < 0 || iMisc < 0) return;
 
-  writePredictedStockColumn_(plantsSheet, updates, iPots, 'pots');
-  writePredictedStockColumn_(plantsSheet, updates, iTubes, 'tubes');
-  writePredictedStockColumn_(plantsSheet, updates, iMisc, 'misc');
+  // Refresh even if a later column write throws: otherwise Script Properties can
+  // stay on the pre-mutation fingerprint and getPlants may answer unchanged
+  // while Plants already reflects a partial prediction (ADR-0016).
+  try {
+    writePredictedStockColumn_(plantsSheet, updates, iPots, 'pots');
+    writePredictedStockColumn_(plantsSheet, updates, iTubes, 'tubes');
+    writePredictedStockColumn_(plantsSheet, updates, iMisc, 'misc');
+  } finally {
+    refreshPlantListFingerprint_();
+  }
 }
 
 /** Batch-write one stock column for sorted updates, coalescing contiguous plant rows. */

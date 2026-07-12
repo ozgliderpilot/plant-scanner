@@ -24,15 +24,18 @@ data class PlantDto(
 data class GetPlantsRequest(
     val secret: String,
     val action: String = "getPlants",
+    val plantListFingerprint: String? = null,
 )
 
 @Serializable
 data class GetPlantsResponse(
     val ok: Boolean,
-    val plants: List<PlantDto> = emptyList(),
+    val plants: List<PlantDto>? = null,
     val count: Int = 0,
     val updatedAt: String? = null,
     val error: String? = null,
+    val unchanged: Boolean = false,
+    val plantListFingerprint: String? = null,
 )
 
 @Serializable

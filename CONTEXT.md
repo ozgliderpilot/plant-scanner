@@ -92,6 +92,12 @@ Sheets) rather than upserting rows. Only accessions with stock > 0 are included 
 See ADR-0005.
 _Avoid_: incremental sync, upsert, plant delta
 
+**Plant-list fingerprint**:
+Opaque string identifying the current plant list as returned by `getPlants` (parsed plant objects).
+The server computes and caches it; the device only stores and echoes it on conditional import so an
+unchanged list skips download and local replace. See ADR-0016.
+_Avoid_: consistent hashing, etag, LastHash (Access push change-detection — different path)
+
 **Export header**:
 The ordered column list for a Sheet tab (`Export.HEADER` for Sales, `CullExport.HEADER` for Culls,
 `LabelPrintExport.HEADER` for PrintQueue). Stable order relied on by the Apps Script backend —

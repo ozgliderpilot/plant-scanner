@@ -16,6 +16,16 @@ import java.util.concurrent.TimeUnit
 /** Result of an export push. */
 data class AppendOutcome(val appended: Int, val skipped: Int)
 
+/** Wire result of `getPlants` before apply-vs-keep-cache policy. */
+data class FetchPlantsResult(
+    val ok: Boolean,
+    val unchanged: Boolean = false,
+    /** Null when the server omitted plant rows (unchanged or malformed). Empty list = empty nursery. */
+    val plants: List<Plant>? = null,
+    val plantListFingerprint: String? = null,
+    val error: String? = null,
+)
+
 /**
  * Talks to the Apps Script Web App over plain HTTPS + JSON using OkHttp directly (no Retrofit — the
  * two calls are simple and this avoids a fragile converter dependency). Apps Script answers with a
@@ -44,27 +54,40 @@ class SheetsClient(
         }
     }
 
-    suspend fun fetchPlants(config: DeviceConfig): Result<List<Plant>> = withContext(Dispatchers.IO) {
+    suspend fun fetchPlants(
+        config: DeviceConfig,
+        plantListFingerprint: String? = null,
+    ): Result<FetchPlantsResult> = withContext(Dispatchers.IO) {
         runCatching {
-            val requestBody = json.encodeToString(GetPlantsRequest(secret = config.sharedSecret))
+            val requestBody = json.encodeToString(
+                GetPlantsRequest(
+                    secret = config.sharedSecret,
+                    plantListFingerprint = plantListFingerprint,
+                ),
+            )
             val resp = json.decodeFromString<GetPlantsResponse>(postRaw(config.endpointUrl, requestBody))
-            if (!resp.ok) error(resp.error ?: "Server rejected the request")
-            resp.plants.map {
-                Plant(
-                    accession = it.accession,
-                    name = it.name,
-                    genus = it.genus,
-                    species = it.species,
-                    cultivar = it.cultivar,
-                    commonName = it.commonName,
-                    group = it.group,
-                    light = it.light,
-                    potsInNursery = it.potsInNursery,
-                    tubesInNursery = it.tubesInNursery,
-                    miscInNursery = it.miscInNursery,
-                    stockInNursery = it.stockInNursery,
-                )
-            }
+            FetchPlantsResult(
+                ok = resp.ok,
+                unchanged = resp.unchanged,
+                plants = resp.plants?.map {
+                    Plant(
+                        accession = it.accession,
+                        name = it.name,
+                        genus = it.genus,
+                        species = it.species,
+                        cultivar = it.cultivar,
+                        commonName = it.commonName,
+                        group = it.group,
+                        light = it.light,
+                        potsInNursery = it.potsInNursery,
+                        tubesInNursery = it.tubesInNursery,
+                        miscInNursery = it.miscInNursery,
+                        stockInNursery = it.stockInNursery,
+                    )
+                },
+                plantListFingerprint = resp.plantListFingerprint,
+                error = resp.error,
+            )
         }
     }
 

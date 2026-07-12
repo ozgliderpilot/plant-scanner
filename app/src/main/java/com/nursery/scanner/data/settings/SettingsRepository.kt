@@ -37,6 +37,7 @@ class SettingsRepository(context: Context) : SettingsConfigSource {
         val SEQ_DAY = longPreferencesKey("receipt_seq_day")
         val LAST_SYNCED = longPreferencesKey("last_synced_ms")
         val LAST_PLANT_LIST_UPDATE = longPreferencesKey("last_plant_list_update_ms")
+        val PLANT_LIST_FINGERPRINT = stringPreferencesKey("plant_list_fingerprint")
     }
 
     override val config: Flow<DeviceConfig> = store.data.map { p ->
@@ -56,6 +57,13 @@ class SettingsRepository(context: Context) : SettingsConfigSource {
     /** Null when the plant list has never been pulled successfully. */
     val lastPlantListUpdateMs: Flow<Long?> =
         store.data.map { p -> p[Keys.LAST_PLANT_LIST_UPDATE]?.takeIf { it > 0 } }
+
+    /**
+     * Last plant-list fingerprint successfully applied to the local cache.
+     * Opaque server echo — never computed on device. Null/blank means force a full pull.
+     */
+    val plantListFingerprint: Flow<String?> =
+        store.data.map { p -> p[Keys.PLANT_LIST_FINGERPRINT]?.trim()?.takeIf { it.isNotEmpty() } }
 
     suspend fun saveConfig(config: DeviceConfig) {
         store.edit { p ->
@@ -91,5 +99,9 @@ class SettingsRepository(context: Context) : SettingsConfigSource {
 
     suspend fun setLastPlantListUpdate(epochMs: Long) {
         store.edit { p -> p[Keys.LAST_PLANT_LIST_UPDATE] = epochMs }
+    }
+
+    suspend fun setPlantListFingerprint(fingerprint: String) {
+        store.edit { p -> p[Keys.PLANT_LIST_FINGERPRINT] = fingerprint }
     }
 }
