@@ -403,11 +403,12 @@ function stampPending_(sheet, startRow, numRows, statusCol) {
 }
 
 /**
- * Append one history row to the "SyncStatus" sheet (newest first), keeping at most
- * SYNC_STATUS_MAX_ROWS data rows. Existing rows are preserved as history — never wiped.
- * Wrapped in try/catch so a logging hiccup can never fail the actual sync. Callers inside
- * handleReplacePlants_/handleAppendSales_ already hold the document lock; handleGetPlants_
- * calls it lock-free (rare, benign).
+ * Insert one history row at the top of the "SyncStatus" sheet (newest first), keeping at
+ * most 100 data rows by deleting oldest rows from the bottom. Existing rows are left in
+ * place (shifted down) — never wiped or rewritten. Wrapped in try/catch so a logging
+ * hiccup can never fail the actual sync. Callers inside handleReplacePlants_/
+ * handleAppendSales_ already hold the document lock; handleGetPlants_ calls it lock-free
+ * (rare, benign).
  */
 function recordSync_(event, direction, detail) {
   try {
@@ -418,18 +419,11 @@ function recordSync_(event, direction, detail) {
       sheet.getRange(1, 1, 1, 4).setValues([['Event', 'Direction', 'Last Sync', 'Detail']]);
       sheet.setFrozenRows(1);
     }
-    var lastRow = sheet.getLastRow();
-    var existing = lastRow > 1
-      ? sheet.getRange(2, 1, lastRow - 1, 4).getValues()
-      : [];
-    var planned = planSyncStatusLog(existing, [event, direction, new Date(), detail]);
-    if (planned.length > 0) {
-      sheet.getRange(2, 1, planned.length, 4).setValues(planned);
-    }
-    // Drop any rows past the planned length (header + planned).
-    var excess = sheet.getLastRow() - (1 + planned.length);
+    sheet.insertRows(2, 1);
+    sheet.getRange(2, 1, 1, 4).setValues([[event, direction, new Date(), detail]]);
+    var excess = sheet.getLastRow() - 101; // header + 100 data rows
     if (excess > 0) {
-      sheet.deleteRows(2 + planned.length, excess);
+      sheet.deleteRows(102, excess);
     }
   } catch (e) {
     console.error(e);

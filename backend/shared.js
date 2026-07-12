@@ -247,19 +247,6 @@ function planPlantReplace(header, rows) {
   return { header: header, rows: order.map(function (k) { return byKey[k]; }) };
 }
 
-/** Max data rows kept in the SyncStatus rolling log (header excluded). */
-var SYNC_STATUS_MAX_ROWS = 100;
-
-/**
- * Prepend `newRow` to SyncStatus data rows (newest first) and trim to SYNC_STATUS_MAX_ROWS.
- * Does not mutate `existingRows`.
- */
-function planSyncStatusLog(existingRows, newRow) {
-  var rows = [newRow].concat(existingRows || []);
-  if (rows.length > SYNC_STATUS_MAX_ROWS) rows = rows.slice(0, SYNC_STATUS_MAX_ROWS);
-  return rows;
-}
-
 /** Index of a named column in a sheet header row (trimmed, case-insensitive), or -1 if absent. */
 function headerColIndex(header, name) {
   var lower = (header || []).map(function (h) { return String(h).trim().toLowerCase(); });
@@ -707,7 +694,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     isAuthorized, emptyToNull, rowStr, rowNum, composePlantName, isUnknownPlantName,
     pickPlantEnrichment, PLANT_ENRICHMENT_FIELDS, parsePlants, filterNewRows, planPlantReplace,
-    planSyncStatusLog, SYNC_STATUS_MAX_ROWS,
     accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
     selectPendingSales, resolveSalesMarks,
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,

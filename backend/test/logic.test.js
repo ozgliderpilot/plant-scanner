@@ -2,7 +2,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   isAuthorized, emptyToNull, parsePlants, composePlantName, filterNewRows, planPlantReplace,
-  planSyncStatusLog, SYNC_STATUS_MAX_ROWS,
   accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
   selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction, computeSalesDeduction,
   predictStockUpdates,
@@ -178,50 +177,6 @@ test('planPlantReplace finds accession by header name even if not first column',
 test('planPlantReplace on empty inputs', () => {
   assert.deepStrictEqual(planPlantReplace([], []), { header: [], rows: [] });
   assert.deepStrictEqual(planPlantReplace(PLANTS_HEADER, []).rows, []);
-});
-
-test('planSyncStatusLog prepends the new event as the first data row', () => {
-  const existing = [
-    ['Sales from device', 'device → Sheet', 't1', '2 receipts'],
-    ['Plants from Access', 'Access → Sheet', 't0', '10 plants'],
-  ];
-  const newer = ['Plant list to device', 'Sheet → device', 't2', '10 plants'];
-  assert.deepStrictEqual(planSyncStatusLog(existing, newer), [
-    newer,
-    existing[0],
-    existing[1],
-  ]);
-});
-
-test('planSyncStatusLog keeps duplicate event labels as separate rows', () => {
-  const existing = [
-    ['Sales from device', 'device → Sheet', 't1', '1 receipt'],
-  ];
-  const newer = ['Sales from device', 'device → Sheet', 't2', '3 receipts'];
-  const planned = planSyncStatusLog(existing, newer);
-  assert.strictEqual(planned.length, 2);
-  assert.deepStrictEqual(planned[0], newer);
-  assert.deepStrictEqual(planned[1], existing[0]);
-});
-
-test('planSyncStatusLog trims to 100 data rows, dropping the oldest', () => {
-  assert.strictEqual(SYNC_STATUS_MAX_ROWS, 100);
-  const existing = [];
-  for (let i = 0; i < 100; i++) {
-    existing.push(['Event ' + i, 'dir', 't' + i, 'detail ' + i]);
-  }
-  const newer = ['Newest', 'dir', 't-new', 'fresh'];
-  const planned = planSyncStatusLog(existing, newer);
-  assert.strictEqual(planned.length, 100);
-  assert.deepStrictEqual(planned[0], newer);
-  assert.deepStrictEqual(planned[99], existing[98]); // oldest (existing[99]) dropped
-  assert.strictEqual(planned.some((r) => r[0] === 'Event 99'), false);
-});
-
-test('planSyncStatusLog treats null/empty existing rows as an empty log', () => {
-  const newer = ['Sales from device', 'device → Sheet', 't0', '1 receipt'];
-  assert.deepStrictEqual(planSyncStatusLog(null, newer), [newer]);
-  assert.deepStrictEqual(planSyncStatusLog([], newer), [newer]);
 });
 
 test('planPlantReplace keys on raw "Ac Number" header when not column 0', () => {
