@@ -243,10 +243,16 @@ function predictPlantsStock_(exportHeader, appendedRows, kind) {
   var iMisc = headerColIndex(header, 'miscinnursery');
   if (iPots < 0 || iTubes < 0 || iMisc < 0) return;
 
-  writePredictedStockColumn_(plantsSheet, updates, iPots, 'pots');
-  writePredictedStockColumn_(plantsSheet, updates, iTubes, 'tubes');
-  writePredictedStockColumn_(plantsSheet, updates, iMisc, 'misc');
-  refreshPlantListFingerprint_();
+  // Refresh even if a later column write throws: otherwise Script Properties can
+  // stay on the pre-mutation fingerprint and getPlants may answer unchanged
+  // while Plants already reflects a partial prediction (ADR-0016).
+  try {
+    writePredictedStockColumn_(plantsSheet, updates, iPots, 'pots');
+    writePredictedStockColumn_(plantsSheet, updates, iTubes, 'tubes');
+    writePredictedStockColumn_(plantsSheet, updates, iMisc, 'misc');
+  } finally {
+    refreshPlantListFingerprint_();
+  }
 }
 
 /** Batch-write one stock column for sorted updates, coalescing contiguous plant rows. */
