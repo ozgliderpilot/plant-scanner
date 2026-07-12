@@ -1,0 +1,13 @@
+# Local `status` is the sync queue
+
+## Context
+
+Sales, culls, and label print requests must survive offline sessions and flaky uploads. A separate outbox table would duplicate state already needed on each record (“is this ready to push?”).
+
+## Decision
+
+Use the local `status` column as the sync queue: export only pending rows, and flip to exported **only after HTTP success**. Receipts: `OPEN` → `SAVED` → `EXPORTED`. Culls and label print requests: `PENDING` → `EXPORTED`.
+
+## Consequences
+
+“Nothing lost / no double-counting” is a plain transactional update. Rows stuck pending are visible and retryable; success must never be assumed before HTTP OK.

@@ -4,8 +4,8 @@ An offline-first Android app for the Royal Botanic Gardens Melbourne volunteer n
 barcode, build a receipt, save it locally, and auto-export sales to Google Sheets. Built for elderly
 volunteers (big buttons, big text, high contrast, no flicker, tap-not-gesture).
 
-> Status: **Phase 1 complete** (Sell · Sync plant list · Export sales). Phase 2 (accession, label,
-> repot, death) is sketched in the spec but not built.
+> Status: **Phase 1 complete** (Sell · Sync plant list · Export sales). Cull and label-print flows
+> are in use; further nursery workflows (accession, repot, etc.) are not built.
 
 ## What it does
 
@@ -64,13 +64,15 @@ See **[docs/deploy/README.md](docs/deploy/README.md)** — backend → Android �
 - **In-app coroutine ticker** for the 1-minute auto-export (WorkManager's floor is 15 min).
 - **Apps Script + shared secret** instead of the Sheets API + OAuth.
 
-See `docs/tech-stack.md` for the full rationale and `docs/superpowers/specs/` for the design spec.
+Rationale for these choices lives in [`docs/adr/`](docs/adr/) (start with
+[ADR-0001](docs/adr/0001-native-android-compose-stack.md),
+[ADR-0002](docs/adr/0002-apps-script-shared-secret.md),
+[ADR-0007](docs/adr/0007-unified-cloud-sync.md)).
 
 ## Project docs
 
 - [`docs/architecture.png`](docs/architecture.png) — system architecture diagram (source:
   [`docs/plant-scanner-architecture.excalidraw`](docs/plant-scanner-architecture.excalidraw)).
-- `docs/superpowers/specs/2026-06-09-plant-scanner-screen-flows-design.md` — the approved design spec.
-- `docs/tech-stack.md` — technology decisions.
-- `docs/superpowers/plans/2026-06-09-plant-scanner-implementation.md` — the implementation plan.
+- [`docs/adr/`](docs/adr/) — architectural decisions.
+- [`CONTEXT.md`](CONTEXT.md) — domain glossary.
 - `docs/deploy/` — deployment & wiring instructions (backend → Android → connect → Access).
