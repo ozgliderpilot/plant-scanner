@@ -247,18 +247,6 @@ function planPlantReplace(header, rows) {
   return { header: header, rows: order.map(function (k) { return byKey[k]; }) };
 }
 
-/**
- * Index of the first row in `rows` whose first cell equals `key` (data rows only, no header), or -1.
- * Used by the SyncStatus log to upsert one row per sync event keyed on the event label.
- */
-function findRowByKey(rows, key) {
-  rows = rows || [];
-  for (var i = 0; i < rows.length; i++) {
-    if (String(rows[i][0]) === String(key)) return i;
-  }
-  return -1;
-}
-
 /** Index of a named column in a sheet header row (trimmed, case-insensitive), or -1 if absent. */
 function headerColIndex(header, name) {
   var lower = (header || []).map(function (h) { return String(h).trim().toLowerCase(); });
@@ -706,7 +694,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     isAuthorized, emptyToNull, rowStr, rowNum, composePlantName, isUnknownPlantName,
     pickPlantEnrichment, PLANT_ENRICHMENT_FIELDS, parsePlants, filterNewRows, planPlantReplace,
-    findRowByKey, accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
+    accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
     selectPendingSales, resolveSalesMarks,
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
     selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,

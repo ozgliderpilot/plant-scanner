@@ -16,8 +16,8 @@
  *   - pendingPrintLabels -> returns every "PrintQueue" row whose sync_status is "Pending" (Access reverse sync)
  *   - markPrintLabelsSynced -> sets sync_status by queue_id key (Access reverse sync, status-agnostic)
  *
- * Every action also stamps a "SyncStatus" sheet (one row per event) with the last time it ran, so the
- * Sheet shows when plants were last pushed from Access and last pulled to / pushed from the device.
+ * Every action also stamps a "SyncStatus" sheet (rolling log of the last 100 sync events, newest
+ * first) so the Sheet shows recent plant pushes from Access and pulls / pushes with the device.
  *
  * Plant-list fingerprints for conditional getPlants are cached in Script Properties
  * (key PLANT_LIST_FINGERPRINT) — see ADR-0016.
@@ -403,10 +403,12 @@ function stampPending_(sheet, startRow, numRows, statusCol) {
 }
 
 /**
- * Upsert one row in the "SyncStatus" sheet for `event`, stamping the current time and a short detail.
- * One row per event label, so the sheet always shows the LAST time each sync ran. Wrapped in try/catch
- * so a logging hiccup can never fail the actual sync. Callers inside handleReplacePlants_/
- * handleAppendSales_ already hold the document lock; handleGetPlants_ calls it lock-free (rare, benign).
+ * Insert one history row at the top of the "SyncStatus" sheet (newest first), keeping at
+ * most 100 data rows by deleting oldest rows from the bottom. Existing rows are left in
+ * place (shifted down) — never wiped or rewritten. Wrapped in try/catch so a logging
+ * hiccup can never fail the actual sync. Callers inside handleReplacePlants_/
+ * handleAppendSales_ already hold the document lock; handleGetPlants_ calls it lock-free
+ * (rare, benign).
  */
 function recordSync_(event, direction, detail) {
   try {
@@ -417,11 +419,13 @@ function recordSync_(event, direction, detail) {
       sheet.getRange(1, 1, 1, 4).setValues([['Event', 'Direction', 'Last Sync', 'Detail']]);
       sheet.setFrozenRows(1);
     }
-    var lastRow = sheet.getLastRow();
-    var keys = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 1).getValues() : [];
-    var idx = findRowByKey(keys, event);
-    var rowNum = idx >= 0 ? idx + 2 : (lastRow < 1 ? 2 : lastRow + 1); // +2: skip header + 0-based->1-based
-    sheet.getRange(rowNum, 1, 1, 4).setValues([[event, direction, new Date(), detail]]);
+    sheet.insertRows(2, 1);
+    var when = Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'dd/MM/yyyy HH:mm:ss');
+    sheet.getRange(2, 1, 1, 4).setValues([[event, direction, when, detail]]);
+    var excess = sheet.getLastRow() - 101; // header + 100 data rows
+    if (excess > 0) {
+      sheet.deleteRows(102, excess);
+    }
   } catch (e) {
     console.error(e);
   }
