@@ -33,6 +33,13 @@ _Avoid_: container, size, sale unit (in the catalogue context)
 A record that plants were discarded from nursery stock (death, disease, surplus, and similar).
 _Avoid_: death record, discard, write-off (as the product name)
 
+**Repot**:
+A record that sets new absolute nursery counts for one accession (Tubes / Pots / Misc. / Stock plant)
+and three Ready-for-sale ticks (T/P/M only). Everyday case is tubes → pots; same flow also corrects
+stock discrepancies. Identified by a `repot_id` that uses the receipt-number scheme. Offline-first:
+saved locally (`PENDING`), then exported to Sheets. Not for new accessions or tray/cuttings splits.
+_Avoid_: transfer, move stock, inventory adjustment (as the product name)
+
 **Item seq**:
 The 1-based position of a line item within its receipt. Together with the receipt number it forms
 the primary key of a Sales-sheet row — `(receipt, item_seq)` — since one receipt produces one row
@@ -46,8 +53,8 @@ _Avoid_: device id, store id
 
 **Receipt number**:
 Per-device identifier for a saved sale, formatted `PP-<epochSeconds>-<seq>` where `PP` is the
-device prefix and `seq` resets daily. Culls and label print requests reuse the same numbering
-scheme and daily counter (`cull_id` / `queue_id`). See ADR-0009.
+device prefix and `seq` resets daily. Culls, label print requests, and repots reuse the same
+numbering scheme and daily counter (`cull_id` / `queue_id` / `repot_id`). See ADR-0009.
 _Avoid_: receipt id (ambiguous with local DB id), order number
 
 **Payment method**:
@@ -75,9 +82,9 @@ these frozen fields — it does not re-look up the live plant list. See ADR-0013
 _Avoid_: plant name (ambiguous with composed display name), live lookup
 
 **Sync queue**:
-The local `status` column on a receipt, cull, or label print request. Only pending rows are
+The local `status` column on a receipt, cull, label print request, or repot. Only pending rows are
 exported; status flips to exported only after a successful HTTP push. Receipts:
-`OPEN` → `SAVED` → `EXPORTED`. Culls and label print requests: `PENDING` → `EXPORTED`.
+`OPEN` → `SAVED` → `EXPORTED`. Culls, label print requests, and repots: `PENDING` → `EXPORTED`.
 See ADR-0006.
 _Avoid_: outbox table, sync flag (as a separate concept)
 
@@ -100,8 +107,9 @@ _Avoid_: consistent hashing, etag, LastHash (Access push change-detection — di
 
 **Export header**:
 The ordered column list for a Sheet tab (`Export.HEADER` for Sales, `CullExport.HEADER` for Culls,
-`LabelPrintExport.HEADER` for PrintQueue). Stable order relied on by the Apps Script backend —
-change only with coordinated `core/` and `backend/` updates. See ADR-0008.
+`LabelPrintExport.HEADER` for PrintQueue, `RepotExport.HEADER` for Repots). Stable order relied on
+by the Apps Script backend — change only with coordinated `core/` and `backend/` updates. See
+ADR-0008.
 _Avoid_: CSV schema, column mapping (implies flexibility the backend does not have)
 
 **Reverse sync**:
