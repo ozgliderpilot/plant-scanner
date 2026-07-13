@@ -319,7 +319,7 @@ function handleMarkExportSynced_(body, sheetName, resolveFn, syncEvent) {
 
     var marks = resolveFn(values, body.keys);
     applyExportMarks_(sheet, values, marks, statusCol);
-    recordSync_(syncEvent, 'Sheet → Access', 'marked ' + marks.length);
+    recordSync_(syncEvent, 'Access → Sheet', 'marked ' + marks.length);
     return json_({ ok: true, marked: marks.length });
   });
 }
