@@ -96,3 +96,15 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         )
     }
 }
+
+/**
+ * v8 -> v9: carry Access ForSale flags on the local plant cache (issue #95). Additive only —
+ * existing rows default to false until the next plant-list import.
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE plants ADD COLUMN potsForSale INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE plants ADD COLUMN tubesForSale INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE plants ADD COLUMN miscForSale INTEGER NOT NULL DEFAULT 0")
+    }
+}

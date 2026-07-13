@@ -26,6 +26,7 @@ fun PlantEntity.toCore(): Plant =
         cultivar = cultivar, commonName = commonName, group = group, light = light,
         potsInNursery = potsInNursery, tubesInNursery = tubesInNursery, miscInNursery = miscInNursery,
         stockInNursery = stockInNursery,
+        potsForSale = potsForSale, tubesForSale = tubesForSale, miscForSale = miscForSale,
     )
 
 fun Plant.toEntity(): PlantEntity =
@@ -34,6 +35,7 @@ fun Plant.toEntity(): PlantEntity =
         cultivar = cultivar, commonName = commonName, group = group, light = light,
         potsInNursery = potsInNursery, tubesInNursery = tubesInNursery, miscInNursery = miscInNursery,
         stockInNursery = stockInNursery,
+        potsForSale = potsForSale, tubesForSale = tubesForSale, miscForSale = miscForSale,
     )
 
 // ---- LineItem ----

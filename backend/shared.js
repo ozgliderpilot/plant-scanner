@@ -27,6 +27,18 @@ function rowNum(row, idx) {
   return isNaN(n) ? 0 : n;
 }
 
+/** Coerce a sheet cell to boolean; missing/blank/unrecognised → false. */
+function rowBool(row, idx) {
+  if (idx < 0) return false;
+  var v = row[idx];
+  if (v === true || v === false) return v;
+  if (v === undefined || v === null) return false;
+  var s = String(v).trim().toLowerCase();
+  if (s === '' || s === 'false' || s === '0' || s === 'no') return false;
+  if (s === 'true' || s === '1' || s === '-1' || s === 'yes') return true;
+  return false;
+}
+
 /**
  * Index of the accession/barcode column in a header row, matched case-insensitively against the app
  * header name ('accession') and the raw Access header ('ac number'), or -1 if neither is present.
@@ -102,6 +114,9 @@ function parsePlants(values) {
   var iTubes = col('tubesinnursery');
   var iMisc = col('miscinnursery');
   var iStock = col('stockinnursery');
+  var iPotsForSale = col('potsforsale');
+  var iTubesForSale = col('tubesforsale');
+  var iMiscForSale = col('miscforsale');
 
   function nameOf(row) {
     var legacy = rowStr(row, iName);
@@ -127,7 +142,10 @@ function parsePlants(values) {
       potsInNursery: rowNum(row, iPots),
       tubesInNursery: rowNum(row, iTubes),
       miscInNursery: rowNum(row, iMisc),
-      stockInNursery: rowNum(row, iStock)
+      stockInNursery: rowNum(row, iStock),
+      potsForSale: rowBool(row, iPotsForSale),
+      tubesForSale: rowBool(row, iTubesForSale),
+      miscForSale: rowBool(row, iMiscForSale)
     });
   }
   return out;
@@ -152,6 +170,9 @@ function computePlantListFingerprint(plants) {
       String(Number(p.tubesInNursery) || 0),
       String(Number(p.miscInNursery) || 0),
       String(Number(p.stockInNursery) || 0),
+      p.potsForSale ? '1' : '0',
+      p.tubesForSale ? '1' : '0',
+      p.miscForSale ? '1' : '0',
     ].join('\t');
   });
   return hashPlantListCanonical_(lines.join('\n'));

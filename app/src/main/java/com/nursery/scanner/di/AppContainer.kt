@@ -7,6 +7,7 @@ import com.nursery.scanner.data.local.MIGRATION_4_5
 import com.nursery.scanner.data.local.MIGRATION_5_6
 import com.nursery.scanner.data.local.MIGRATION_6_7
 import com.nursery.scanner.data.local.MIGRATION_7_8
+import com.nursery.scanner.data.local.MIGRATION_8_9
 import com.nursery.scanner.data.local.NurseryDatabase
 import com.nursery.scanner.data.remote.SheetsClient
 import com.nursery.scanner.data.repo.CullRepository
@@ -32,7 +33,9 @@ class AppContainer(context: Context) {
         appContext,
         NurseryDatabase::class.java,
         NurseryDatabase.NAME,
-    ).addMigrations(MIGRATION_2_3, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build()
+    ).addMigrations(
+        MIGRATION_2_3, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+    ).build()
 
     private val sheets = SheetsClient()
     private val connectivity = ConnectivityObserver(appContext)

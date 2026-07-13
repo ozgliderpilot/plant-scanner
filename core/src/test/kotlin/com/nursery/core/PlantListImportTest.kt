@@ -66,7 +66,17 @@ class PlantListImportTest {
 
     @Test
     fun `full pull with plants and fingerprint applies`() {
-        val plants = listOf(Plant(accession = "2021-0345", name = "Banksia", group = null, light = null))
+        val plants = listOf(
+            Plant(
+                accession = "2021-0345",
+                name = "Banksia",
+                group = null,
+                light = null,
+                potsForSale = true,
+                tubesForSale = false,
+                miscForSale = true,
+            ),
+        )
         val outcome = PlantListImport.decide(
             ok = true,
             unchanged = false,
@@ -78,6 +88,18 @@ class PlantListImportTest {
             PlantListImport.Outcome.Apply(plants = plants, fingerprintToStore = "new-fp"),
             outcome,
         )
+        val applied = assertIs<PlantListImport.Outcome.Apply>(outcome).plants.single()
+        assertEquals(true, applied.potsForSale)
+        assertEquals(false, applied.tubesForSale)
+        assertEquals(true, applied.miscForSale)
+    }
+
+    @Test
+    fun `Plant ForSale flags default to false`() {
+        val plant = Plant(accession = "2021-0345", name = "Banksia", group = null, light = null)
+        assertEquals(false, plant.potsForSale)
+        assertEquals(false, plant.tubesForSale)
+        assertEquals(false, plant.miscForSale)
     }
 
     @Test
