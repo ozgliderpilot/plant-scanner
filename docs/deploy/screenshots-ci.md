@@ -33,7 +33,8 @@ confirm (no extra frames). A second same-day sale (`1002` @ `$8.00`) runs after 
 shows two today. Walked cull uses `1002` with notes and qty 3. Walked print label: unknown
 `9999` (not-found frame), then `1003` with copies bumped to 2. Labels frame shows that
 walked print request. Walked repot: unknown `9999` (not-found frame), then `1001` with tubes
-bumped by 1. Repots frame shows that walked request.
+bumped by 1 (`scrollUntilVisible` to `save_repot` — counts form is taller than the
+viewport). Repots frame shows that walked request.
 
 ## Runner
 
