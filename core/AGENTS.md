@@ -13,9 +13,9 @@ Use a system `gradle`, not `./gradlew`. This module has its own `settings.gradle
 
 ## What belongs here
 
-Money, receipt numbering, plant lookup, sync selection (`Sync`, `CullSync`), cloud-sync combine
-(`CloudSync`), export row shaping (`Export`, `CullExport`), validation, search/filter — anything
-easy to get wrong.
+Money, receipt numbering, plant lookup, sync selection (`Sync`, `CullSync`, `RepotSync`), cloud-sync
+combine (`CloudSync`), export row shaping (`Export`, `CullExport`, `RepotExport`), ready-for-sale
+defaults (`RepotReadyForSale`), validation, search/filter — anything easy to get wrong.
 
 ## Rules
 
