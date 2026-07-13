@@ -39,6 +39,7 @@ test('parsePlants maps by header name and skips blank accessions', () => {
     accession: '2021-0345', name: 'Banksia', genus: '', species: '', cultivar: '', commonName: '',
     group: 'Proteaceae', light: 'Full sun',
     potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0, stockInNursery: 0,
+    potsForSale: false, tubesForSale: false, miscForSale: false,
   });
   // blank optional cells become null
   assert.strictEqual(plants[1].group, 'Fabaceae');
@@ -77,6 +78,20 @@ test('computePlantListFingerprint changes when stock counts change', () => {
   ]));
   const after = computePlantListFingerprint(parsePlants([
     header, ['2021-0345', 'Banksia', 1, 0, 0, 1],
+  ]));
+  assert.notStrictEqual(before, after);
+});
+
+test('computePlantListFingerprint changes when ForSale flags change', () => {
+  const header = [
+    'accession', 'name', 'potsInNursery', 'tubesInNursery', 'miscInNursery', 'stockInNursery',
+    'potsForSale', 'tubesForSale', 'miscForSale',
+  ];
+  const before = computePlantListFingerprint(parsePlants([
+    header, ['2021-0345', 'Banksia', 2, 0, 0, 1, true, false, false],
+  ]));
+  const after = computePlantListFingerprint(parsePlants([
+    header, ['2021-0345', 'Banksia', 2, 0, 0, 1, false, false, false],
   ]));
   assert.notStrictEqual(before, after);
 });
@@ -203,6 +218,7 @@ test('parsePlants reads the raw Batches+Species view and composes name', () => {
     accession: '31011', name: 'Acacia pycnantha', genus: 'Acacia', species: 'pycnantha',
     cultivar: '', commonName: 'Golden Wattle', group: 'Tree', light: 'Full sun',
     potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0, stockInNursery: 2,
+    potsForSale: false, tubesForSale: false, miscForSale: false,
   });
   // cultivar folded into the name
   assert.strictEqual(plants[1].name, "Banksia integrifolia 'Roller Coaster'");
@@ -236,6 +252,7 @@ test('parsePlants name falls back to Common Name, and legacy headers still work'
     accession: '2021-1', name: 'Wattle', genus: '', species: '', cultivar: '', commonName: '',
     group: 'Tree', light: 'Sun',
     potsInNursery: 0, tubesInNursery: 0, miscInNursery: 0, stockInNursery: 0,
+    potsForSale: false, tubesForSale: false, miscForSale: false,
   });
 });
 
@@ -299,6 +316,36 @@ test('parsePlants reads StockInNursery (Nz -> 0)', () => {
   assert.strictEqual(plants[1].stockInNursery, 4);
   assert.strictEqual(plants[2].stockInNursery, 0);
   assert.strictEqual(plants[3].stockInNursery, 0);
+});
+
+test('parsePlants reads the per-accession ForSale flags (blank/missing -> false)', () => {
+  const values = [
+    ['Ac Number', 'Genus', 'PotsForSale', 'TubesForSale', 'MiscForSale'],
+    ['31011', 'Acacia', true, false, true],       // Access/Sheets booleans
+    ['8250', 'Banksia', '', '', ''],              // blanks -> false
+    ['9000', 'Grevillea', 'TRUE', 'false', 'Yes'], // string forms (Sheets display)
+    ['9001', 'Hakea', 1, 0, -1],                  // numeric Yes/No remnants
+  ];
+  const plants = parsePlants(values);
+  assert.strictEqual(plants[0].potsForSale, true);
+  assert.strictEqual(plants[0].tubesForSale, false);
+  assert.strictEqual(plants[0].miscForSale, true);
+  assert.strictEqual(plants[1].potsForSale, false);
+  assert.strictEqual(plants[1].tubesForSale, false);
+  assert.strictEqual(plants[1].miscForSale, false);
+  assert.strictEqual(plants[2].potsForSale, true);
+  assert.strictEqual(plants[2].tubesForSale, false);
+  assert.strictEqual(plants[2].miscForSale, true);
+  assert.strictEqual(plants[3].potsForSale, true);
+  assert.strictEqual(plants[3].tubesForSale, false);
+  assert.strictEqual(plants[3].miscForSale, true);
+});
+
+test('parsePlants defaults ForSale flags to false when the columns are absent', () => {
+  const plants = parsePlants([['Ac Number', 'Genus'], ['9', 'Grevillea']]);
+  assert.strictEqual(plants[0].potsForSale, false);
+  assert.strictEqual(plants[0].tubesForSale, false);
+  assert.strictEqual(plants[0].miscForSale, false);
 });
 
 // ---- Reverse sync (Sales -> Access) selection & marking -------------------------------------------

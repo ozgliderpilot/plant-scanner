@@ -18,6 +18,9 @@ data class PlantDto(
     val tubesInNursery: Int = 0,
     val miscInNursery: Int = 0,
     val stockInNursery: Int = 0,
+    val potsForSale: Boolean = false,
+    val tubesForSale: Boolean = false,
+    val miscForSale: Boolean = false,
 )
 
 @Serializable

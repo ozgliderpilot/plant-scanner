@@ -83,6 +83,9 @@ class SheetsClient(
                         tubesInNursery = it.tubesInNursery,
                         miscInNursery = it.miscInNursery,
                         stockInNursery = it.stockInNursery,
+                        potsForSale = it.potsForSale,
+                        tubesForSale = it.tubesForSale,
+                        miscForSale = it.miscForSale,
                     )
                 },
                 plantListFingerprint = resp.plantListFingerprint,

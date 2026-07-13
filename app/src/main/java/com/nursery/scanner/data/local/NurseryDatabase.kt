@@ -20,7 +20,7 @@ import com.nursery.scanner.data.local.entity.ReceiptEntity
         CullEntity::class,
         LabelPrintEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 abstract class NurseryDatabase : RoomDatabase() {
