@@ -157,9 +157,16 @@ class SyncRepository(
         val salesPending = receiptDao.receiptsByStatus(ReceiptStatus.SAVED.name).map { it.toCore() }
         val cullsPending = cullDao.cullsByStatus(CullStatus.PENDING.name).map { it.toCore() }
         val labelsPending = labelPrintDao.requestsByStatus(LabelPrintStatus.PENDING.name).map { it.toCore() }
+        val hasPendingRepots = repotDao.repotsByStatus(RepotStatus.PENDING.name).isNotEmpty()
         if (salesPending.isEmpty() && cullsPending.isEmpty() && labelsPending.isEmpty()) {
             purgeRetained()
-            return CloudSync.ExportStep.Ok(salesCount = 0, cullCount = 0, labelCount = 0)
+            // Repot HTTP export is still stubbed; keep PENDING and do not advance last-synced.
+            return CloudSync.ExportStep.Ok(
+                salesCount = 0,
+                cullCount = 0,
+                labelCount = 0,
+                advanceTimestamp = !hasPendingRepots,
+            )
         }
 
         var salesExported = 0
