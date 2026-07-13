@@ -1,5 +1,6 @@
 package com.nursery.scanner.ui.repot
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,6 +34,9 @@ fun RepotSuccessScreen(
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val saved = ui.saved
+
+    // System back must not return to counts while `saved` is set — that would re-fire navigation.
+    BackHandler { onDone() }
 
     if (saved == null) {
         LaunchedEffect(Unit) { onDone() }
