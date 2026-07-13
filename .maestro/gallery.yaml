@@ -1,7 +1,7 @@
 appId: com.nursery.scanner.test
 ---
 # Volunteer-critical gallery walk (#72).
-# Order: Actions (Sell → Cull → Print) → History (Receipts → Culls → Labels) → Plants.
+# Order: Actions (Sell → Cull → Print → Repot) → History (Receipts → Culls → Labels → Repots) → Plants.
 # Prefer id (Compose testTag) for primary actions; text for fields / asserts.
 # Screenshot paths are relative to the Maestro workspace (repo root), not --output.
 # Frame ids/captions: .maestro/gallery-frames.txt
@@ -166,31 +166,73 @@ appId: com.nursery.scanner.test
 - tapOn:
     id: done
 
-# --- History: list → receipts → culls → labels ---
+# --- Repot walk ---
+- tapOn:
+    id: repot
+- takeScreenshot:
+    path: maestro-out/13-repot-scan
+- tapOn:
+    id: type_number
+- tapOn:
+    text: "Accession number"
+- inputText: "9999"
+- hideKeyboard
+- tapOn:
+    id: find
+- assertVisible: "We can’t find this plant. Please ask the database administrator."
+- takeScreenshot:
+    path: maestro-out/14-repot-not-found
+- tapOn: "Retry"
+- tapOn:
+    text: "Accession number"
+- inputText: "1001"
+- hideKeyboard
+- tapOn:
+    id: find
+- assertVisible: "Update counts"
+- tapOn:
+    id: qty_plus
+- takeScreenshot:
+    path: maestro-out/15-repot-counts
+- tapOn:
+    id: save_repot
+# Wait for async saveRepot → RepotSuccessScreen.
+- assertVisible: "Repot another"
+- takeScreenshot:
+    path: maestro-out/16-repot-success
+- tapOn:
+    id: done
+
+# --- History: list → receipts → culls → labels → repots ---
 - tapOn: "History"
 - takeScreenshot:
-    path: maestro-out/13-history
+    path: maestro-out/17-history
 - tapOn:
     id: view_receipts
 - takeScreenshot:
-    path: maestro-out/14-receipts
+    path: maestro-out/18-receipts
 # Seeded receipt number is stable across CI runs (CiFixtures).
 - tapOn: "99-1700000000-1"
 - assertVisible: "Payment:.*"
 - takeScreenshot:
-    path: maestro-out/15-receipt-detail
+    path: maestro-out/19-receipt-detail
 - back
 - back
 - tapOn:
     id: view_culled
 - takeScreenshot:
-    path: maestro-out/16-culls
+    path: maestro-out/20-culls
 - back
 - tapOn:
     id: view_labels
 - takeScreenshot:
-    path: maestro-out/17-labels
+    path: maestro-out/21-labels
+- back
+- tapOn:
+    id: view_repots
+- takeScreenshot:
+    path: maestro-out/22-repots
 - back
 - tapOn: "Plants"
 - takeScreenshot:
-    path: maestro-out/18-plants
+    path: maestro-out/23-plants

@@ -110,7 +110,12 @@ fun RepotCountsScreen(
                 )
             }
 
-            CountStepper(label = "Tubes", value = tubes, onChange = { tubes = it })
+            CountStepper(
+                label = "Tubes",
+                value = tubes,
+                onChange = { tubes = it },
+                plusTestTag = TestTags.QTY_PLUS,
+            )
             ReadyForSaleTick(
                 label = "Ready for sale (Tubes)",
                 checked = tubesForSale,
@@ -158,6 +163,7 @@ private fun CountStepper(
     label: String,
     value: Int,
     onChange: (Int) -> Unit,
+    plusTestTag: String? = null,
 ) {
     Text(label, style = MaterialTheme.typography.titleMedium)
     Row(
@@ -173,7 +179,9 @@ private fun CountStepper(
         Text("$value", style = MaterialTheme.typography.displaySmall)
         FilledTonalIconButton(
             onClick = { onChange(value + 1) },
-            modifier = Modifier.size(64.dp),
+            modifier = Modifier
+                .size(64.dp)
+                .then(if (plusTestTag != null) Modifier.testTag(plusTestTag) else Modifier),
         ) {
             Icon(Icons.Filled.Add, contentDescription = "One more $label")
         }
