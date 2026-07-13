@@ -115,25 +115,24 @@ fun RepotCountsScreen(
                 value = tubes,
                 onChange = { tubes = it },
                 plusTestTag = TestTags.QTY_PLUS,
-            )
-            ReadyForSaleTick(
-                label = "Ready for sale (Tubes)",
-                checked = tubesForSale,
-                onCheckedChange = { tubesForSale = it },
+                forSaleChecked = tubesForSale,
+                onForSaleChange = { tubesForSale = it },
             )
 
-            CountStepper(label = "Pots", value = pots, onChange = { pots = it })
-            ReadyForSaleTick(
-                label = "Ready for sale (Pots)",
-                checked = potsForSale,
-                onCheckedChange = { potsForSale = it },
+            CountStepper(
+                label = "Pots",
+                value = pots,
+                onChange = { pots = it },
+                forSaleChecked = potsForSale,
+                onForSaleChange = { potsForSale = it },
             )
 
-            CountStepper(label = "Misc.", value = misc, onChange = { misc = it })
-            ReadyForSaleTick(
-                label = "Ready for sale (Misc.)",
-                checked = miscForSale,
-                onCheckedChange = { miscForSale = it },
+            CountStepper(
+                label = "Misc.",
+                value = misc,
+                onChange = { misc = it },
+                forSaleChecked = miscForSale,
+                onForSaleChange = { miscForSale = it },
             )
 
             CountStepper(label = "Stock plant", value = stock, onChange = { stock = it })
@@ -164,52 +163,53 @@ private fun CountStepper(
     value: Int,
     onChange: (Int) -> Unit,
     plusTestTag: String? = null,
+    forSaleChecked: Boolean? = null,
+    onForSaleChange: ((Boolean) -> Unit)? = null,
 ) {
-    Text(label, style = MaterialTheme.typography.titleMedium)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimens.Gap),
-    ) {
-        FilledTonalIconButton(
-            onClick = { if (value > 0) onChange(value - 1) },
-            modifier = Modifier.size(64.dp),
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.GapSmall)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Icon(Icons.Filled.Remove, contentDescription = "One fewer $label")
+            Text(label, style = MaterialTheme.typography.titleMedium)
+            if (forSaleChecked != null && onForSaleChange != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.toggleable(
+                        value = forSaleChecked,
+                        onValueChange = onForSaleChange,
+                        role = Role.Checkbox,
+                    ),
+                ) {
+                    Checkbox(checked = forSaleChecked, onCheckedChange = null)
+                    Text(
+                        "Ready for sale",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(start = Dimens.GapSmall),
+                    )
+                }
+            }
         }
-        Text("$value", style = MaterialTheme.typography.displaySmall)
-        FilledTonalIconButton(
-            onClick = { onChange(value + 1) },
-            modifier = Modifier
-                .size(64.dp)
-                .then(if (plusTestTag != null) Modifier.testTag(plusTestTag) else Modifier),
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.Gap),
         ) {
-            Icon(Icons.Filled.Add, contentDescription = "One more $label")
+            FilledTonalIconButton(
+                onClick = { if (value > 0) onChange(value - 1) },
+                modifier = Modifier.size(64.dp),
+            ) {
+                Icon(Icons.Filled.Remove, contentDescription = "One fewer $label")
+            }
+            Text("$value", style = MaterialTheme.typography.displaySmall)
+            FilledTonalIconButton(
+                onClick = { onChange(value + 1) },
+                modifier = Modifier
+                    .size(64.dp)
+                    .then(if (plusTestTag != null) Modifier.testTag(plusTestTag) else Modifier),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "One more $label")
+            }
         }
-    }
-}
-
-@Composable
-private fun ReadyForSaleTick(
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .toggleable(
-                value = checked,
-                onValueChange = onCheckedChange,
-                role = Role.Checkbox,
-            )
-            .padding(vertical = Dimens.GapSmall),
-    ) {
-        Checkbox(checked = checked, onCheckedChange = null)
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(start = Dimens.GapSmall),
-        )
     }
 }
