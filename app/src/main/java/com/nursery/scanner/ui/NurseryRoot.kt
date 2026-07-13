@@ -43,6 +43,12 @@ import com.nursery.scanner.ui.printlabel.LabelPrintViewModel
 import com.nursery.scanner.ui.receipts.ReceiptDetailScreen
 import com.nursery.scanner.ui.receipts.ReceiptsScreen
 import com.nursery.scanner.ui.receipts.ReceiptsViewModel
+import com.nursery.scanner.ui.repot.RepotCountsScreen
+import com.nursery.scanner.ui.repot.RepotScanScreen
+import com.nursery.scanner.ui.repot.RepotSuccessScreen
+import com.nursery.scanner.ui.repot.RepotViewModel
+import com.nursery.scanner.ui.repots.RepotListScreen
+import com.nursery.scanner.ui.repots.RepotListViewModel
 import com.nursery.scanner.ui.sell.CartScreen
 import com.nursery.scanner.ui.sell.ConfirmScreen
 import com.nursery.scanner.ui.sell.LineItemScreen
@@ -97,6 +103,7 @@ private fun NurseryNavHost(
                 onSell = { navController.navigate(Routes.SELL_GRAPH) },
                 onCull = { navController.navigate(Routes.CULL_GRAPH) },
                 onPrintLabel = { navController.navigate(Routes.PRINT_LABEL_GRAPH) },
+                onRepot = { navController.navigate(Routes.REPOT_GRAPH) },
             )
         }
 
@@ -107,6 +114,7 @@ private fun NurseryNavHost(
                 onViewReceipts = { navController.navigate(Routes.RECEIPTS) },
                 onViewCulls = { navController.navigate(Routes.CULLS) },
                 onViewLabels = { navController.navigate(Routes.LABELS) },
+                onViewRepots = { navController.navigate(Routes.REPOTS) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
             )
         }
@@ -151,6 +159,11 @@ private fun NurseryNavHost(
         composable(Routes.LABELS) {
             val vm: LabelListViewModel = viewModel(factory = container.viewModelFactory)
             LabelListScreen(vm, onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.REPOTS) {
+            val vm: RepotListViewModel = viewModel(factory = container.viewModelFactory)
+            RepotListScreen(vm, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.SETTINGS) {
@@ -300,6 +313,43 @@ private fun NurseryNavHost(
                 )
             }
         }
+
+        // Repot flow — nested graph so one RepotViewModel is shared across its screens.
+        navigation(startDestination = Routes.REPOT_SCAN, route = Routes.REPOT_GRAPH) {
+            composable(Routes.REPOT_SCAN) { entry ->
+                val vm = repotViewModel(navController, container, entry)
+                RepotScanScreen(
+                    vm = vm,
+                    onResolved = { navController.navigate(Routes.REPOT_COUNTS) },
+                    onClose = { navController.popBackStack(Routes.ACTIONS, inclusive = false) },
+                )
+            }
+            composable(Routes.REPOT_COUNTS) { entry ->
+                val vm = repotViewModel(navController, container, entry)
+                RepotCountsScreen(
+                    vm = vm,
+                    onRecorded = { navController.navigate(Routes.REPOT_SUCCESS) },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.REPOT_SUCCESS) { entry ->
+                val vm = repotViewModel(navController, container, entry)
+                RepotSuccessScreen(
+                    vm = vm,
+                    onRepotAnother = {
+                        navController.navigate(Routes.REPOT_SCAN) {
+                            popUpTo(Routes.REPOT_GRAPH) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                        vm.reset()
+                    },
+                    onDone = {
+                        navController.popBackStack(Routes.ACTIONS, inclusive = false)
+                        vm.reset()
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -338,6 +388,19 @@ private fun labelPrintViewModel(
 ): LabelPrintViewModel {
     val parentEntry = androidx.compose.runtime.remember(entry) {
         navController.getBackStackEntry(Routes.PRINT_LABEL_GRAPH)
+    }
+    return viewModel(viewModelStoreOwner = parentEntry, factory = container.viewModelFactory)
+}
+
+/** Shared RepotViewModel scoped to the repot nav graph back-stack entry. */
+@Composable
+private fun repotViewModel(
+    navController: NavHostController,
+    container: AppContainer,
+    entry: NavBackStackEntry,
+): RepotViewModel {
+    val parentEntry = androidx.compose.runtime.remember(entry) {
+        navController.getBackStackEntry(Routes.REPOT_GRAPH)
     }
     return viewModel(viewModelStoreOwner = parentEntry, factory = container.viewModelFactory)
 }

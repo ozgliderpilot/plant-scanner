@@ -14,7 +14,8 @@ _Avoid_: SKU, item code, barcode (as a distinct concept)
 **Unknown scan**:
 A barcode scan whose code is not in the local plant list. On sell and cull, never dropped —
 recorded with `name = "unknown"` and the scanned code kept as the accession for later
-reconciliation. Label print requests are different: a missing accession is rejected, not queued.
+reconciliation. Label print requests and repots are different: a missing accession is rejected, not
+queued.
 _Avoid_: invalid scan, rejected scan
 
 **Stock plant**:

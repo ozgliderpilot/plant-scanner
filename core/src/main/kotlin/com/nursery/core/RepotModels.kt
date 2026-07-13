@@ -40,7 +40,15 @@ data class RepotRecord(
     val potsForSale: Boolean,
     val miscForSale: Boolean,
 ) {
+    /** True when Tubes / Pots / Misc. / Stock plant are all zero (UI confirm before save). */
+    fun isAllZeroCounts(): Boolean =
+        tubes == 0 && pots == 0 && misc == 0 && stock == 0
+
     companion object {
+        /** Locked copy when a scanned/typed accession is not in the local plant list. */
+        const val NOT_FOUND_MESSAGE =
+            "We can’t find this plant. Please ask the database administrator."
+
         /**
          * Null when valid; otherwise a short reason the save should be rejected.
          *

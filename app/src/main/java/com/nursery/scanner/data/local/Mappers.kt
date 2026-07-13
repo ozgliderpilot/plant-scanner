@@ -10,6 +10,8 @@ import com.nursery.core.PaymentMethod
 import com.nursery.core.Plant
 import com.nursery.core.Receipt
 import com.nursery.core.ReceiptStatus
+import com.nursery.core.RepotRecord
+import com.nursery.core.RepotStatus
 import com.nursery.core.SaleUnit
 import com.nursery.scanner.data.local.entity.CullEntity
 import com.nursery.scanner.data.local.entity.LabelPrintEntity
@@ -17,6 +19,7 @@ import com.nursery.scanner.data.local.entity.LineItemEntity
 import com.nursery.scanner.data.local.entity.PlantEntity
 import com.nursery.scanner.data.local.entity.ReceiptEntity
 import com.nursery.scanner.data.local.entity.ReceiptWithLines
+import com.nursery.scanner.data.local.entity.RepotEntity
 
 // ---- Plant ----
 
@@ -160,4 +163,58 @@ fun LabelPrintRequest.toEntity(): LabelPrintEntity =
         accession = accession,
         name = name,
         copies = copies,
+    )
+
+// ---- Repot ----
+
+fun RepotEntity.toCore(): RepotRecord =
+    RepotRecord(
+        localId = localId,
+        repotNo = repotNo,
+        createdAtEpochMs = createdAtEpochMs,
+        status = RepotStatus.valueOf(status),
+        accession = accession,
+        name = name,
+        genus = genus,
+        species = species,
+        cultivar = cultivar,
+        commonName = commonName,
+        group = group,
+        tubesBefore = tubesBefore,
+        potsBefore = potsBefore,
+        miscBefore = miscBefore,
+        stockBefore = stockBefore,
+        tubes = tubes,
+        pots = pots,
+        misc = misc,
+        stock = stock,
+        tubesForSale = tubesForSale,
+        potsForSale = potsForSale,
+        miscForSale = miscForSale,
+    )
+
+fun RepotRecord.toEntity(): RepotEntity =
+    RepotEntity(
+        localId = localId,
+        repotNo = repotNo,
+        createdAtEpochMs = createdAtEpochMs,
+        status = status.name,
+        accession = accession,
+        name = name,
+        genus = genus,
+        species = species,
+        cultivar = cultivar,
+        commonName = commonName,
+        group = group,
+        tubesBefore = tubesBefore,
+        potsBefore = potsBefore,
+        miscBefore = miscBefore,
+        stockBefore = stockBefore,
+        tubes = tubes,
+        pots = pots,
+        misc = misc,
+        stock = stock,
+        tubesForSale = tubesForSale,
+        potsForSale = potsForSale,
+        miscForSale = miscForSale,
     )

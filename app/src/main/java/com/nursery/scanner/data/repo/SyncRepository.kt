@@ -10,9 +10,11 @@ import com.nursery.core.LabelPrintStatus
 import com.nursery.core.PlantListImport
 import com.nursery.core.ReceiptStatus
 import com.nursery.core.Retention
+import com.nursery.core.RepotStatus
 import com.nursery.scanner.data.local.dao.CullDao
 import com.nursery.scanner.data.local.dao.LabelPrintDao
 import com.nursery.scanner.data.local.dao.ReceiptDao
+import com.nursery.scanner.data.local.dao.RepotDao
 import com.nursery.scanner.data.local.toCore
 import com.nursery.scanner.data.remote.SheetsClient
 import com.nursery.scanner.data.settings.SettingsRepository
@@ -67,6 +69,7 @@ class SyncRepository(
     private val receiptDao: ReceiptDao,
     private val cullDao: CullDao,
     private val labelPrintDao: LabelPrintDao,
+    private val repotDao: RepotDao,
     private val settings: SettingsRepository,
     private val sheets: SheetsClient,
     private val plants: PlantRepository,
@@ -83,8 +86,9 @@ class SyncRepository(
         receiptDao.observePendingCount(ReceiptStatus.SAVED.name),
         cullDao.observePendingCount(CullStatus.PENDING.name),
         labelPrintDao.observePendingCount(LabelPrintStatus.PENDING.name),
-    ) { salesPending, cullsPending, labelsPending ->
-        salesPending + cullsPending + labelsPending
+        repotDao.observePendingCount(RepotStatus.PENDING.name),
+    ) { salesPending, cullsPending, labelsPending, repotsPending ->
+        salesPending + cullsPending + labelsPending + repotsPending
     }
 
     override val state: StateFlow<SyncState> = combine(

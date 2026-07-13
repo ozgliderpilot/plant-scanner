@@ -2,7 +2,9 @@ package com.nursery.core
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class RepotRecordTest {
 
@@ -96,5 +98,20 @@ class RepotRecordTest {
                 ReadyForSaleFlags(tubes = false, pots = false, misc = false),
             ),
         )
+    }
+
+    @Test fun `not-found message is exact administrator contact copy`() {
+        assertEquals(
+            "We can’t find this plant. Please ask the database administrator.",
+            RepotRecord.NOT_FOUND_MESSAGE,
+        )
+    }
+
+    @Test fun `isAllZeroCounts is true only when T P M and St are all zero`() {
+        assertTrue(record(tubes = 0, pots = 0, misc = 0, stock = 0).isAllZeroCounts())
+        assertFalse(record(tubes = 1, pots = 0, misc = 0, stock = 0).isAllZeroCounts())
+        assertFalse(record(tubes = 0, pots = 1, misc = 0, stock = 0).isAllZeroCounts())
+        assertFalse(record(tubes = 0, pots = 0, misc = 1, stock = 0).isAllZeroCounts())
+        assertFalse(record(tubes = 0, pots = 0, misc = 0, stock = 1).isAllZeroCounts())
     }
 }

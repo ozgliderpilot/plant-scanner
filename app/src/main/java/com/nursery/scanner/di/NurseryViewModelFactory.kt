@@ -8,6 +8,8 @@ import com.nursery.scanner.ui.labels.LabelListViewModel
 import com.nursery.scanner.ui.plants.PlantListViewModel
 import com.nursery.scanner.ui.printlabel.LabelPrintViewModel
 import com.nursery.scanner.ui.receipts.ReceiptsViewModel
+import com.nursery.scanner.ui.repot.RepotViewModel
+import com.nursery.scanner.ui.repots.RepotListViewModel
 import com.nursery.scanner.ui.sell.SellViewModel
 import com.nursery.scanner.ui.settings.SettingsViewModel
 import com.nursery.scanner.ui.sync.SyncViewModel
@@ -23,6 +25,8 @@ class NurseryViewModelFactory(private val c: AppContainer) : ViewModelProvider.F
                 CullViewModel(c.plantRepository, c.cullRepository, c.settingsRepository)
             modelClass.isAssignableFrom(LabelPrintViewModel::class.java) ->
                 LabelPrintViewModel(c.plantRepository, c.labelPrintRepository, c.settingsRepository)
+            modelClass.isAssignableFrom(RepotViewModel::class.java) ->
+                RepotViewModel(c.plantRepository, c.repotRepository, c.settingsRepository)
             modelClass.isAssignableFrom(ReceiptsViewModel::class.java) ->
                 ReceiptsViewModel(c.receiptRepository)
             modelClass.isAssignableFrom(SyncViewModel::class.java) ->
@@ -33,6 +37,8 @@ class NurseryViewModelFactory(private val c: AppContainer) : ViewModelProvider.F
                 CullListViewModel(c.cullRepository)
             modelClass.isAssignableFrom(LabelListViewModel::class.java) ->
                 LabelListViewModel(c.labelPrintRepository)
+            modelClass.isAssignableFrom(RepotListViewModel::class.java) ->
+                RepotListViewModel(c.repotRepository)
             modelClass.isAssignableFrom(SettingsViewModel::class.java) ->
                 SettingsViewModel(c.settingsRepository)
             else -> throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")
