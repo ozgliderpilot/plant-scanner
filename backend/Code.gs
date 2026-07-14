@@ -181,6 +181,7 @@ function handleAppendRepots_(body) {
     sheetName: 'Repots',
     keyColumn: 'repot_id',
     syncEvent: 'Repots from device',
+    validate: validateAppendRepotCounts,
   });
 }
 

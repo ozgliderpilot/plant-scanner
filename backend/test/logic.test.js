@@ -7,7 +7,7 @@ const {
   predictStockUpdates,
   validateAppendCullsNotes, applyMarksToValues,
   selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
-  PRINT_LABEL_COPIES_MAX,
+  PRINT_LABEL_COPIES_MAX, validateAppendRepotCounts,
   computePlantListFingerprint, plantListFingerprintMatches,
 } = require('../shared.js');
 
@@ -1010,6 +1010,40 @@ test('ensureSyncStatusColumn appends sync_status for Repots header', () => {
   assert.deepStrictEqual(
     ensureSyncStatusColumn(REPOTS_HEADER),
     [...REPOTS_HEADER, 'sync_status'],
+  );
+});
+
+test('validateAppendRepotCounts accepts non-negative integer counts', () => {
+  const rows = [
+    ['PP-1', '2026-07-01T12:00', '31011', 'Acacia', '', '', '', '', 'Tree',
+      12, 0, 0, 0, 0, 5, 0, 0, 'false', 'true', 'false'],
+    ['PP-2', '2026-07-01T12:00', '8250', 'Banksia', '', '', '', '', '',
+      0, 0, 0, 0, 0, 0, 0, 0, 'false', 'false', 'false'],
+  ];
+  assert.strictEqual(validateAppendRepotCounts(REPOTS_HEADER, rows), null);
+});
+
+test('validateAppendRepotCounts rejects negative, non-integer, or non-numeric counts', () => {
+  const msg = 'Repot counts must be non-negative integers';
+  const base = ['PP-1', '2026-07-01T12:00', '31011', 'Acacia', '', '', '', '', 'Tree',
+    5, 0, 0, 0, 0, 5, 0, 0, 'false', 'true', 'false'];
+  const badAt = (colIdx, value) => {
+    const row = base.slice();
+    row[colIdx] = value;
+    return [row];
+  };
+  // tubes_before at index 9; tubes at index 13
+  assert.strictEqual(validateAppendRepotCounts(REPOTS_HEADER, badAt(9, -1)), msg);
+  assert.strictEqual(validateAppendRepotCounts(REPOTS_HEADER, badAt(13, -3)), msg);
+  assert.strictEqual(validateAppendRepotCounts(REPOTS_HEADER, badAt(10, 1.5)), msg);
+  assert.strictEqual(validateAppendRepotCounts(REPOTS_HEADER, badAt(14, 'abc')), msg);
+});
+
+test('validateAppendRepotCounts rejects missing count columns', () => {
+  const header = ['repot_id', 'tubes', 'pots'];
+  assert.strictEqual(
+    validateAppendRepotCounts(header, [['PP-1', 1, 2]]),
+    'Missing tubes_before column',
   );
 });
 
