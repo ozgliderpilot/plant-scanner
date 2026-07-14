@@ -22,13 +22,14 @@ import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.theme.Dimens
 
 /**
- * Action-first home: Sell, Cull, and Print label enabled; remaining Phase-2 actions dimmed.
+ * Action-first home: Sell, Cull, Print label, and Repot enabled; New accession dimmed.
  */
 @Composable
 fun HomeScreen(
     onSell: () -> Unit,
     onCull: () -> Unit,
     onPrintLabel: () -> Unit,
+    onRepot: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -59,6 +60,13 @@ fun HomeScreen(
             style = BigButtonStyle.Primary,
             modifier = Modifier.testTag(TestTags.PRINT_LABEL),
         )
+        BigButton(
+            text = "Repot",
+            onClick = onRepot,
+            leadingIcon = Icons.Filled.LocalFlorist,
+            style = BigButtonStyle.Primary,
+            modifier = Modifier.testTag(TestTags.REPOT),
+        )
 
         Text(
             "Coming later",
@@ -66,14 +74,12 @@ fun HomeScreen(
             modifier = Modifier.padding(top = Dimens.Gap),
         )
 
-        listOf("New accession", "Repot").forEach { label ->
-            BigButton(
-                text = label,
-                onClick = {},
-                enabled = false,
-                leadingIcon = Icons.Filled.LocalFlorist,
-                style = BigButtonStyle.Secondary,
-            )
-        }
+        BigButton(
+            text = "New accession",
+            onClick = {},
+            enabled = false,
+            leadingIcon = Icons.Filled.LocalFlorist,
+            style = BigButtonStyle.Secondary,
+        )
     }
 }

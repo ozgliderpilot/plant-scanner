@@ -44,6 +44,17 @@ class CloudSyncTest {
     }
 
     @Test
+    fun `ok export can withhold export timestamp for stubbed pending queues`() {
+        val outcome = CloudSync.combine(
+            export = CloudSync.ExportStep.Ok(salesCount = 0, cullCount = 0, advanceTimestamp = false),
+            import = CloudSync.ImportStep.Ok,
+        )
+        assertFalse(outcome.advanceExportTimestamp)
+        assertTrue(outcome.advancePlantListTimestamp)
+        assertNull(outcome.errorMessage)
+    }
+
+    @Test
     fun `export failure still allows plant-list timestamp on import success`() {
         val outcome = CloudSync.combine(
             export = CloudSync.ExportStep.Err("sales push failed"),

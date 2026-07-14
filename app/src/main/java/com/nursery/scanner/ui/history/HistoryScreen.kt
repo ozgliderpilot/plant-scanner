@@ -41,6 +41,7 @@ fun HistoryScreen(
     onViewReceipts: () -> Unit,
     onViewCulls: () -> Unit,
     onViewLabels: () -> Unit,
+    onViewRepots: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -88,6 +89,13 @@ fun HistoryScreen(
                 leadingIcon = Icons.Filled.Label,
                 style = BigButtonStyle.Primary,
                 modifier = Modifier.testTag(TestTags.VIEW_LABELS),
+            )
+            BigButton(
+                text = "View Repots",
+                onClick = onViewRepots,
+                leadingIcon = Icons.Filled.LocalFlorist,
+                style = BigButtonStyle.Primary,
+                modifier = Modifier.testTag(TestTags.VIEW_REPOTS),
             )
         }
 

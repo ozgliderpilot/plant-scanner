@@ -22,6 +22,7 @@ fun ActionsTabScreen(
     onSell: () -> Unit,
     onCull: () -> Unit,
     onPrintLabel: () -> Unit,
+    onRepot: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -45,6 +46,7 @@ fun ActionsTabScreen(
             onSell = onSell,
             onCull = onCull,
             onPrintLabel = onPrintLabel,
+            onRepot = onRepot,
             modifier = Modifier.weight(1f),
         )
     }

@@ -11,9 +11,14 @@
 10-print-not-found|Print · not found
 11-print-copies|Print · copies
 12-print-success|Print · success
-13-history|History
-14-receipts|Receipts
-15-receipt-detail|Receipt detail
-16-culls|Culls
-17-labels|Labels
-18-plants|Plants
+13-repot-scan|Repot · scan
+14-repot-not-found|Repot · not found
+15-repot-counts|Repot · update counts
+16-repot-success|Repot · success
+17-history|History
+18-receipts|Receipts
+19-receipt-detail|Receipt detail
+20-culls|Culls
+21-labels|Labels
+22-repots|Repots
+23-plants|Plants

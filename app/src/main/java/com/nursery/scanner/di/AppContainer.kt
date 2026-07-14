@@ -8,12 +8,14 @@ import com.nursery.scanner.data.local.MIGRATION_5_6
 import com.nursery.scanner.data.local.MIGRATION_6_7
 import com.nursery.scanner.data.local.MIGRATION_7_8
 import com.nursery.scanner.data.local.MIGRATION_8_9
+import com.nursery.scanner.data.local.MIGRATION_9_10
 import com.nursery.scanner.data.local.NurseryDatabase
 import com.nursery.scanner.data.remote.SheetsClient
 import com.nursery.scanner.data.repo.CullRepository
 import com.nursery.scanner.data.repo.LabelPrintRepository
 import com.nursery.scanner.data.repo.PlantRepository
 import com.nursery.scanner.data.repo.ReceiptRepository
+import com.nursery.scanner.data.repo.RepotRepository
 import com.nursery.scanner.data.repo.SyncRepository
 import com.nursery.scanner.data.settings.SettingsRepository
 import com.nursery.scanner.sync.AutoExportTicker
@@ -35,6 +37,7 @@ class AppContainer(context: Context) {
         NurseryDatabase.NAME,
     ).addMigrations(
         MIGRATION_2_3, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+        MIGRATION_9_10,
     ).build()
 
     private val sheets = SheetsClient()
@@ -45,10 +48,12 @@ class AppContainer(context: Context) {
     val receiptRepository = ReceiptRepository(db.receiptDao(), settingsRepository)
     val cullRepository = CullRepository(db.cullDao(), settingsRepository)
     val labelPrintRepository = LabelPrintRepository(db.labelPrintDao(), settingsRepository)
+    val repotRepository = RepotRepository(db.repotDao(), settingsRepository)
     val syncRepository = SyncRepository(
         receiptDao = db.receiptDao(),
         cullDao = db.cullDao(),
         labelPrintDao = db.labelPrintDao(),
+        repotDao = db.repotDao(),
         settings = settingsRepository,
         sheets = sheets,
         plants = plantRepository,

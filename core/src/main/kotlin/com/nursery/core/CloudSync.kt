@@ -14,6 +14,8 @@ object CloudSync {
             val cullCount: Int = 0,
             val labelCount: Int = 0,
             val partialError: String? = null,
+            /** False when wired queues are idle but a stubbed queue (e.g. repots) still has PENDING rows. */
+            val advanceTimestamp: Boolean = true,
         ) : ExportStep
 
         data class Err(val message: String) : ExportStep
@@ -45,7 +47,7 @@ object CloudSync {
                 salesCount = export.salesCount,
                 cullCount = export.cullCount,
                 labelCount = export.labelCount,
-                advanceExportTimestamp = true,
+                advanceExportTimestamp = export.advanceTimestamp,
                 advancePlantListTimestamp = importOk,
                 errorMessage = importErr,
                 partialError = export.partialError,

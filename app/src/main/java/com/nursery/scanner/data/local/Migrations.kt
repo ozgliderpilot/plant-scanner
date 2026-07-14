@@ -108,3 +108,40 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         db.execSQL("ALTER TABLE plants ADD COLUMN miscForSale INTEGER NOT NULL DEFAULT 0")
     }
 }
+
+/**
+ * v9 -> v10: local offline queue for repot records (issue #96). Export HTTP may follow later;
+ * status is the sync queue (PENDING → EXPORTED).
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS repots (
+                localId INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                repotNo TEXT NOT NULL,
+                createdAtEpochMs INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                accession TEXT NOT NULL,
+                name TEXT NOT NULL,
+                genus TEXT NOT NULL,
+                species TEXT NOT NULL,
+                cultivar TEXT NOT NULL,
+                commonName TEXT NOT NULL,
+                plant_group TEXT,
+                tubesBefore INTEGER NOT NULL,
+                potsBefore INTEGER NOT NULL,
+                miscBefore INTEGER NOT NULL,
+                stockBefore INTEGER NOT NULL,
+                tubes INTEGER NOT NULL,
+                pots INTEGER NOT NULL,
+                misc INTEGER NOT NULL,
+                stock INTEGER NOT NULL,
+                tubesForSale INTEGER NOT NULL,
+                potsForSale INTEGER NOT NULL,
+                miscForSale INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+    }
+}
