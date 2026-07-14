@@ -194,12 +194,6 @@ appId: com.nursery.scanner.test
     id: qty_plus
 - takeScreenshot:
     path: maestro-out/15-repot-counts
-# Save sits below four steppers + three ticks; Pixel-class AVD needs a scroll.
-- scrollUntilVisible:
-    element:
-      id: save_repot
-    direction: DOWN
-    centerElement: true
 - tapOn:
     id: save_repot
 # Wait for async saveRepot → RepotSuccessScreen.

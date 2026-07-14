@@ -101,17 +101,25 @@ private fun RepotCard(repot: RepotRecord) {
 
 private fun countsLine(repot: RepotRecord): String {
     val parts = buildList {
-        if (repot.tubesBefore != repot.tubes || repot.tubes > 0) {
-            add("T ${repot.tubesBefore}→${repot.tubes}")
+        if (repot.tubesBefore != repot.tubes) {
+            add("T ${repot.tubesBefore} -> ${repot.tubes}")
+        } else if (repot.tubes > 0) {
+            add("T ${repot.tubes}")
         }
-        if (repot.potsBefore != repot.pots || repot.pots > 0) {
-            add("P ${repot.potsBefore}→${repot.pots}")
+        if (repot.potsBefore != repot.pots) {
+            add("P ${repot.potsBefore} -> ${repot.pots}")
+        } else if (repot.pots > 0) {
+            add("P ${repot.pots}")
         }
-        if (repot.miscBefore != repot.misc || repot.misc > 0) {
-            add("M ${repot.miscBefore}→${repot.misc}")
+        if (repot.miscBefore != repot.misc) {
+            add("M ${repot.miscBefore} -> ${repot.misc}")
+        } else if (repot.misc > 0) {
+            add("M ${repot.misc}")
         }
-        if (repot.stockBefore != repot.stock || repot.stock > 0) {
-            add("St ${repot.stockBefore}→${repot.stock}")
+        if (repot.stockBefore != repot.stock) {
+            add("St ${repot.stockBefore} -> ${repot.stock}")
+        } else if (repot.stock > 0) {
+            add("St ${repot.stock}")
         }
     }
     return parts.joinToString(" · ").ifEmpty { "No count change" }
