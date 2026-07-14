@@ -9,7 +9,8 @@
  *   - appendCulls     -> appends cull rows to "Culls" (deduped by cull_id), stamping sync_status,
  *                        and predicts Plants-tab stock deductions (#80)
  *   - appendPrintLabels -> appends label print rows to "PrintQueue" (deduped by queue_id), stamping sync_status
- *   - appendRepots    -> appends repot rows to "Repots" (deduped by repot_id), stamping sync_status
+ *   - appendRepots    -> appends repot rows to "Repots" (deduped by repot_id), stamping sync_status,
+ *                        and predicts Plants-tab absolute stock + ForSale (#80 for repots)
  *   - pendingSales    -> returns every "Sales" row whose sync_status is "Pending" (Access reverse sync)
  *   - markSalesSynced -> sets sync_status by (receipt,item_seq) key (Access reverse sync, status-agnostic)
  *   - pendingCulls    -> returns every "Culls" row whose sync_status is "Pending" (Access reverse sync)
@@ -185,6 +186,7 @@ function handleAppendRepots_(body) {
     keyColumn: 'repot_id',
     syncEvent: 'Repots from device',
     validate: validateAppendRepotCounts,
+    predictKind: 'repots',
   });
 }
 
@@ -240,7 +242,8 @@ function handleAppendExport_(body, opts) {
 }
 
 /**
- * Apply predicted Pots/Tubes/Misc stock deductions to the Plants tab for newly appended rows.
+ * Apply predicted stock to the Plants tab for newly appended sales/cull/repot rows.
+ * Sales/culls: deduct Pots/Tubes/Misc only. Repots: SET T/P/M/Stock + three *ForSale flags.
  * Caller holds the document lock. Swallows nothing — callers wrap in try/catch.
  * Columns are not always contiguous on the Access mirror, so each stock column is batch-written
  * separately (same contiguous-run pattern as applyExportMarks_).
@@ -265,6 +268,16 @@ function predictPlantsStock_(exportHeader, appendedRows, kind) {
     writePredictedStockColumn_(plantsSheet, updates, iPots, 'pots');
     writePredictedStockColumn_(plantsSheet, updates, iTubes, 'tubes');
     writePredictedStockColumn_(plantsSheet, updates, iMisc, 'misc');
+    if (kind === 'repots') {
+      var iStock = headerColIndex(header, 'stockinnursery');
+      var iPotsFs = headerColIndex(header, 'potsforsale');
+      var iTubesFs = headerColIndex(header, 'tubesforsale');
+      var iMiscFs = headerColIndex(header, 'miscforsale');
+      if (iStock >= 0) writePredictedStockColumn_(plantsSheet, updates, iStock, 'stock');
+      if (iPotsFs >= 0) writePredictedStockColumn_(plantsSheet, updates, iPotsFs, 'potsForSale');
+      if (iTubesFs >= 0) writePredictedStockColumn_(plantsSheet, updates, iTubesFs, 'tubesForSale');
+      if (iMiscFs >= 0) writePredictedStockColumn_(plantsSheet, updates, iMiscFs, 'miscForSale');
+    }
   } finally {
     refreshPlantListFingerprint_();
   }
