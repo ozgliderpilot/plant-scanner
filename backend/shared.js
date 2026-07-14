@@ -584,6 +584,79 @@ function resolvePrintLabelMarks(values, keys) {
 }
 
 /**
+ * Backing logic for the `pendingRepots` action: select the reverse-sync work set from the raw
+ * "Repots" sheet values (row 0 = header). Returns every row whose `sync_status` is exactly "Pending"
+ * (trimmed, case-insensitive), shaped as the minimal object the Access repots-in phase consumes:
+ * `{repot_id, accession, tubes, pots, misc, stock, tubes_for_sale, pots_for_sale, misc_for_sale}`.
+ *
+ * After-counts and ForSale flags are absolute target state for Batches (not deltas). The `*_before`
+ * audit columns are omitted — Access does not need them to apply. Columns are resolved by header
+ * name. A header-only or empty sheet, or one with no `sync_status` column, yields [].
+ */
+function selectPendingRepots(values) {
+  if (!values || values.length < 2) return [];
+  var header = values[0];
+  var iStatus = salesColIndex(header, 'sync_status');
+  if (iStatus < 0) return [];
+  var iRepotId = salesColIndex(header, 'repot_id');
+  var iAcc = salesColIndex(header, 'accession');
+  var iTubes = salesColIndex(header, 'tubes');
+  var iPots = salesColIndex(header, 'pots');
+  var iMisc = salesColIndex(header, 'misc');
+  var iStock = salesColIndex(header, 'stock');
+  var iTubesFs = salesColIndex(header, 'tubes_for_sale');
+  var iPotsFs = salesColIndex(header, 'pots_for_sale');
+  var iMiscFs = salesColIndex(header, 'misc_for_sale');
+
+  var out = [];
+  for (var r = 1; r < values.length; r++) {
+    var row = values[r];
+    if (String(row[iStatus]).trim().toLowerCase() !== 'pending') continue;
+    out.push({
+      repot_id: rowStr(row, iRepotId),
+      accession: rowStr(row, iAcc),
+      tubes: rowNum(row, iTubes),
+      pots: rowNum(row, iPots),
+      misc: rowNum(row, iMisc),
+      stock: rowNum(row, iStock),
+      tubes_for_sale: rowBool(row, iTubesFs),
+      pots_for_sale: rowBool(row, iPotsFs),
+      misc_for_sale: rowBool(row, iMiscFs),
+    });
+  }
+  return out;
+}
+
+/**
+ * Backing logic for the `markRepotsSynced` action: resolve mark requests against the raw "Repots"
+ * sheet values (row 0 = header). Each request is `{repot_id, status}`; this finds the data row whose
+ * `repot_id` primary key matches (see cullRowKey) and pairs it with the requested status.
+ *
+ * Returns `[{ rowIndex, status }]` (0-based into `values`). Unknown keys are silently ignored.
+ */
+function resolveRepotMarks(values, keys) {
+  if (!values || values.length < 2 || !keys || keys.length === 0) return [];
+  var header = values[0];
+  var iRepotId = salesColIndex(header, 'repot_id');
+  if (iRepotId < 0) return [];
+
+  var byKey = Object.create(null);
+  for (var r = 1; r < values.length; r++) {
+    var k = cullRowKey(values[r][iRepotId]);
+    if (byKey[k] === undefined) byKey[k] = r;
+  }
+
+  var out = [];
+  (keys || []).forEach(function (req) {
+    var rowIndex = byKey[cullRowKey(req.repot_id)];
+    if (rowIndex !== undefined) {
+      out.push({ rowIndex: rowIndex, status: req.status });
+    }
+  });
+  return out;
+}
+
+/**
  * Pure helper mirroring Code.gs mark application: write sync_status and, when the row's current name
  * is unknown, optional plant enrichment columns. Returns a deep copy of values with updates applied.
  */
@@ -752,6 +825,7 @@ if (typeof module !== 'undefined' && module.exports) {
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
     selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
     PRINT_LABEL_COPIES_MAX, validateAppendRepotCounts,
+    selectPendingRepots, resolveRepotMarks,
     isStockPlantCull, computeCullDeduction, computeSalesDeduction, predictStockUpdates,
     applyMarksToValues,
     computePlantListFingerprint, plantListFingerprintMatches,

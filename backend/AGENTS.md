@@ -16,7 +16,8 @@ Deploy: [`docs/deploy/backend.md`](../docs/deploy/backend.md).
 - **`shared.js`** — pure logic (auth, plant parsing, dedupe). Source of truth; mirrored into the GAS
   project as `shared.gs`.
 - **`Code.gs`** — HTTP handlers. Separate actions for sales, culls, print labels, and repots
-  (`appendSales`, `appendCulls`, `appendPrintLabels`, `appendRepots`).
+  (`appendSales`, `appendCulls`, `appendPrintLabels`, `appendRepots`, plus matching
+  `pending*` / `mark*Synced` reverse-sync pairs).
 
 ## Rules
 
