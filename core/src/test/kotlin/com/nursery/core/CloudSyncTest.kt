@@ -20,6 +20,7 @@ class CloudSyncTest {
         assertEquals(2, outcome.salesCount)
         assertEquals(1, outcome.cullCount)
         assertEquals(0, outcome.labelCount)
+        assertEquals(0, outcome.repotCount)
     }
 
     @Test
@@ -29,6 +30,17 @@ class CloudSyncTest {
             import = CloudSync.ImportStep.Ok,
         )
         assertEquals(4, outcome.labelCount)
+        assertEquals(0, outcome.repotCount)
+        assertNull(outcome.errorMessage)
+    }
+
+    @Test
+    fun `repot count is carried through when export ok`() {
+        val outcome = CloudSync.combine(
+            export = CloudSync.ExportStep.Ok(salesCount = 0, cullCount = 0, labelCount = 0, repotCount = 3),
+            import = CloudSync.ImportStep.Ok,
+        )
+        assertEquals(3, outcome.repotCount)
         assertNull(outcome.errorMessage)
     }
 
@@ -39,17 +51,6 @@ class CloudSyncTest {
             import = CloudSync.ImportStep.Ok,
         )
         assertTrue(outcome.advanceExportTimestamp)
-        assertTrue(outcome.advancePlantListTimestamp)
-        assertNull(outcome.errorMessage)
-    }
-
-    @Test
-    fun `ok export can withhold export timestamp for stubbed pending queues`() {
-        val outcome = CloudSync.combine(
-            export = CloudSync.ExportStep.Ok(salesCount = 0, cullCount = 0, advanceTimestamp = false),
-            import = CloudSync.ImportStep.Ok,
-        )
-        assertFalse(outcome.advanceExportTimestamp)
         assertTrue(outcome.advancePlantListTimestamp)
         assertNull(outcome.errorMessage)
     }

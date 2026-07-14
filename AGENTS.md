@@ -47,7 +47,7 @@ Per-module detail: [`core/AGENTS.md`](./core/AGENTS.md), [`backend/AGENTS.md`](.
 These are behavioural guarantees, not reference data — see `Sync`, `CullSync`, `Money`, `Export`,
 `CullExport`, and `PlantBook` in `core/` for specifics. Decisions behind them: [`docs/adr/`](./docs/adr/).
 
-- Local `status` is the sync queue for receipts, culls, and label print requests. Export only
+- Local `status` is the sync queue for receipts, culls, label print requests, and repots. Export only
   pending rows; flip to exported **only on HTTP success**. Nothing lost, no double-counting.
   ([ADR-0006](./docs/adr/0006-status-is-sync-queue.md), [ADR-0008](./docs/adr/0008-independent-queues-header-contract.md))
 - **Money is integer cents** — never floats. ([ADR-0010](./docs/adr/0010-money-integer-cents.md))
@@ -55,7 +55,7 @@ These are behavioural guarantees, not reference data — see `Sync`, `CullSync`,
   kept. Label print requests are the exception: missing accessions are blocked (administrator
   message) and not enqueued. ([ADR-0011](./docs/adr/0011-unknown-scans-kept.md))
 - **Export `HEADER` column order is a backend contract** — keep stable; coordinate `core/` and
-  `backend/` changes together (`Export`, `CullExport`, `LabelPrintExport`).
+  `backend/` changes together (`Export`, `CullExport`, `LabelPrintExport`, `RepotExport`).
   ([ADR-0008](./docs/adr/0008-independent-queues-header-contract.md))
 
 ## Verify changes

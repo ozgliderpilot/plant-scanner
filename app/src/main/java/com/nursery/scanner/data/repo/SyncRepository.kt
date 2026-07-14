@@ -9,6 +9,7 @@ import com.nursery.core.LabelPrintExport
 import com.nursery.core.LabelPrintStatus
 import com.nursery.core.PlantListImport
 import com.nursery.core.ReceiptStatus
+import com.nursery.core.RepotExport
 import com.nursery.core.Retention
 import com.nursery.core.RepotStatus
 import com.nursery.scanner.data.local.dao.CullDao
@@ -47,6 +48,7 @@ sealed interface SyncResult {
         val salesCount: Int,
         val cullCount: Int = 0,
         val labelCount: Int = 0,
+        val repotCount: Int = 0,
         val partialError: String? = null,
     ) : SyncResult
     data class Error(val message: String, val partialError: String? = null) : SyncResult
@@ -143,6 +145,7 @@ class SyncRepository(
                 salesCount = outcome.salesCount,
                 cullCount = outcome.cullCount,
                 labelCount = outcome.labelCount,
+                repotCount = outcome.repotCount,
                 partialError = outcome.partialError,
             )
             else -> SyncResult.Error(err, partialError = outcome.partialError)
@@ -150,28 +153,30 @@ class SyncRepository(
     }
 
     /**
-     * Push pending sales, culls, then print labels; then retention GC.
+     * Push pending sales, culls, print labels, then repots; then retention GC.
      * Queues are independent on partial failure.
      */
     private suspend fun exportStep(config: DeviceConfig): CloudSync.ExportStep {
         val salesPending = receiptDao.receiptsByStatus(ReceiptStatus.SAVED.name).map { it.toCore() }
         val cullsPending = cullDao.cullsByStatus(CullStatus.PENDING.name).map { it.toCore() }
         val labelsPending = labelPrintDao.requestsByStatus(LabelPrintStatus.PENDING.name).map { it.toCore() }
-        val hasPendingRepots = repotDao.repotsByStatus(RepotStatus.PENDING.name).isNotEmpty()
-        if (salesPending.isEmpty() && cullsPending.isEmpty() && labelsPending.isEmpty()) {
+        val repotsPending = repotDao.repotsByStatus(RepotStatus.PENDING.name).map { it.toCore() }
+        if (salesPending.isEmpty() && cullsPending.isEmpty() && labelsPending.isEmpty() &&
+            repotsPending.isEmpty()
+        ) {
             purgeRetained()
-            // Repot HTTP export is still stubbed; keep PENDING and do not advance last-synced.
             return CloudSync.ExportStep.Ok(
                 salesCount = 0,
                 cullCount = 0,
                 labelCount = 0,
-                advanceTimestamp = !hasPendingRepots,
+                repotCount = 0,
             )
         }
 
         var salesExported = 0
         var cullsExported = 0
         var labelsExported = 0
+        var repotsExported = 0
 
         if (salesPending.isNotEmpty()) {
             val rows = Export.buildRows(salesPending, zone).map { Export.rowAsStrings(it) }
@@ -202,6 +207,7 @@ class SyncRepository(
                             salesCount = salesExported,
                             cullCount = 0,
                             labelCount = 0,
+                            repotCount = 0,
                             partialError = "Cull export failed",
                         )
                     }
@@ -228,7 +234,32 @@ class SyncRepository(
                             salesCount = salesExported,
                             cullCount = cullsExported,
                             labelCount = 0,
+                            repotCount = 0,
                             partialError = "Print label export failed",
+                        )
+                    }
+                    return CloudSync.ExportStep.Err(e.message ?: "Export failed")
+                },
+            )
+        }
+
+        if (repotsPending.isNotEmpty()) {
+            val rows = RepotExport.buildRows(repotsPending, zone).map { RepotExport.rowAsStrings(it) }
+            val result = sheets.appendRepots(config, RepotExport.HEADER, rows)
+            result.fold(
+                onSuccess = {
+                    repotDao.markExported(repotsPending.map { r -> r.localId }, RepotStatus.EXPORTED.name)
+                    repotsExported = repotsPending.size
+                },
+                onFailure = { e ->
+                    purgeRetained()
+                    if (salesExported > 0 || cullsExported > 0 || labelsExported > 0) {
+                        return CloudSync.ExportStep.Ok(
+                            salesCount = salesExported,
+                            cullCount = cullsExported,
+                            labelCount = labelsExported,
+                            repotCount = 0,
+                            partialError = "Repot export failed",
                         )
                     }
                     return CloudSync.ExportStep.Err(e.message ?: "Export failed")
@@ -241,6 +272,7 @@ class SyncRepository(
             salesCount = salesExported,
             cullCount = cullsExported,
             labelCount = labelsExported,
+            repotCount = repotsExported,
         )
     }
 
@@ -249,6 +281,7 @@ class SyncRepository(
         receiptDao.deleteExportedOlderThan(ReceiptStatus.EXPORTED.name, cutoff)
         cullDao.deleteExportedOlderThan(CullStatus.EXPORTED.name, cutoff)
         labelPrintDao.deleteExportedOlderThan(LabelPrintStatus.EXPORTED.name, cutoff)
+        repotDao.deleteExportedOlderThan(RepotStatus.EXPORTED.name, cutoff)
     }
 
     private data class TransientState(val busy: Boolean = false, val error: String? = null)

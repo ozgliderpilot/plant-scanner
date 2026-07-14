@@ -6,6 +6,7 @@ alwaysApply: false
 
 # Export header contract
 
-- Column order in `Export.HEADER` and `CullExport.HEADER` (`core/`) is relied on by Apps Script handlers.
+- Column order in `Export.HEADER`, `CullExport.HEADER`, `LabelPrintExport.HEADER`, and
+  `RepotExport.HEADER` (`core/`) is relied on by Apps Script handlers.
 - Never reorder or rename columns without updating `core/`, `backend/shared.js`, and `backend/test/`.
 - `shared.js` is source of truth for backend logic; mirror to `shared.gs` on deploy.

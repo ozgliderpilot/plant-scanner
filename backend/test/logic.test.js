@@ -995,3 +995,33 @@ test('predictStockUpdates returns [] when nothing was appended (dedupe-only push
   ];
   assert.deepStrictEqual(predictStockUpdates(plants, SALES_HEADER, [], 'sales'), []);
 });
+
+// ---- Repots append (#97) — mirrors RepotExport.HEADER in core/ (+ sheet-only sync_status).
+// Access apply / reverse sync is out of scope for this slice.
+const REPOTS_HEADER = [
+  'repot_id', 'date', 'accession', 'name', 'genus', 'species', 'cultivar', 'common_name',
+  'group',
+  'tubes_before', 'pots_before', 'misc_before', 'stock_before',
+  'tubes', 'pots', 'misc', 'stock',
+  'tubes_for_sale', 'pots_for_sale', 'misc_for_sale',
+];
+
+test('ensureSyncStatusColumn appends sync_status for Repots header', () => {
+  assert.deepStrictEqual(
+    ensureSyncStatusColumn(REPOTS_HEADER),
+    [...REPOTS_HEADER, 'sync_status'],
+  );
+});
+
+test('filterNewRows dedupes repots by repot_id', () => {
+  const incoming = [
+    ['PP-1', '2026-07-01T12:00', '31011'],
+    ['PP-2', '2026-07-01T12:00', '31011'],
+    ['PP-3', '2026-07-01T12:00', '8250'],
+  ];
+  const existing = ['PP-3'];
+  const result = filterNewRows(incoming, existing, 0);
+  assert.strictEqual(result.skipped, 1);
+  assert.strictEqual(result.rows.length, 2);
+  assert.deepStrictEqual(result.rows.map((r) => r[0]), ['PP-1', 'PP-2']);
+});
