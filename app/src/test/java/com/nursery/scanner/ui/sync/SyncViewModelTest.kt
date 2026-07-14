@@ -101,6 +101,22 @@ class SyncViewModelTest {
     }
 
     @Test
+    fun syncNowIncludesRepotCountInDoneMessage() = runTest {
+        val sync = RecordingCloudSync(
+            SyncResult.Done(salesCount = 0, cullCount = 0, labelCount = 0, repotCount = 2),
+        )
+        val vm = SyncViewModel(
+            sync,
+            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60))),
+        )
+
+        vm.syncNow()
+        runCurrent()
+
+        assertEquals("Synced (2 repot)", vm.message.value)
+    }
+
+    @Test
     fun syncNowSurfacesNotConfiguredWithoutCallingFailurePath() = runTest {
         val sync = RecordingCloudSync(SyncResult.NotConfigured)
         val vm = SyncViewModel(

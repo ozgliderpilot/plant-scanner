@@ -7,7 +7,7 @@ const {
   predictStockUpdates,
   validateAppendCullsNotes, applyMarksToValues,
   selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
-  PRINT_LABEL_COPIES_MAX,
+  PRINT_LABEL_COPIES_MAX, validateAppendRepotCounts,
   computePlantListFingerprint, plantListFingerprintMatches,
 } = require('../shared.js');
 
@@ -994,4 +994,68 @@ test('predictStockUpdates returns [] when nothing was appended (dedupe-only push
     ['31011', 10, 5, 4, 2],
   ];
   assert.deepStrictEqual(predictStockUpdates(plants, SALES_HEADER, [], 'sales'), []);
+});
+
+// ---- Repots append (#97) — mirrors RepotExport.HEADER in core/ (+ sheet-only sync_status).
+// Access apply / reverse sync is out of scope for this slice.
+const REPOTS_HEADER = [
+  'repot_id', 'date', 'accession', 'name', 'genus', 'species', 'cultivar', 'common_name',
+  'group',
+  'tubes_before', 'pots_before', 'misc_before', 'stock_before',
+  'tubes', 'pots', 'misc', 'stock',
+  'tubes_for_sale', 'pots_for_sale', 'misc_for_sale',
+];
+
+test('ensureSyncStatusColumn appends sync_status for Repots header', () => {
+  assert.deepStrictEqual(
+    ensureSyncStatusColumn(REPOTS_HEADER),
+    [...REPOTS_HEADER, 'sync_status'],
+  );
+});
+
+test('validateAppendRepotCounts accepts non-negative integer counts', () => {
+  const rows = [
+    ['PP-1', '2026-07-01T12:00', '31011', 'Acacia', '', '', '', '', 'Tree',
+      12, 0, 0, 0, 0, 5, 0, 0, 'false', 'true', 'false'],
+    ['PP-2', '2026-07-01T12:00', '8250', 'Banksia', '', '', '', '', '',
+      0, 0, 0, 0, 0, 0, 0, 0, 'false', 'false', 'false'],
+  ];
+  assert.strictEqual(validateAppendRepotCounts(REPOTS_HEADER, rows), null);
+});
+
+test('validateAppendRepotCounts rejects negative, non-integer, or non-numeric counts', () => {
+  const msg = 'Repot counts must be non-negative integers';
+  const base = ['PP-1', '2026-07-01T12:00', '31011', 'Acacia', '', '', '', '', 'Tree',
+    5, 0, 0, 0, 0, 5, 0, 0, 'false', 'true', 'false'];
+  const badAt = (colIdx, value) => {
+    const row = base.slice();
+    row[colIdx] = value;
+    return [row];
+  };
+  // tubes_before at index 9; tubes at index 13
+  assert.strictEqual(validateAppendRepotCounts(REPOTS_HEADER, badAt(9, -1)), msg);
+  assert.strictEqual(validateAppendRepotCounts(REPOTS_HEADER, badAt(13, -3)), msg);
+  assert.strictEqual(validateAppendRepotCounts(REPOTS_HEADER, badAt(10, 1.5)), msg);
+  assert.strictEqual(validateAppendRepotCounts(REPOTS_HEADER, badAt(14, 'abc')), msg);
+});
+
+test('validateAppendRepotCounts rejects missing count columns', () => {
+  const header = ['repot_id', 'tubes', 'pots'];
+  assert.strictEqual(
+    validateAppendRepotCounts(header, [['PP-1', 1, 2]]),
+    'Missing tubes_before column',
+  );
+});
+
+test('filterNewRows dedupes repots by repot_id', () => {
+  const incoming = [
+    ['PP-1', '2026-07-01T12:00', '31011'],
+    ['PP-2', '2026-07-01T12:00', '31011'],
+    ['PP-3', '2026-07-01T12:00', '8250'],
+  ];
+  const existing = ['PP-3'];
+  const result = filterNewRows(incoming, existing, 0);
+  assert.strictEqual(result.skipped, 1);
+  assert.strictEqual(result.rows.length, 2);
+  assert.deepStrictEqual(result.rows.map((r) => r[0]), ['PP-1', 'PP-2']);
 });

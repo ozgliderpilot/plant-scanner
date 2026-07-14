@@ -6,7 +6,7 @@ Sales, culls, and label print requests hit different Sheet tabs with different c
 
 ## Decision
 
-Export as independent queues in order sales → culls → labels: a partial failure must not roll back a queue that already succeeded. Treat each tab’s column order (`Export.HEADER`, `CullExport.HEADER`, `LabelPrintExport.HEADER`) as a backend contract — change only with coordinated `core/` and `backend/` updates.
+Export as independent queues in order sales → culls → labels → repots: a partial failure must not roll back a queue that already succeeded. Treat each tab’s column order (`Export.HEADER`, `CullExport.HEADER`, `LabelPrintExport.HEADER`, `RepotExport.HEADER`) as a backend contract — change only with coordinated `core/` and `backend/` updates.
 
 ## Consequences
 

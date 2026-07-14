@@ -9,6 +9,8 @@
  *   - appendCulls     -> appends cull rows to "Culls" (deduped by cull_id), stamping sync_status,
  *                        and predicts Plants-tab stock deductions (#80)
  *   - appendPrintLabels -> appends label print rows to "PrintQueue" (deduped by queue_id), stamping sync_status
+ *   - appendRepots    -> appends repot rows to "Repots" (deduped by repot_id), stamping sync_status
+ *                        (Access apply / reverse sync is a later slice)
  *   - pendingSales    -> returns every "Sales" row whose sync_status is "Pending" (Access reverse sync)
  *   - markSalesSynced -> sets sync_status by (receipt,item_seq) key (Access reverse sync, status-agnostic)
  *   - pendingCulls    -> returns every "Culls" row whose sync_status is "Pending" (Access reverse sync)
@@ -38,6 +40,7 @@ function doPost(e) {
       case 'appendSales': return handleAppendSales_(body);
       case 'appendCulls': return handleAppendCulls_(body);
       case 'appendPrintLabels': return handleAppendPrintLabels_(body);
+      case 'appendRepots': return handleAppendRepots_(body);
       case 'pendingSales': return handlePendingSales_();
       case 'markSalesSynced': return handleMarkSalesSynced_(body);
       case 'pendingCulls': return handlePendingCulls_();
@@ -170,6 +173,15 @@ function handleAppendPrintLabels_(body) {
     keyColumn: 'queue_id',
     syncEvent: 'Print labels from device',
     validate: validateAppendPrintLabelCopies,
+  });
+}
+
+function handleAppendRepots_(body) {
+  return handleAppendExport_(body, {
+    sheetName: 'Repots',
+    keyColumn: 'repot_id',
+    syncEvent: 'Repots from device',
+    validate: validateAppendRepotCounts,
   });
 }
 

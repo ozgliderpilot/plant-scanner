@@ -409,6 +409,38 @@ function validateAppendPrintLabelCopies(header, rows) {
 }
 
 /**
+ * Reject appendRepots payloads whose count columns are not non-negative integers. Mirrors
+ * RepotRecord.validationError on the device so a crafted POST with the shared secret cannot write
+ * negative / non-integer counts to the Repots sheet. Returns an error message when invalid, null when OK.
+ */
+var REPOT_COUNT_COLUMNS = [
+  'tubes_before', 'pots_before', 'misc_before', 'stock_before',
+  'tubes', 'pots', 'misc', 'stock',
+];
+
+function validateAppendRepotCounts(header, rows) {
+  var indices = [];
+  for (var c = 0; c < REPOT_COUNT_COLUMNS.length; c++) {
+    var idx = salesColIndex(header, REPOT_COUNT_COLUMNS[c]);
+    if (idx < 0) return 'Missing ' + REPOT_COUNT_COLUMNS[c] + ' column';
+    indices.push(idx);
+  }
+  for (var r = 0; r < (rows || []).length; r++) {
+    var row = rows[r];
+    for (var i = 0; i < indices.length; i++) {
+      var col = indices[i];
+      var raw = row && col < row.length ? row[col] : '';
+      var n = Number(raw);
+      // Integer >= 0 (Apps Script–safe; avoid Number.isInteger).
+      if (!(isFinite(n) && Math.floor(n) === n && n >= 0)) {
+        return 'Repot counts must be non-negative integers';
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Normalised cull_id primary key for a Culls row — trimmed string so " PP-1 " and "PP-1" collide.
  */
 function cullRowKey(cullId) {
@@ -719,7 +751,7 @@ if (typeof module !== 'undefined' && module.exports) {
     selectPendingSales, resolveSalesMarks,
     ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
     selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
-    PRINT_LABEL_COPIES_MAX,
+    PRINT_LABEL_COPIES_MAX, validateAppendRepotCounts,
     isStockPlantCull, computeCullDeduction, computeSalesDeduction, predictStockUpdates,
     applyMarksToValues,
     computePlantListFingerprint, plantListFingerprintMatches,

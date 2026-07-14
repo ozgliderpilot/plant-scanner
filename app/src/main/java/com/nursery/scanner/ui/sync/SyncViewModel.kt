@@ -41,6 +41,7 @@ class SyncViewModel(
                 if (result.salesCount > 0) add("${result.salesCount} sales")
                 if (result.cullCount > 0) add("${result.cullCount} cull")
                 if (result.labelCount > 0) add("${result.labelCount} label")
+                if (result.repotCount > 0) add("${result.repotCount} repot")
             }
             val base = if (parts.isEmpty()) "Synced (0 pending)" else "Synced (${parts.joinToString(", ")})"
             withPartial(base, result.partialError)

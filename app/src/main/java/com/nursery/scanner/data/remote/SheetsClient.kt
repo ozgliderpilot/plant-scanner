@@ -118,6 +118,14 @@ class SheetsClient(
         appendRows(config, action = "appendPrintLabels", header = header, rows = rows,
             rejectMessage = "Server rejected the print label export")
 
+    suspend fun appendRepots(
+        config: DeviceConfig,
+        header: List<String>,
+        rows: List<List<String>>,
+    ): Result<AppendOutcome> =
+        appendRows(config, action = "appendRepots", header = header, rows = rows,
+            rejectMessage = "Server rejected the repot export")
+
     private suspend fun appendRows(
         config: DeviceConfig,
         action: String,
