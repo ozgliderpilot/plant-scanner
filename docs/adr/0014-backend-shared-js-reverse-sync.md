@@ -6,7 +6,10 @@ Apps Script runs in a hard-to-test host. Access must pull new Sheet rows into th
 
 ## Decision
 
-Keep error-prone script logic in Node-testable `shared.js` (mirrored into `shared.gs`). Stamp appended sales/culls with sheet-only `sync_status` Pending; Access reverse sync marks Synced via APIs keyed by `(receipt, item_seq)` or `cull_id`. Dedupe on append uses those same identity keys.
+Keep error-prone script logic in Node-testable `shared.js` (mirrored into `shared.gs`). Stamp
+appended sales/culls/print labels/repots with sheet-only `sync_status` Pending; Access reverse sync
+marks Synced (or NoMatch) via APIs keyed by `(receipt, item_seq)`, `cull_id`, `queue_id`, or
+`repot_id`. Dedupe on append uses those same identity keys.
 
 ## Consequences
 

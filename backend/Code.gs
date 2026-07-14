@@ -10,13 +10,14 @@
  *                        and predicts Plants-tab stock deductions (#80)
  *   - appendPrintLabels -> appends label print rows to "PrintQueue" (deduped by queue_id), stamping sync_status
  *   - appendRepots    -> appends repot rows to "Repots" (deduped by repot_id), stamping sync_status
- *                        (Access apply / reverse sync is a later slice)
  *   - pendingSales    -> returns every "Sales" row whose sync_status is "Pending" (Access reverse sync)
  *   - markSalesSynced -> sets sync_status by (receipt,item_seq) key (Access reverse sync, status-agnostic)
  *   - pendingCulls    -> returns every "Culls" row whose sync_status is "Pending" (Access reverse sync)
  *   - markCullsSynced -> sets sync_status by cull_id key (Access reverse sync, status-agnostic)
  *   - pendingPrintLabels -> returns every "PrintQueue" row whose sync_status is "Pending" (Access reverse sync)
  *   - markPrintLabelsSynced -> sets sync_status by queue_id key (Access reverse sync, status-agnostic)
+ *   - pendingRepots   -> returns every "Repots" row whose sync_status is "Pending" (Access reverse sync)
+ *   - markRepotsSynced -> sets sync_status by repot_id key (Access reverse sync, status-agnostic)
  *
  * Every action also stamps a "SyncStatus" sheet (rolling log of the last 100 sync events, newest
  * first) so the Sheet shows recent plant pushes from Access and pulls / pushes with the device.
@@ -47,6 +48,8 @@ function doPost(e) {
       case 'markCullsSynced': return handleMarkCullsSynced_(body);
       case 'pendingPrintLabels': return handlePendingPrintLabels_();
       case 'markPrintLabelsSynced': return handleMarkPrintLabelsSynced_(body);
+      case 'pendingRepots': return handlePendingRepots_();
+      case 'markRepotsSynced': return handleMarkRepotsSynced_(body);
       default: return json_({ ok: false, error: 'Unknown action: ' + body.action });
     }
   } catch (err) {
@@ -304,6 +307,14 @@ function handlePendingPrintLabels_() {
 
 function handleMarkPrintLabelsSynced_(body) {
   return handleMarkExportSynced_(body, 'PrintQueue', resolvePrintLabelMarks, 'Print labels to Access');
+}
+
+function handlePendingRepots_() {
+  return handlePendingExport_('Repots', selectPendingRepots, 'repots', 'Repots to Access');
+}
+
+function handleMarkRepotsSynced_(body) {
+  return handleMarkExportSynced_(body, 'Repots', resolveRepotMarks, 'Repots to Access');
 }
 
 function handlePendingExport_(sheetName, selectFn, resultKey, syncEvent) {

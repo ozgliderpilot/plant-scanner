@@ -13,10 +13,12 @@ Option Explicit
 '    1c. Print-labels-in (reverse sync): Pending PrintQueue rows -> Access PrintQueue
 '       insert + Batches print-tracking fields (NoPrinted / NoLastPrinted /
 '       LabelsLastPrinted), ledgered by queue_id.
+'    1d. Repots-in (reverse sync): Pending Repots rows -> absolute Batches stock
+'       counts (T/P/M/Stock) + three *ForSale flags, ledgered by repot_id.
 '    2. Plant push ("replacePlants"): full-mirror rewrite of the "Plants" sheet
 '       from the in-stock plant view (qryPlantsExport).
-'  Sales-in runs FIRST so the same run's push already reflects the freshly
-'  decremented stock (a just-sold-out accession drops off the in-stock list now).
+'  Reverse-sync phases run FIRST so the same run's push already reflects the freshly
+'  updated stock (a just-sold-out or just-repotted accession is correct on the Sheet now).
 '
 '  Wiring (see docs/deploy/access.md):
 '    * On an always-open form (e.g. the switchboard):
@@ -71,6 +73,11 @@ Private Const CULL_LEDGER_NAME As String = "tblAppliedCulls"
 ' PrintQueue + Batches print tracking".
 Private Const PRINT_LEDGER_NAME As String = "tblAppliedPrintLabels"
 
+' Local idempotency ledger for repot reverse sync. Auto-created on first run,
+' PK (repot_id). A row here means "this repot has already been applied as absolute
+' stock + ForSale flags on Batches" (or ledgered NoMatch without stock change).
+Private Const REPOT_LEDGER_NAME As String = "tblAppliedRepots"
+
 ' The export query is (re)created automatically on first run if missing (see EnsureQueryDef_), so the
 ' nursery PC needs no manual query setup. This SELECT is the single source of truth for the export
 ' columns (Batches + Species joined on [Id No], in-stock only).
@@ -119,6 +126,7 @@ Public Sub SyncPlants(Optional ByVal force As Boolean = False, _
     ApplyPendingSales_ url, secret
     ApplyPendingCulls_ url, secret
     ApplyPendingPrintLabels_ url, secret
+    ApplyPendingRepots_ url, secret
     On Error GoTo Done
 
     ' ---- Phase 2: plant push (full-mirror replacePlants) -------------------------------------------
@@ -948,6 +956,208 @@ Done:
     Set ParsePendingPrintLabels_ = result
 End Function
 
+' ---- Phase 1d: repots-in (absolute Batches stock + ForSale flags) -------------------------------
+' Pull Pending Repots rows, SET Tubes/Pots/Misc/StockInNursery and the three *ForSale flags to the
+' row's after-counts (absolute, not relative), ledger by repot_id, then mark the Sheet. Already-
+' ledgered ids are re-flipped only (never re-applied). Non-matching accessions are ledgered and
+' marked NoMatch with no stock write — same convention as sales/culls/print labels.
+Private Sub ApplyPendingRepots_(ByVal url As String, ByVal secret As String)
+    Dim db As DAO.Database
+    Dim body As String, payload As String
+    Dim repots As Collection, marks As Collection, row As Variant
+    Dim i As Long
+    Dim repotId As String, accession As String
+    Dim tubes As Long, pots As Long, misc As Long, stock As Long
+    Dim tubesFs As Boolean, potsFs As Boolean, miscFs As Boolean
+    Dim ledStatus As String
+
+    Set db = CurrentDb
+    EnsureRepotLedger_ db
+
+    payload = "{""action"":""pendingRepots"",""secret"":""" & JsonEscape(secret) & """}"
+    If Not PostJsonResponse(url, payload, body) Then Exit Sub
+    Set repots = ParsePendingRepots_(body)
+    If repots.Count = 0 Then Exit Sub
+
+    Set marks = New Collection
+    For i = 1 To repots.Count
+        row = repots.Item(i)
+        repotId = CStr(row(0))
+        accession = CStr(row(1))
+        tubes = row(2)
+        pots = row(3)
+        misc = row(4)
+        stock = row(5)
+        tubesFs = row(6)
+        potsFs = row(7)
+        miscFs = row(8)
+
+        ledStatus = RepotLedgerStatus_(db, repotId)
+        If Len(ledStatus) > 0 Then
+            marks.Add RepotMarkJson_(repotId, ledStatus)
+        ElseIf CountBatchMatches_(db, accession) = 1 Then
+            If ApplyRepotAbsolute_(db, repotId, accession, tubes, pots, misc, stock, _
+                                   tubesFs, potsFs, miscFs) Then
+                marks.Add RepotMarkJson_(repotId, "Synced")
+            End If
+        Else
+            If ApplyRepotNoMatch_(db, repotId) Then
+                marks.Add RepotMarkJson_(repotId, "NoMatch")
+            End If
+        End If
+    Next i
+
+    If marks.Count > 0 Then
+        Dim arr() As String
+        ReDim arr(0 To marks.Count - 1)
+        For i = 1 To marks.Count
+            arr(i - 1) = marks.Item(i)
+        Next i
+        payload = "{""action"":""markRepotsSynced""," & _
+                  """secret"":""" & JsonEscape(secret) & """," & _
+                  """keys"":[" & Join(arr, ",") & "]}"
+        PostJson url, payload
+    End If
+End Sub
+
+' SET absolute T/P/M/Stock counts + three *ForSale flags on the matching batch AND insert the ledger
+' row, in ONE DAO transaction. Returns True only if both committed; on any error rolls back so the
+' row stays Pending for the next run. Caller has already verified exactly one batch matches.
+Private Function ApplyRepotAbsolute_(ByRef db As DAO.Database, _
+                                     ByVal repotId As String, ByVal accession As String, _
+                                     ByVal tubes As Long, ByVal pots As Long, _
+                                     ByVal misc As Long, ByVal stock As Long, _
+                                     ByVal tubesFs As Boolean, ByVal potsFs As Boolean, _
+                                     ByVal miscFs As Boolean) As Boolean
+    Dim ws As DAO.Workspace
+    Dim rs As DAO.Recordset
+    Dim inTrans As Boolean
+
+    On Error GoTo Fail
+    Set ws = DBEngine.Workspaces(0)
+    ws.BeginTrans
+    inTrans = True
+
+    Set rs = OpenBatchByAccession_(db, accession, True)
+    If rs.EOF Then Err.Raise vbObjectError, , "batch vanished"
+
+    rs.Edit
+    rs![TubesInNursery] = tubes
+    rs![PotsInNursery] = pots
+    rs![MiscInNursery] = misc
+    rs![StockInNursery] = stock
+    rs![TubesForSale] = tubesFs
+    rs![PotsForSale] = potsFs
+    rs![MiscForSale] = miscFs
+    rs.Update
+    rs.Close
+    Set rs = Nothing
+
+    RepotLedgerInsert_ db, repotId, "Synced"
+
+    ws.CommitTrans
+    inTrans = False
+    ApplyRepotAbsolute_ = True
+    Exit Function
+Fail:
+    If Not rs Is Nothing Then
+        On Error Resume Next
+        rs.Close
+        On Error GoTo 0
+    End If
+    If inTrans Then ws.Rollback
+    ApplyRepotAbsolute_ = False
+End Function
+
+Private Function ApplyRepotNoMatch_(ByRef db As DAO.Database, ByVal repotId As String) As Boolean
+    On Error GoTo Fail
+    RepotLedgerInsert_ db, repotId, "NoMatch"
+    ApplyRepotNoMatch_ = True
+    Exit Function
+Fail:
+    ApplyRepotNoMatch_ = False
+End Function
+
+Private Sub EnsureRepotLedger_(ByRef db As DAO.Database)
+    Dim tdf As DAO.TableDef
+    On Error Resume Next
+    Set tdf = db.TableDefs(REPOT_LEDGER_NAME)
+    On Error GoTo 0
+    If Not (tdf Is Nothing) Then Exit Sub
+    db.Execute _
+        "CREATE TABLE " & REPOT_LEDGER_NAME & " (" & _
+        "[repot_id] TEXT(255) NOT NULL, " & _
+        "[status] TEXT(50), " & _
+        "[applied_at] DATETIME, " & _
+        "CONSTRAINT PrimaryKey PRIMARY KEY ([repot_id]));", dbFailOnError
+End Sub
+
+Private Function RepotLedgerStatus_(ByRef db As DAO.Database, ByVal repotId As String) As String
+    Dim qd As DAO.QueryDef, rs As DAO.Recordset
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pId Text ( 255 ); " & _
+        "SELECT [status] FROM " & REPOT_LEDGER_NAME & " WHERE [repot_id]=[pId];")
+    qd.Parameters("pId").Value = repotId
+    Set rs = qd.OpenRecordset(dbOpenSnapshot)
+    If rs.EOF Then
+        RepotLedgerStatus_ = ""
+    Else
+        RepotLedgerStatus_ = Nz(rs!Status, "Synced")
+    End If
+    rs.Close
+    Set rs = Nothing
+End Function
+
+Private Sub RepotLedgerInsert_(ByRef db As DAO.Database, ByVal repotId As String, ByVal status As String)
+    Dim qd As DAO.QueryDef
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pId Text ( 255 ), pStatus Text ( 50 ), pAt DateTime; " & _
+        "INSERT INTO " & REPOT_LEDGER_NAME & " ([repot_id], [status], [applied_at]) " & _
+        "VALUES ([pId], [pStatus], [pAt]);")
+    qd.Parameters("pId").Value = repotId
+    qd.Parameters("pStatus").Value = status
+    qd.Parameters("pAt").Value = Now()
+    qd.Execute dbFailOnError
+End Sub
+
+Private Function RepotMarkJson_(ByVal repotId As String, ByVal status As String) As String
+    RepotMarkJson_ = "{""repot_id"":""" & JsonEscape(repotId) & """," & _
+                     """status"":""" & JsonEscape(status) & """}"
+End Function
+
+Private Function ParsePendingRepots_(ByVal body As String) As Collection
+    Dim result As New Collection
+    Dim p As Long, q As Long, inner As String
+    Dim re As Object, matches As Object, obj As String, i As Long
+
+    p = InStr(1, body, """repots"":[")
+    If p = 0 Then GoTo Done
+    p = p + Len("""repots"":[")
+    q = InStr(p, body, "]")
+    If q = 0 Then GoTo Done
+    inner = Mid$(body, p, q - p)
+
+    Set re = CreateObject("VBScript.RegExp")
+    re.Global = True
+    re.Pattern = "\{[^{}]*\}"
+    Set matches = re.Execute(inner)
+    For i = 0 To matches.Count - 1
+        obj = matches.Item(i).Value
+        result.Add Array( _
+            JsonStr_(obj, "repot_id"), _
+            JsonStr_(obj, "accession"), _
+            CLng(Val(JsonNum_(obj, "tubes"))), _
+            CLng(Val(JsonNum_(obj, "pots"))), _
+            CLng(Val(JsonNum_(obj, "misc"))), _
+            CLng(Val(JsonNum_(obj, "stock"))), _
+            JsonBool_(obj, "tubes_for_sale"), _
+            JsonBool_(obj, "pots_for_sale"), _
+            JsonBool_(obj, "misc_for_sale"))
+    Next i
+Done:
+    Set ParsePendingRepots_ = result
+End Function
+
 ' Decrement the sale unit's stock count(s) for the single matching batch AND insert the ledger row, in
 ' ONE DAO transaction on Workspaces(0) (which covers the linked Jet back-end). Returns True only if both
 ' committed; on any error it rolls back and returns False, leaving the row un-applied for the next run.
@@ -1302,6 +1512,21 @@ Private Function JsonNum_(ByVal obj As String, ByVal key As String) As String
         JsonNum_ = "0"
     Else
         JsonNum_ = m.Item(0).SubMatches(0)
+    End If
+End Function
+
+' Extract a JSON boolean field "key":true|false from one flat object. False if absent/unrecognised.
+Private Function JsonBool_(ByVal obj As String, ByVal key As String) As Boolean
+    Dim re As Object, m As Object, q As String
+    q = Chr$(34)
+    Set re = CreateObject("VBScript.RegExp")
+    re.IgnoreCase = True
+    re.Pattern = q & key & q & "\s*:\s*(true|false)"
+    Set m = re.Execute(obj)
+    If m.Count = 0 Then
+        JsonBool_ = False
+    Else
+        JsonBool_ = (LCase$(m.Item(0).SubMatches(0)) = "true")
     End If
 End Function
 

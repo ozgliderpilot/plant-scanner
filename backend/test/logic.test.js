@@ -8,6 +8,7 @@ const {
   validateAppendCullsNotes, applyMarksToValues,
   selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
   PRINT_LABEL_COPIES_MAX, validateAppendRepotCounts,
+  selectPendingRepots, resolveRepotMarks,
   computePlantListFingerprint, plantListFingerprintMatches,
 } = require('../shared.js');
 
@@ -996,8 +997,7 @@ test('predictStockUpdates returns [] when nothing was appended (dedupe-only push
   assert.deepStrictEqual(predictStockUpdates(plants, SALES_HEADER, [], 'sales'), []);
 });
 
-// ---- Repots append (#97) — mirrors RepotExport.HEADER in core/ (+ sheet-only sync_status).
-// Access apply / reverse sync is out of scope for this slice.
+// ---- Repots append (#97) + reverse sync (#100) — mirrors RepotExport.HEADER (+ sheet-only sync_status).
 const REPOTS_HEADER = [
   'repot_id', 'date', 'accession', 'name', 'genus', 'species', 'cultivar', 'common_name',
   'group',
@@ -1005,6 +1005,7 @@ const REPOTS_HEADER = [
   'tubes', 'pots', 'misc', 'stock',
   'tubes_for_sale', 'pots_for_sale', 'misc_for_sale',
 ];
+const REPOTS_SHEET_HEADER = ensureSyncStatusColumn(REPOTS_HEADER);
 
 test('ensureSyncStatusColumn appends sync_status for Repots header', () => {
   assert.deepStrictEqual(
@@ -1058,4 +1059,89 @@ test('filterNewRows dedupes repots by repot_id', () => {
   assert.strictEqual(result.skipped, 1);
   assert.strictEqual(result.rows.length, 2);
   assert.deepStrictEqual(result.rows.map((r) => r[0]), ['PP-1', 'PP-2']);
+});
+
+test('selectPendingRepots returns [] for an empty or header-only sheet', () => {
+  assert.deepStrictEqual(selectPendingRepots(null), []);
+  assert.deepStrictEqual(selectPendingRepots([]), []);
+  assert.deepStrictEqual(selectPendingRepots([REPOTS_SHEET_HEADER]), []);
+});
+
+test('selectPendingRepots selects only Pending rows shaped for Access absolute apply', () => {
+  const values = [
+    REPOTS_SHEET_HEADER,
+    // Pending: tubes→pots style move with pots for sale
+    ['PP-1', '2026-07-01T12:00', '31011', 'Acacia', 'Acacia', 'pycnantha', '', 'Golden Wattle', 'Tree',
+      12, 0, 0, 1, 0, 12, 0, 1, 'false', 'true', 'false', 'Pending'],
+    // Already synced — skipped
+    ['PP-2', '2026-07-01T12:00', '8250', 'Banksia', '', '', '', '', '',
+      0, 5, 0, 0, 0, 3, 0, 0, 'false', 'true', 'false', 'Synced'],
+    // Pending NoMatch candidate — still returned so Access can mark it
+    ['PP-3', '2026-07-01T13:00', '99999', 'unknown', '', '', '', '', '',
+      0, 0, 0, 0, 1, 0, 0, 0, 'true', 'false', 'false', 'Pending'],
+  ];
+  assert.deepStrictEqual(selectPendingRepots(values), [
+    {
+      repot_id: 'PP-1',
+      accession: '31011',
+      tubes: 0,
+      pots: 12,
+      misc: 0,
+      stock: 1,
+      tubes_for_sale: false,
+      pots_for_sale: true,
+      misc_for_sale: false,
+    },
+    {
+      repot_id: 'PP-3',
+      accession: '99999',
+      tubes: 1,
+      pots: 0,
+      misc: 0,
+      stock: 0,
+      tubes_for_sale: true,
+      pots_for_sale: false,
+      misc_for_sale: false,
+    },
+  ]);
+});
+
+test('resolveRepotMarks maps each repot_id key to its values row index and status', () => {
+  const values = [
+    REPOTS_SHEET_HEADER,
+    ['PP-1', '2026-07-01T12:00', '31011', 'A', '', '', '', '', '',
+      0, 0, 0, 0, 0, 5, 0, 0, 'false', 'true', 'false', 'Pending'],
+    ['PP-2', '2026-07-01T12:00', '8250', 'B', '', '', '', '', '',
+      0, 0, 0, 0, 0, 3, 0, 0, 'false', 'true', 'false', 'Pending'],
+  ];
+  assert.deepStrictEqual(
+    resolveRepotMarks(values, [{ repot_id: 'PP-2', status: 'Synced' }]),
+    [{ rowIndex: 2, status: 'Synced' }],
+  );
+});
+
+test('resolveRepotMarks ignores keys with no matching row (not an error)', () => {
+  const values = [
+    REPOTS_SHEET_HEADER,
+    ['PP-1', '2026-07-01T12:00', '31011', 'A', '', '', '', '', '',
+      0, 0, 0, 0, 0, 5, 0, 0, 'false', 'true', 'false', 'Pending'],
+  ];
+  assert.deepStrictEqual(
+    resolveRepotMarks(values, [
+      { repot_id: 'PP-1', status: 'Synced' },
+      { repot_id: 'PP-NOPE', status: 'Synced' },
+    ]),
+    [{ rowIndex: 1, status: 'Synced' }],
+  );
+});
+
+test('applyMarksToValues flips Repots sync_status without plant enrichment', () => {
+  const values = [
+    REPOTS_SHEET_HEADER,
+    ['PP-1', '2026-07-01T12:00', '31011', 'Acacia', '', '', '', '', '',
+      0, 0, 0, 0, 0, 5, 0, 0, 'false', 'true', 'false', 'Pending'],
+  ];
+  const marked = applyMarksToValues(values, [{ rowIndex: 1, status: 'Synced' }]);
+  assert.strictEqual(marked[1][REPOTS_SHEET_HEADER.indexOf('sync_status')], 'Synced');
+  assert.strictEqual(marked[1][REPOTS_SHEET_HEADER.indexOf('name')], 'Acacia');
 });
