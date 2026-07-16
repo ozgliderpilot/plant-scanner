@@ -997,7 +997,8 @@ test('predictStockUpdates returns [] when nothing was appended (dedupe-only push
   assert.deepStrictEqual(predictStockUpdates(plants, SALES_HEADER, [], 'sales'), []);
 });
 
-// ---- Repots append (#97) + reverse sync (#100) — mirrors RepotExport.HEADER (+ sheet-only sync_status).
+// ---- Repot stock prediction on append (#80 for repots) — mirrors Access ApplyRepotAbsolute_ ----------
+// Absolute SET of T/P/M/Stock + three *ForSale flags (not relative deduction).
 const REPOTS_HEADER = [
   'repot_id', 'date', 'accession', 'name', 'genus', 'species', 'cultivar', 'common_name',
   'group',
@@ -1006,6 +1007,104 @@ const REPOTS_HEADER = [
   'tubes_for_sale', 'pots_for_sale', 'misc_for_sale',
 ];
 const REPOTS_SHEET_HEADER = ensureSyncStatusColumn(REPOTS_HEADER);
+
+function repotRow(repotId, accession, after, forSale) {
+  const [tubes, pots, misc, stock] = after;
+  const [tubesFs, potsFs, miscFs] = forSale;
+  return [
+    repotId, '2026-07-01T12:00', accession, 'Acacia', '', '', '', '', 'Tree',
+    0, 0, 0, 0, // *_before (ignored by prediction)
+    tubes, pots, misc, stock,
+    String(tubesFs), String(potsFs), String(miscFs),
+  ];
+}
+
+test('predictStockUpdates sets absolute T/P/M/Stock + ForSale for a matching repot', () => {
+  const plants = [
+    ['Ac Number', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery', 'StockInNursery',
+      'PotsForSale', 'TubesForSale', 'MiscForSale'],
+    ['31011', 0, 12, 0, 1, false, false, false],
+    ['8250', 3, 0, 0, 0, true, false, false],
+  ];
+  const appended = [
+    // Everyday tubes→pots: 12 tubes become 12 pots, pots for sale, stock unchanged
+    repotRow('PP-1', '31011', [0, 12, 0, 1], [false, true, false]),
+  ];
+  assert.deepStrictEqual(
+    predictStockUpdates(plants, REPOTS_HEADER, appended, 'repots'),
+    [{
+      rowIndex: 1,
+      pots: 12, tubes: 0, misc: 0, stock: 1,
+      potsForSale: true, tubesForSale: false, miscForSale: false,
+    }],
+  );
+  // Sibling accession untouched
+  assert.strictEqual(plants[2][1], 3);
+});
+
+test('predictStockUpdates skips unknown accessions for repots (Access NoMatch)', () => {
+  const plants = [
+    ['Ac Number', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery', 'StockInNursery',
+      'PotsForSale', 'TubesForSale', 'MiscForSale'],
+    ['31011', 10, 5, 4, 2, true, false, false],
+  ];
+  const appended = [
+    repotRow('PP-1', '99999', [0, 0, 0, 0], [false, false, false]),
+  ];
+  assert.deepStrictEqual(
+    predictStockUpdates(plants, REPOTS_HEADER, appended, 'repots'),
+    [],
+  );
+});
+
+test('predictStockUpdates last repot wins when the same accession appears twice', () => {
+  const plants = [
+    ['Ac Number', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery', 'StockInNursery',
+      'PotsForSale', 'TubesForSale', 'MiscForSale'],
+    ['31011', 10, 5, 4, 2, false, false, false],
+  ];
+  const appended = [
+    repotRow('PP-1', '31011', [0, 12, 0, 1], [false, true, false]),
+    repotRow('PP-2', '31011', [1, 2, 3, 0], [true, false, true]),
+  ];
+  assert.deepStrictEqual(
+    predictStockUpdates(plants, REPOTS_HEADER, appended, 'repots'),
+    [{
+      rowIndex: 1,
+      pots: 2, tubes: 1, misc: 3, stock: 0,
+      potsForSale: false, tubesForSale: true, miscForSale: true,
+    }],
+  );
+});
+
+test('predictStockUpdates leaves a zeroed plant on the tab after a repot', () => {
+  const plants = [
+    ['Ac Number', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery', 'StockInNursery',
+      'PotsForSale', 'TubesForSale', 'MiscForSale'],
+    ['31011', 5, 0, 0, 0, true, false, false],
+  ];
+  const appended = [
+    repotRow('PP-1', '31011', [0, 0, 0, 0], [false, false, false]),
+  ];
+  assert.deepStrictEqual(
+    predictStockUpdates(plants, REPOTS_HEADER, appended, 'repots'),
+    [{
+      rowIndex: 1,
+      pots: 0, tubes: 0, misc: 0, stock: 0,
+      potsForSale: false, tubesForSale: false, miscForSale: false,
+    }],
+  );
+});
+
+test('predictStockUpdates returns [] for a dedupe-only repot push', () => {
+  const plants = [
+    ['Ac Number', 'PotsInNursery', 'TubesInNursery', 'MiscInNursery', 'StockInNursery'],
+    ['31011', 10, 5, 4, 2],
+  ];
+  assert.deepStrictEqual(predictStockUpdates(plants, REPOTS_HEADER, [], 'repots'), []);
+});
+
+// ---- Repots append (#97) + reverse sync (#100) — mirrors RepotExport.HEADER (+ sheet-only sync_status).
 
 test('ensureSyncStatusColumn appends sync_status for Repots header', () => {
   assert.deepStrictEqual(

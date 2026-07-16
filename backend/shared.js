@@ -749,12 +749,16 @@ function computeSalesDeduction(unit, qty, pots, tubes, misc) {
 }
 
 /**
- * Predict Plants-tab stock cell updates for newly appended sales or cull rows (#80).
+ * Predict Plants-tab stock cell updates for newly appended sales, cull, or repot rows (#80).
  * Only accessions present on the Plants tab are updated; unknown scans are skipped.
- * Stock-plant culls are skipped. StockInNursery is never included in the result.
- * Returns one entry per touched plant row: { rowIndex, pots, tubes, misc } (0-based in values).
+ * Stock-plant culls are skipped. Sales/culls never touch StockInNursery or *ForSale.
+ * Repots SET absolute T/P/M/Stock + three *ForSale flags (Access ApplyRepotAbsolute_).
+ * Returns one entry per touched plant row (0-based rowIndex in values).
  */
 function predictStockUpdates(plantsValues, exportHeader, appendedRows, kind) {
+  if (kind === 'repots') {
+    return predictRepotStockUpdates_(plantsValues, exportHeader, appendedRows);
+  }
   var deduct = kind === 'sales' ? computeSalesDeduction
     : kind === 'culls' ? computeCullDeduction
     : null;
@@ -811,6 +815,74 @@ function predictStockUpdates(plantsValues, exportHeader, appendedRows, kind) {
   Object.keys(touched).forEach(function (k) {
     var s = touched[k];
     out.push({ rowIndex: s.rowIndex, pots: s.pots, tubes: s.tubes, misc: s.misc });
+  });
+  out.sort(function (a, b) { return a.rowIndex - b.rowIndex; });
+  return out;
+}
+
+/**
+ * Absolute Plants-tab prediction for newly appended repot rows. Mirrors Access ApplyRepotAbsolute_:
+ * SET tubes/pots/misc/stock and the three *ForSale flags from the row's after-counts. Last row
+ * wins when the same accession appears more than once. Unknown accessions are skipped (NoMatch).
+ */
+function predictRepotStockUpdates_(plantsValues, exportHeader, appendedRows) {
+  if (!plantsValues || plantsValues.length < 2 || !appendedRows || !appendedRows.length) {
+    return [];
+  }
+  var pHeader = plantsValues[0];
+  var iAcc = accessionColIndex(pHeader);
+  var iPots = headerColIndex(pHeader, 'potsinnursery');
+  var iTubes = headerColIndex(pHeader, 'tubesinnursery');
+  var iMisc = headerColIndex(pHeader, 'miscinnursery');
+  var iStock = headerColIndex(pHeader, 'stockinnursery');
+  var iPotsFs = headerColIndex(pHeader, 'potsforsale');
+  var iTubesFs = headerColIndex(pHeader, 'tubesforsale');
+  var iMiscFs = headerColIndex(pHeader, 'miscforsale');
+  if (iAcc < 0 || iPots < 0 || iTubes < 0 || iMisc < 0 || iStock < 0 ||
+      iPotsFs < 0 || iTubesFs < 0 || iMiscFs < 0) {
+    return [];
+  }
+
+  var iRowAcc = headerColIndex(exportHeader, 'accession');
+  var iTubesAfter = headerColIndex(exportHeader, 'tubes');
+  var iPotsAfter = headerColIndex(exportHeader, 'pots');
+  var iMiscAfter = headerColIndex(exportHeader, 'misc');
+  var iStockAfter = headerColIndex(exportHeader, 'stock');
+  var iTubesFsAfter = headerColIndex(exportHeader, 'tubes_for_sale');
+  var iPotsFsAfter = headerColIndex(exportHeader, 'pots_for_sale');
+  var iMiscFsAfter = headerColIndex(exportHeader, 'misc_for_sale');
+  if (iRowAcc < 0 || iTubesAfter < 0 || iPotsAfter < 0 || iMiscAfter < 0 || iStockAfter < 0 ||
+      iTubesFsAfter < 0 || iPotsFsAfter < 0 || iMiscFsAfter < 0) {
+    return [];
+  }
+
+  var byAcc = Object.create(null);
+  for (var r = 1; r < plantsValues.length; r++) {
+    var acc = String(plantsValues[r][iAcc]).trim();
+    if (acc && byAcc[acc] === undefined) byAcc[acc] = r;
+  }
+
+  var touched = Object.create(null);
+  for (var i = 0; i < appendedRows.length; i++) {
+    var row = appendedRows[i];
+    var accession = rowStr(row, iRowAcc);
+    var plantRow = byAcc[accession];
+    if (plantRow === undefined) continue;
+    touched[accession] = {
+      rowIndex: plantRow,
+      pots: rowNum(row, iPotsAfter),
+      tubes: rowNum(row, iTubesAfter),
+      misc: rowNum(row, iMiscAfter),
+      stock: rowNum(row, iStockAfter),
+      potsForSale: rowBool(row, iPotsFsAfter),
+      tubesForSale: rowBool(row, iTubesFsAfter),
+      miscForSale: rowBool(row, iMiscFsAfter),
+    };
+  }
+
+  var out = [];
+  Object.keys(touched).forEach(function (k) {
+    out.push(touched[k]);
   });
   out.sort(function (a, b) { return a.rowIndex - b.rowIndex; });
   return out;
