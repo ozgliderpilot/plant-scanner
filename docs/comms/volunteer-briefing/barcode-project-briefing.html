@@ -167,15 +167,39 @@
 
     .phase-grid {
       display: grid;
-      gap: 12px;
-      margin: 1em 0 1.4em;
+      gap: 10px;
+      margin: 0.8em 0 0.4em;
+    }
+    @media (min-width: 700px) {
+      .phase-grid { grid-template-columns: 1fr 1fr; }
     }
     .phase {
       border: 1px solid var(--line);
       border-radius: 14px;
-      padding: 0.95em 1em;
+      padding: 0.75em 0.9em;
       background: var(--card);
     }
+    .phase h3 { font-size: 1rem; margin-top: 0.15em !important; margin-bottom: 0.35em; }
+    .phase p { font-size: 0.92rem; line-height: 1.45; }
+    .roadmap-block {
+      margin: 1em 0 1.4em;
+      padding: 0.85em 0.85em 0.7em;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+    .roadmap-block .diagram {
+      margin: 0 0 0.85em;
+      padding: 0.4em 0.2em 0.2em;
+      border: none;
+      background: transparent;
+      border-radius: 0;
+    }
+    .roadmap-block .diagram figcaption {
+      margin-top: 0.35em;
+      margin-bottom: 0.15em;
+    }
+    .roadmap-block .phase-grid { margin: 0; }
     .phase.now {
       border-color: #9fcaa9;
       background: linear-gradient(180deg, #f3faf5, #fff);
@@ -495,86 +519,82 @@
 
     <h2>5. Our roadmap — three phases</h2>
 
-    <div class="phase-grid">
-      <div class="phase now">
-        <span class="tag now">Phase 1 · we are here</span>
-        <h3 style="margin-top:0;">Sales &amp; culls in the app</h3>
-        <p style="margin-bottom:0;">
-          Use the app for selling and culling, <strong>while still duplicating on paper</strong>
-          until everyone is comfortable. This path is already tested and working.
-          From now on: if you have something to cull, let’s do it in the app together.
-        </p>
-      </div>
-      <div class="phase later">
-        <span class="tag next">Phase 2 · next</span>
-        <h3 style="margin-top:0;">Repot + label requests</h3>
-        <p style="margin-bottom:0;">
-          Use the app for repotting (changing container types and counts) and for label-print requests.
-          Roll out group by group. Also work out how to scale beyond a single shared Android phone.
-        </p>
-      </div>
-      <div class="phase later">
-        <span class="tag then">Phase 3 · later</span>
-        <h3 style="margin-top:0;">Accessions from parent plants</h3>
-        <p style="margin-bottom:0;">
-          When we’re happy with the earlier flows and ready to stop duplicating them on paper,
-          use the app to obtain accession numbers for batches from existing parent / stock plants.
-        </p>
-      </div>
-      <div class="phase later">
-        <span class="tag out">Not in scope yet</span>
-        <h3 style="margin-top:0;">Brand-new plants + approval</h3>
-        <p style="margin-bottom:0;">
-          Getting accession numbers and entering details for a plant never grown here before
-          still goes through botanist approval and manual entry by the database manager.
-          We’ll revisit after Phase 3 is solid.
-        </p>
+    <div class="roadmap-block">
+      <figure class="diagram" aria-label="Phases mapped to lifecycle">
+        <svg viewBox="0 0 760 220" role="img" xmlns="http://www.w3.org/2000/svg">
+          <text x="380" y="18" text-anchor="middle" font-family="Noto Serif, serif" font-size="14" fill="#2f6b4f" font-weight="700">Which processes the app will touch, and when</text>
+
+          <text x="180" y="44" text-anchor="middle" font-size="11" fill="#4a5c52">New plant</text>
+          <text x="280" y="44" text-anchor="middle" font-size="11" fill="#4a5c52">Propagate</text>
+          <text x="380" y="44" text-anchor="middle" font-size="11" fill="#4a5c52">Labels</text>
+          <text x="480" y="44" text-anchor="middle" font-size="11" fill="#4a5c52">Repot</text>
+          <text x="580" y="44" text-anchor="middle" font-size="11" fill="#4a5c52">Sell</text>
+          <text x="680" y="44" text-anchor="middle" font-size="11" fill="#4a5c52">Cull</text>
+
+          <rect x="20" y="56" width="100" height="30" rx="8" fill="#eef1ef"/>
+          <text x="70" y="76" text-anchor="middle" font-size="12" font-weight="700" fill="#4a5c52">Phase 1</text>
+          <rect x="130" y="56" width="600" height="30" rx="8" fill="#f4f7f5"/>
+          <rect x="530" y="56" width="200" height="30" rx="8" fill="#2f6b4f"/>
+          <text x="630" y="76" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">Sell + Cull (now)</text>
+
+          <rect x="20" y="96" width="100" height="30" rx="8" fill="#eef1ef"/>
+          <text x="70" y="116" text-anchor="middle" font-size="12" font-weight="700" fill="#4a5c52">Phase 2</text>
+          <rect x="130" y="96" width="600" height="30" rx="8" fill="#f4f7f5"/>
+          <rect x="330" y="96" width="200" height="30" rx="8" fill="#3a6d8c"/>
+          <text x="430" y="116" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">Labels + Repot</text>
+
+          <rect x="20" y="136" width="100" height="30" rx="8" fill="#eef1ef"/>
+          <text x="70" y="156" text-anchor="middle" font-size="12" font-weight="700" fill="#4a5c52">Phase 3</text>
+          <rect x="130" y="136" width="600" height="30" rx="8" fill="#f4f7f5"/>
+          <rect x="230" y="136" width="100" height="30" rx="8" fill="#b87514"/>
+          <text x="280" y="156" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">From parents</text>
+
+          <rect x="20" y="176" width="100" height="30" rx="8" fill="#f5e8e8"/>
+          <text x="70" y="196" text-anchor="middle" font-size="11" font-weight="700" fill="#8b4a4a">Later</text>
+          <rect x="130" y="176" width="600" height="30" rx="8" fill="#faf4f4"/>
+          <rect x="130" y="176" width="100" height="30" rx="8" fill="#8b4a4a"/>
+          <text x="180" y="196" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">Out of scope</text>
+        </svg>
+        <figcaption>Figure 3. Roadmap against the six processes — we start where the paper pain is highest.</figcaption>
+      </figure>
+
+      <div class="phase-grid">
+        <div class="phase now">
+          <span class="tag now">Phase 1 · we are here</span>
+          <h3>Sales &amp; culls in the app</h3>
+          <p style="margin-bottom:0;">
+            Use the app for selling and culling, <strong>while still duplicating on paper</strong>
+            until everyone is comfortable. This path is already tested and working.
+            From now on: if you have something to cull, let’s do it in the app together.
+          </p>
+        </div>
+        <div class="phase later">
+          <span class="tag next">Phase 2 · next</span>
+          <h3>Repot + label requests</h3>
+          <p style="margin-bottom:0;">
+            Use the app for repotting (changing container types and counts) and for label-print requests.
+            Roll out group by group. Also work out how to scale beyond a single shared Android phone.
+          </p>
+        </div>
+        <div class="phase later">
+          <span class="tag then">Phase 3 · later</span>
+          <h3>Accessions from parent plants</h3>
+          <p style="margin-bottom:0;">
+            When we’re happy with the earlier flows and ready to stop duplicating them on paper,
+            use the app to obtain accession numbers for batches from existing parent / stock plants.
+          </p>
+        </div>
+        <div class="phase later">
+          <span class="tag out">Not in scope yet</span>
+          <h3>Brand-new plants + approval</h3>
+          <p style="margin-bottom:0;">
+            Getting accession numbers and entering details for a plant never grown here before
+            still goes through botanist approval and manual entry by the database manager.
+            We’ll revisit after Phase 3 is solid.
+          </p>
+        </div>
       </div>
     </div>
-
-    <figure class="diagram" aria-label="Phases mapped to lifecycle">
-      <svg viewBox="0 0 760 245" role="img" xmlns="http://www.w3.org/2000/svg">
-        <text x="380" y="22" text-anchor="middle" font-family="Noto Serif, serif" font-size="15" fill="#2f6b4f" font-weight="700">Which processes the app will touch, and when</text>
-
-        <!-- column guides: 6 equal process columns from x=130 to x=740 -->
-        <!-- col centers: 180, 280, 380, 480, 580, 680 -->
-        <text x="180" y="52" text-anchor="middle" font-size="11" fill="#4a5c52">New plant</text>
-        <text x="280" y="52" text-anchor="middle" font-size="11" fill="#4a5c52">Propagate</text>
-        <text x="380" y="52" text-anchor="middle" font-size="11" fill="#4a5c52">Labels</text>
-        <text x="480" y="52" text-anchor="middle" font-size="11" fill="#4a5c52">Repot</text>
-        <text x="580" y="52" text-anchor="middle" font-size="11" fill="#4a5c52">Sell</text>
-        <text x="680" y="52" text-anchor="middle" font-size="11" fill="#4a5c52">Cull</text>
-
-        <!-- Phase 1 -->
-        <rect x="20" y="68" width="100" height="32" rx="8" fill="#eef1ef"/>
-        <text x="70" y="89" text-anchor="middle" font-size="12" font-weight="700" fill="#4a5c52">Phase 1</text>
-        <rect x="130" y="68" width="600" height="32" rx="8" fill="#f4f7f5"/>
-        <rect x="530" y="68" width="200" height="32" rx="8" fill="#2f6b4f"/>
-        <text x="630" y="89" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">Sell + Cull (now)</text>
-
-        <!-- Phase 2 -->
-        <rect x="20" y="110" width="100" height="32" rx="8" fill="#eef1ef"/>
-        <text x="70" y="131" text-anchor="middle" font-size="12" font-weight="700" fill="#4a5c52">Phase 2</text>
-        <rect x="130" y="110" width="600" height="32" rx="8" fill="#f4f7f5"/>
-        <rect x="330" y="110" width="200" height="32" rx="8" fill="#3a6d8c"/>
-        <text x="430" y="131" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">Labels + Repot</text>
-
-        <!-- Phase 3 -->
-        <rect x="20" y="152" width="100" height="32" rx="8" fill="#eef1ef"/>
-        <text x="70" y="173" text-anchor="middle" font-size="12" font-weight="700" fill="#4a5c52">Phase 3</text>
-        <rect x="130" y="152" width="600" height="32" rx="8" fill="#f4f7f5"/>
-        <rect x="230" y="152" width="100" height="32" rx="8" fill="#b87514"/>
-        <text x="280" y="173" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">From parents</text>
-
-        <!-- Out of scope -->
-        <rect x="20" y="194" width="100" height="32" rx="8" fill="#f5e8e8"/>
-        <text x="70" y="215" text-anchor="middle" font-size="11" font-weight="700" fill="#8b4a4a">Later</text>
-        <rect x="130" y="194" width="600" height="32" rx="8" fill="#faf4f4"/>
-        <rect x="130" y="194" width="100" height="32" rx="8" fill="#8b4a4a"/>
-        <text x="180" y="215" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">Out of scope</text>
-      </svg>
-      <figcaption>Figure 3. Roadmap against the six processes — we start where the paper pain is highest.</figcaption>
-    </figure>
 
     <h2>6. How the data moves (the simple version)</h2>
     <p>
