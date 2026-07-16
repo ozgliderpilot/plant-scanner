@@ -132,6 +132,39 @@
     .diagram svg, .diagram img { width: 100%; height: auto; display: block; border-radius: 10px; }
     .diagram img.contain { object-fit: contain; max-height: 420px; width: auto; max-width: 100%; margin: 0 auto; }
 
+    .shot-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+    .shot {
+      margin: 0;
+      text-align: center;
+    }
+    .shot img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+    .shot span {
+      display: block;
+      margin-top: 0.4em;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .shot-home img {
+      max-height: 520px;
+      width: auto;
+      max-width: 100%;
+      margin: 0 auto;
+      object-fit: contain;
+    }
+
     .phase-grid {
       display: grid;
       gap: 12px;
@@ -384,9 +417,22 @@
       The everyday idea is deliberately simple:
     </p>
 
-    <figure class="diagram" aria-label="Scan flow diagram">
-      <img src="scan-flow-diagram.png" alt="App loop: Point camera, Plant appears, Tell what's new, Tap OK" />
-      <figcaption>Figure 2. The app’s basic loop — scan, confirm, done.</figcaption>
+    <figure class="diagram" aria-label="Cull flow screenshots">
+      <div class="shot-row">
+        <figure class="shot">
+          <img src="screenshots/06-cull-scan.jpg" alt="Cull plant screen: point the camera at a label barcode" />
+          <span>1. Scan the barcode</span>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/07-cull-info.png" alt="Record cull screen: quantity, reason, and notes" />
+          <span>2. Tell it what’s new</span>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/08-cull-success.png" alt="Cull recorded success screen" />
+          <span>3. Tap OK — done</span>
+        </figure>
+      </div>
+      <figcaption>Figure 2. The app’s basic loop, shown with the cull flow — scan, confirm, done.</figcaption>
     </figure>
 
     <p>
@@ -408,8 +454,8 @@
     </p>
 
     <div class="screen-map">
-      <figure class="diagram" style="margin:0;padding:0.6em;" aria-label="App home screen mockup">
-        <img class="contain" src="app-home-mockup.png" alt="GF Nursery app home with Sell, Cull, Print label, Repot, and Coming later New accession" />
+      <figure class="diagram shot-home" style="margin:0;padding:0.6em;" aria-label="App home screen">
+        <img class="contain" src="screenshots/01-actions.png" alt="GF Nursery Actions home: Sell, Cull, Print label, Repot, Coming later New accession" />
       </figure>
       <div>
         <h3 style="margin-top:0;">Typical flows</h3>
@@ -421,7 +467,7 @@
           <li><strong>Also:</strong> History (receipts, culls, labels, repots) and a searchable Plants list</li>
         </ul>
         <p class="meta" style="margin-top:0.8em;">
-          Illustration for orientation — we can swap in real phone screenshots from the nursery device whenever you like.
+          Real screens from the app — big buttons, high contrast, tap (not gesture).
         </p>
       </div>
     </div>
