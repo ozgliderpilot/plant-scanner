@@ -170,9 +170,6 @@
       gap: 10px;
       margin: 0.8em 0 0.4em;
     }
-    @media (min-width: 700px) {
-      .phase-grid { grid-template-columns: 1fr 1fr; }
-    }
     .phase {
       border: 1px solid var(--line);
       border-radius: 14px;
@@ -180,24 +177,22 @@
       background: var(--card);
     }
     .phase h3 { font-size: 1rem; margin-top: 0.15em !important; margin-bottom: 0.35em; }
-    .phase p { font-size: 0.92rem; line-height: 1.45; }
+    .phase p { font-size: 0.92rem; line-height: 1.45; margin: 0; }
     .roadmap-block {
       margin: 1em 0 1.4em;
-      padding: 0.85em 0.85em 0.7em;
+      padding: 0;
+      background: transparent;
+      border: none;
+    }
+    .roadmap-block .diagram {
+      margin: 0.9em 0 0;
+      padding: 0.85em 0.7em 0.6em;
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 16px;
     }
-    .roadmap-block .diagram {
-      margin: 0 0 0.85em;
-      padding: 0.4em 0.2em 0.2em;
-      border: none;
-      background: transparent;
-      border-radius: 0;
-    }
     .roadmap-block .diagram figcaption {
       margin-top: 0.35em;
-      margin-bottom: 0.15em;
     }
     .roadmap-block .phase-grid { margin: 0; }
     .phase.now {
@@ -298,6 +293,8 @@
     }
 
     @media print {
+      .roadmap-block { break-inside: avoid; }
+      .roadmap-block .phase { break-inside: avoid; }
       html, body { background: white; }
       .page { padding: 0; max-width: none; }
       .hero, .diagram, .phase, .phone, .mini-card, .callout {
@@ -520,6 +517,43 @@
     <h2>5. Our roadmap — three phases</h2>
 
     <div class="roadmap-block">
+      <div class="phase-grid">
+        <div class="phase now">
+          <span class="tag now">Phase 1 · we are here</span>
+          <h3>Sales &amp; culls in the app</h3>
+          <p>
+            Use the app for selling and culling, <strong>while still duplicating on paper</strong>
+            until everyone is comfortable. This path is already tested and working.
+            From now on: if you have something to cull, let’s do it in the app together.
+          </p>
+        </div>
+        <div class="phase later">
+          <span class="tag next">Phase 2 · next</span>
+          <h3>Repot + label requests</h3>
+          <p>
+            Use the app for repotting (changing container types and counts) and for label-print requests.
+            Roll out group by group. Also work out how to scale beyond a single shared Android phone.
+          </p>
+        </div>
+        <div class="phase later">
+          <span class="tag then">Phase 3 · later</span>
+          <h3>Accessions from parent plants</h3>
+          <p>
+            When we’re happy with the earlier flows and ready to stop duplicating them on paper,
+            use the app to obtain accession numbers for batches from existing parent / stock plants.
+          </p>
+        </div>
+        <div class="phase later">
+          <span class="tag out">Not in scope yet</span>
+          <h3>Brand-new plants + approval</h3>
+          <p>
+            Getting accession numbers and entering details for a plant never grown here before
+            still goes through botanist approval and manual entry by the database manager.
+            We’ll revisit after Phase 3 is solid.
+          </p>
+        </div>
+      </div>
+
       <figure class="diagram" aria-label="Phases mapped to lifecycle">
         <svg viewBox="0 0 760 220" role="img" xmlns="http://www.w3.org/2000/svg">
           <text x="380" y="18" text-anchor="middle" font-family="Noto Serif, serif" font-size="14" fill="#2f6b4f" font-weight="700">Which processes the app will touch, and when</text>
@@ -557,43 +591,6 @@
         </svg>
         <figcaption>Figure 3. Roadmap against the six processes — we start where the paper pain is highest.</figcaption>
       </figure>
-
-      <div class="phase-grid">
-        <div class="phase now">
-          <span class="tag now">Phase 1 · we are here</span>
-          <h3>Sales &amp; culls in the app</h3>
-          <p style="margin-bottom:0;">
-            Use the app for selling and culling, <strong>while still duplicating on paper</strong>
-            until everyone is comfortable. This path is already tested and working.
-            From now on: if you have something to cull, let’s do it in the app together.
-          </p>
-        </div>
-        <div class="phase later">
-          <span class="tag next">Phase 2 · next</span>
-          <h3>Repot + label requests</h3>
-          <p style="margin-bottom:0;">
-            Use the app for repotting (changing container types and counts) and for label-print requests.
-            Roll out group by group. Also work out how to scale beyond a single shared Android phone.
-          </p>
-        </div>
-        <div class="phase later">
-          <span class="tag then">Phase 3 · later</span>
-          <h3>Accessions from parent plants</h3>
-          <p style="margin-bottom:0;">
-            When we’re happy with the earlier flows and ready to stop duplicating them on paper,
-            use the app to obtain accession numbers for batches from existing parent / stock plants.
-          </p>
-        </div>
-        <div class="phase later">
-          <span class="tag out">Not in scope yet</span>
-          <h3>Brand-new plants + approval</h3>
-          <p style="margin-bottom:0;">
-            Getting accession numbers and entering details for a plant never grown here before
-            still goes through botanist approval and manual entry by the database manager.
-            We’ll revisit after Phase 3 is solid.
-          </p>
-        </div>
-      </div>
     </div>
 
     <h2>6. How the data moves (the simple version)</h2>
