@@ -26,6 +26,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +43,7 @@ import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.components.ScreenHeader
 import com.nursery.scanner.ui.components.SegmentedControl
 import com.nursery.scanner.ui.theme.Dimens
+import kotlinx.coroutines.flow.first
 
 /**
  * ③ The receipt (cart): running line list + Total. Tap a line to edit; an explicit Remove button
@@ -83,12 +86,20 @@ fun CartScreen(
         )
     }
 
+    val scrollState = rememberScrollState()
+    LaunchedEffect(Unit) {
+        if (vm.consumePreserveCartScroll()) return@LaunchedEffect
+        snapshotFlow { scrollState.maxValue }.first { it > 0 }
+        withFrameNanos { }
+        scrollState.scrollTo(scrollState.maxValue)
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(title = "Current sale", onBack = attemptBack)
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(Dimens.ScreenPadding),
         ) {
             if (ui.lines.isEmpty()) {
