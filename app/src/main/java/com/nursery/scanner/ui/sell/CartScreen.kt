@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,10 +87,12 @@ fun CartScreen(
     }
 
     // Land on Total / payment / Finish when the cart overflows — volunteers shouldn't have to
-    // scroll past every line first. One-shot on entry; do not re-pin while they review lines.
+    // scroll past every line first. One-shot on entry after layout can settle; do not re-pin while
+    // they review lines. If content fits, maxValue stays 0 and this waits until leave (no-op).
     val scrollState = rememberScrollState()
     LaunchedEffect(Unit) {
         snapshotFlow { scrollState.maxValue }.first { it > 0 }
+        withFrameNanos { }
         scrollState.scrollTo(scrollState.maxValue)
     }
 
