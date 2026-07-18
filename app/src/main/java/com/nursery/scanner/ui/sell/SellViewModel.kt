@@ -101,8 +101,16 @@ class SellViewModel(
     // Guards against a double-tap on "Finish & save" creating two receipts for one sale.
     private var isSaving = false
 
+    private var preserveCartScrollPending = false
+
     init {
         viewModelScope.launch { plantRepo.plantBook.collect { book = it } }
+    }
+
+    fun consumePreserveCartScroll(): Boolean {
+        val pending = preserveCartScrollPending
+        preserveCartScrollPending = false
+        return pending
     }
 
     /** ① A scanned or typed code: resolve to a found plant (-> draft) or a not-found state. */
@@ -146,7 +154,12 @@ class SellViewModel(
             unit = unit,
         )
         val lines = _ui.value.lines.toMutableList()
-        if (d.editIndex != null && d.editIndex in lines.indices) lines[d.editIndex] = line else lines.add(line)
+        val editIndex = d.editIndex
+        if (editIndex != null && editIndex in lines.indices) {
+            lines[editIndex] = line
+        } else {
+            lines.add(line)
+        }
         _ui.update { it.copy(lines = lines, draft = null, notFoundCode = null) }
     }
 
@@ -154,6 +167,7 @@ class SellViewModel(
     fun beginEdit(index: Int) {
         val line = _ui.value.lines.getOrNull(index) ?: return
         val plant = book.findByScan(line.accession)
+        preserveCartScrollPending = true
         _ui.update {
             it.copy(
                 draft = LineDraft(
@@ -213,6 +227,7 @@ class SellViewModel(
     /** Start a fresh receipt (after Done / New sale). */
     fun reset() {
         isSaving = false
+        preserveCartScrollPending = false
         _ui.value = SellUiState()
     }
 }

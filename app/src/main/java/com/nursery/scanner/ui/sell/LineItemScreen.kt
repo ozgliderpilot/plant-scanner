@@ -76,9 +76,10 @@ fun LineItemScreen(
     val lineTotal = Money.lineTotalCents(qty, unitPriceCents, discountPct)
 
     var showZeroConfirm by remember(draft) { mutableStateOf(false) }
+    val editing = draft.editIndex != null
     val commit = {
         vm.commitDraft(qty = qty, unitPriceCents = unitPriceCents, discountPct = discountPct, unit = unit)
-        onAdded()
+        if (editing) onBack() else onAdded()
     }
 
     if (showZeroConfirm) {

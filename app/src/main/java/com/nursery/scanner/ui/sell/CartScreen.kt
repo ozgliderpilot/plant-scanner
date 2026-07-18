@@ -88,6 +88,7 @@ fun CartScreen(
 
     val scrollState = rememberScrollState()
     LaunchedEffect(Unit) {
+        if (vm.consumePreserveCartScroll()) return@LaunchedEffect
         snapshotFlow { scrollState.maxValue }.first { it > 0 }
         withFrameNanos { }
         scrollState.scrollTo(scrollState.maxValue)
