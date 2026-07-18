@@ -9,6 +9,7 @@ import com.nursery.core.Plant
 import com.nursery.core.PlantBook
 import com.nursery.core.Receipt
 import com.nursery.core.SaleUnit
+import com.nursery.core.StickyDiscount
 import com.nursery.scanner.data.repo.PlantBookSource
 import com.nursery.scanner.data.repo.ReceiptSaver
 import com.nursery.scanner.data.settings.SettingsConfigSource
@@ -46,19 +47,19 @@ data class LineDraft(
     val editIndex: Int?,
 ) {
     companion object {
-        fun fromPlant(p: Plant) = LineDraft(
+        fun fromPlant(p: Plant, discountPct: Int = 0) = LineDraft(
             accession = p.accession, name = p.name, genus = p.genus, species = p.species,
             cultivar = p.cultivar, commonName = p.commonName, group = p.group, light = p.light,
-            isUnknown = false, qty = 1, unitPriceCents = 0, discountPct = 0,
+            isUnknown = false, qty = 1, unitPriceCents = 0, discountPct = discountPct,
             unit = SaleUnit.defaultFor(p.potsInNursery, p.tubesInNursery, p.miscInNursery),
             potsInNursery = p.potsInNursery, tubesInNursery = p.tubesInNursery, miscInNursery = p.miscInNursery,
             editIndex = null,
         )
 
-        fun unknown(code: String) = LineDraft(
+        fun unknown(code: String, discountPct: Int = 0) = LineDraft(
             accession = code, name = PlantBook.UNKNOWN_NAME, genus = "", species = "",
             cultivar = "", commonName = "", group = null, light = null,
-            isUnknown = true, qty = 1, unitPriceCents = 0, discountPct = 0,
+            isUnknown = true, qty = 1, unitPriceCents = 0, discountPct = discountPct,
             unit = SaleUnit.POTS, potsInNursery = 0, tubesInNursery = 0, miscInNursery = 0,
             editIndex = null,
         )
@@ -89,6 +90,9 @@ class SellViewModel(
 
     private var book: PlantBook = PlantBook(emptyList())
 
+    /** Last committed discount on this receipt; seeds new line drafts. Cleared on [reset]. */
+    private var stickyDiscount = StickyDiscount()
+
     private val _ui = MutableStateFlow(SellUiState())
     val ui: StateFlow<SellUiState> = _ui.asStateFlow()
 
@@ -111,7 +115,9 @@ class SellViewModel(
         if (trimmed.isEmpty()) return
         val plant = book.findByScan(trimmed)
         if (plant != null) {
-            _ui.update { it.copy(draft = LineDraft.fromPlant(plant), notFoundCode = null) }
+            _ui.update {
+                it.copy(draft = LineDraft.fromPlant(plant, stickyDiscount.pct), notFoundCode = null)
+            }
             _resolved.trySend(Unit)
         } else {
             _ui.update { it.copy(notFoundCode = trimmed) }
@@ -121,7 +127,9 @@ class SellViewModel(
     /** Not-found edge path: sell the scanned code as "unknown" (decision #7). */
     fun sellAsUnknown() {
         val code = _ui.value.notFoundCode ?: return
-        _ui.update { it.copy(draft = LineDraft.unknown(code), notFoundCode = null) }
+        _ui.update {
+            it.copy(draft = LineDraft.unknown(code, stickyDiscount.pct), notFoundCode = null)
+        }
         _resolved.trySend(Unit)
     }
 
@@ -147,6 +155,7 @@ class SellViewModel(
         )
         val lines = _ui.value.lines.toMutableList()
         if (d.editIndex != null && d.editIndex in lines.indices) lines[d.editIndex] = line else lines.add(line)
+        stickyDiscount = stickyDiscount.afterCommit(discountPct)
         _ui.update { it.copy(lines = lines, draft = null, notFoundCode = null) }
     }
 
@@ -213,6 +222,7 @@ class SellViewModel(
     /** Start a fresh receipt (after Done / New sale). */
     fun reset() {
         isSaving = false
+        stickyDiscount = stickyDiscount.reset()
         _ui.value = SellUiState()
     }
 }
