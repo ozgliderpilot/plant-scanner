@@ -27,8 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -52,6 +55,7 @@ fun CullScanScreen(
     val ui by vm.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     var hasCamera by remember {
         mutableStateOf(
             CiMode.active ||
@@ -65,6 +69,7 @@ fun CullScanScreen(
 
     var showType by remember { mutableStateOf(false) }
     var typed by remember { mutableStateOf("") }
+    val typedFocus = remember { FocusRequester() }
 
     val submitTyped = {
         if (typed.isNotBlank()) {
@@ -76,6 +81,13 @@ fun CullScanScreen(
 
     LaunchedEffect(Unit) {
         vm.resolved.collect { onResolved() }
+    }
+
+    LaunchedEffect(showType) {
+        if (showType) {
+            typedFocus.requestFocus()
+            keyboard?.show()
+        }
     }
 
     BackHandler { onClose() }
@@ -92,7 +104,7 @@ fun CullScanScreen(
             if (!hasCamera) {
                 Text("The camera is used to scan plant barcodes.", style = MaterialTheme.typography.bodyLarge)
                 BigButton(text = "Allow camera", onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) })
-            } else {
+            } else if (!showType) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -135,9 +147,11 @@ fun CullScanScreen(
                         onValueChange = { typed = it },
                         label = { Text("Accession number") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { submitTyped() }),
-                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { submitTyped() }),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(typedFocus),
                     )
                     BigButton(
                         text = "Find",
