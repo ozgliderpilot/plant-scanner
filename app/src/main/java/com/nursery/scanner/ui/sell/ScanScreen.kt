@@ -27,8 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -56,6 +59,7 @@ fun ScanScreen(
     val ui by vm.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     var hasCamera by remember {
         mutableStateOf(
             CiMode.active ||
@@ -69,9 +73,10 @@ fun ScanScreen(
 
     var showType by remember { mutableStateOf(false) }
     var typed by remember { mutableStateOf("") }
+    val typedFocus = remember { FocusRequester() }
 
-    // Shared by the keypad's search key and the "Find" button: look the code up, then drop focus so
-    // the keypad closes (otherwise the magnifying glass does nothing and the pad lingers).
+    // Shared by the keypad's Done key and the "Find" button: look the code up, then drop focus so
+    // the keypad closes.
     val submitTyped = {
         if (typed.isNotBlank()) {
             vm.onCode(typed)
@@ -84,6 +89,14 @@ fun ScanScreen(
     // a left-over draft from a cart-line edit can't bounce the user forward again).
     LaunchedEffect(Unit) {
         vm.resolved.collect { onResolved() }
+    }
+
+    // Focus the accession field as soon as typed-entry mode opens so the soft keyboard appears.
+    LaunchedEffect(showType) {
+        if (showType) {
+            typedFocus.requestFocus()
+            keyboard?.show()
+        }
     }
 
     // Route system back through the same exit as the header arrow (onClose decides Home vs. the cart).
@@ -107,9 +120,9 @@ fun ScanScreen(
                     text = "Allow camera",
                     onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                 )
-            } else {
-                // Weighted box shrinks when the type-in controls below grow so the keypad never
-                // overlaps the camera preview (AndroidView can draw past its Compose bounds).
+            } else if (!showType) {
+                // Leave the preview out of composition while typing so scanning stops and no empty
+                // camera box remains. "Hide keypad" brings this branch back.
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -153,9 +166,11 @@ fun ScanScreen(
                         onValueChange = { typed = it },
                         label = { Text("Accession number") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { submitTyped() }),
-                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { submitTyped() }),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(typedFocus),
                     )
                     BigButton(
                         text = "Find",
