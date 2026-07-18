@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -79,7 +80,7 @@ fun HistoryScreen(
             BigButton(
                 text = "View Culled",
                 onClick = onViewCulls,
-                leadingIcon = Icons.Filled.LocalFlorist,
+                leadingIcon = Icons.Filled.ContentCut,
                 style = BigButtonStyle.Primary,
                 modifier = Modifier.testTag(TestTags.VIEW_CULLED),
             )
