@@ -45,6 +45,10 @@ Option Explicit
 '    so a Sheet-flip that fails after a successful deduct simply re-flips next run
 '    (the ledger blocks a second decrement). The ledger is auto-created on first
 '    run, mirroring how EnsureQueryDef_ auto-creates qryPlantsExport.
+'    Synced (and cull StockPlant) ledger rows are terminal: Pending pulls only
+'    re-flip the Sheet. NoMatch is clearable: an operator resets Sheet sync_status
+'    to Pending, Access deletes that NoMatch ledger row, and the normal apply path
+'    re-runs (batch may now exist). Same clear-and-retry for culls/print/repots.
 ' ============================================================================
 
 ' ---- Configuration via Windows environment variables ----------------------
@@ -60,22 +64,24 @@ Private Const ENV_SECRET As String = "GFRBG_SYNC_SECRET"
 Private Const QUERY_NAME As String = "qryPlantsExport"
 
 ' Local idempotency ledger for the sales-in reverse sync. Auto-created on first run (EnsureLedger_),
-' PK (receipt, item_seq). A row here means "this sale has already been deducted from Access stock", so
-' it is never deducted again even if the Sheet flip to "Synced" failed last run.
+' PK (receipt, item_seq). A Synced row here means "this sale has already been deducted from Access
+' stock" and is never deducted again even if the Sheet flip failed last run. A NoMatch row is
+' clearable when the Sheet is reset to Pending (#124).
 Private Const LEDGER_NAME As String = "tblAppliedSales"
 
 ' Local idempotency ledger for the culls-in reverse sync. Auto-created on first run,
-' PK (cull_id). A row here means "this cull has already been processed in Access".
+' PK (cull_id). A Synced/StockPlant row means "this cull has already been processed"; NoMatch is
+' clearable on Pending retry (#124).
 Private Const CULL_LEDGER_NAME As String = "tblAppliedCulls"
 
 ' Local idempotency ledger for print-label reverse sync. Auto-created on first run,
-' PK (queue_id). A row here means "this print request has already been applied to
-' PrintQueue + Batches print tracking".
+' PK (queue_id). Synced = already applied to PrintQueue + Batches print tracking; NoMatch clearable
+' on Pending retry (#124).
 Private Const PRINT_LEDGER_NAME As String = "tblAppliedPrintLabels"
 
 ' Local idempotency ledger for repot reverse sync. Auto-created on first run,
-' PK (repot_id). A row here means "this repot has already been applied as absolute
-' stock + ForSale flags on Batches" (or ledgered NoMatch without stock change).
+' PK (repot_id). Synced = absolute stock + ForSale flags already applied; NoMatch clearable on
+' Pending retry (#124).
 Private Const REPOT_LEDGER_NAME As String = "tblAppliedRepots"
 
 ' The export query is (re)created automatically on first run if missing (see EnsureQueryDef_), so the
@@ -236,18 +242,17 @@ End Sub
 
 ' Safe DRY RUN of the sales-in (reverse sync) selection, mirroring SyncSelfTest's dry-run/redacted-secret
 ' style. POSTs pendingSales and, for each returned row, prints how the NEXT REAL run would route it --
-' already-ledgered (re-flip only), would-deduct (one batch match), or NoMatch (unrecognized/blank unit,
-' no batch, or an ambiguous >1 match) -- WITHOUT decrementing any stock or flipping any Sheet cell. It is
-' the diagnostic that surfaced the [Ac Number] type-mismatch: it walks the exact decision tree
-' ApplyPendingSales_ uses, so its routing matches what the real run will do. Side effects are limited to
-' the pendingSales read (which stamps the SyncStatus tab, as any read does) and auto-creating the empty
-' ledger if missing (harmless; the real run does the same). Run from the Immediate window:
-'   modPlantSync.SalesInSelfTest
+' Synced ledger (re-flip only), NoMatch ledger (clear + retry apply), would-deduct (one batch match), or
+' NoMatch (unrecognized/blank unit, no batch, or ambiguous >1 match) -- WITHOUT decrementing stock,
+' deleting ledger rows, or flipping Sheet cells. Walks the same decision tree as ApplyPendingSales_.
+' Side effects are limited to the pendingSales read (SyncStatus stamp) and auto-creating the empty
+' ledger if missing. Run from the Immediate window: modPlantSync.SalesInSelfTest
 Public Sub SalesInSelfTest()
     Dim url As String, secret As String, body As String
     Dim sales As Collection, row As Variant, db As DAO.Database
     Dim i As Long, receipt As String, accession As String, unit As String, plantName As String, ledStatus As String
     Dim itemSeq As Long, qty As Long, matches As Long
+    Dim retryNote As String
 
     url = Environ$(ENV_URL)
     secret = Environ$(ENV_SECRET)
@@ -278,29 +283,34 @@ Public Sub SalesInSelfTest()
         plantName = CStr(row(5))
 
         ledStatus = LedgerStatus_(db, receipt, itemSeq)
-        If Len(ledStatus) > 0 Then
+        If ledStatus = "Synced" Then
             Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " " & unit & " x" & qty & _
-                        " -> already ledgered '" & ledStatus & "'" & _
-                        IIf(ledStatus = "Synced" And NeedsPlantEnrichment_(plantName), _
+                        " -> already ledgered 'Synced'" & _
+                        IIf(NeedsPlantEnrichment_(plantName), _
                             " (would re-flip + enrich)", " (would re-flip only)")
-        ElseIf Not IsSellUnit_(unit) Then
-            Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " unit=[" & unit & "]" & _
-                        " -> NoMatch (unrecognized/blank unit)"
         Else
-            matches = CountBatchMatches_(db, accession)
-            Select Case matches
-                Case 1
-                    Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " " & unit & " x" & qty & _
-                                " name=[" & plantName & "]" & _
-                                IIf(NeedsPlantEnrichment_(plantName), " -> would deduct + enrich", _
-                                    " -> would deduct (status only)")
-                Case 0
-                    Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & _
-                                " -> NoMatch (no batch / non-numeric accession)"
-                Case Else
-                    Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & _
-                                " -> NoMatch (ambiguous: " & matches & " batches)"
-            End Select
+            ' No ledger row, or NoMatch (real run would delete NoMatch then re-apply).
+            retryNote = IIf(ledStatus = "NoMatch", "clear NoMatch + retry: ", "")
+            If Not IsSellUnit_(unit) Then
+                Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " unit=[" & unit & "]" & _
+                            " -> " & retryNote & "NoMatch (unrecognized/blank unit)"
+            Else
+                matches = CountBatchMatches_(db, accession)
+                Select Case matches
+                    Case 1
+                        Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & " " & unit & " x" & qty & _
+                                    " name=[" & plantName & "]" & _
+                                    IIf(NeedsPlantEnrichment_(plantName), _
+                                        " -> " & retryNote & "would deduct + enrich", _
+                                        " -> " & retryNote & "would deduct (status only)")
+                    Case 0
+                        Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & _
+                                    " -> " & retryNote & "NoMatch (no batch / non-numeric accession)"
+                    Case Else
+                        Debug.Print "  " & receipt & "#" & itemSeq & " acc=" & accession & _
+                                    " -> " & retryNote & "NoMatch (ambiguous: " & matches & " batches)"
+                End Select
+            End If
         End If
     Next i
 End Sub
@@ -324,14 +334,16 @@ Private Sub PrintCullDeduct_(ByVal unit As String, ByVal qty As Long, _
                     "  FAIL (want P=" & wantP & " T=" & wantT & " M=" & wantM & ")")
 End Sub
 
-' Safe DRY RUN of the culls-in selection. POSTs pendingCulls and prints routing without changing stock
-' or flipping Sheet cells. Run: modPlantSync.CullsInSelfTest
+' Safe DRY RUN of the culls-in selection. POSTs pendingCulls and prints routing without changing stock,
+' deleting ledger rows, or flipping Sheet cells. Synced/StockPlant = re-flip only; NoMatch = clear +
+' retry apply (same tree as ApplyPendingCulls_). Run: modPlantSync.CullsInSelfTest
 Public Sub CullsInSelfTest()
     Dim url As String, secret As String, body As String
     Dim culls As Collection, row As Variant, db As DAO.Database
     Dim i As Long, cullId As String, accession As String, unit As String, notes As String
     Dim plantName As String, ledStatus As String
     Dim qty As Long, matches As Long
+    Dim retryNote As String
 
     url = Environ$(ENV_URL)
     secret = Environ$(ENV_SECRET)
@@ -362,27 +374,35 @@ Public Sub CullsInSelfTest()
         plantName = CStr(row(5))
 
         ledStatus = CullLedgerStatus_(db, cullId)
-        If Len(ledStatus) > 0 Then
+        If ledStatus = "Synced" Or ledStatus = "StockPlant" Then
             Debug.Print "  " & cullId & " acc=" & accession & " -> already ledgered '" & ledStatus & "'" & _
                         IIf(ledStatus = "Synced" And NeedsPlantEnrichment_(plantName), _
                             " (would re-flip + enrich)", " (would re-flip only)")
-        ElseIf IsStockPlantCull_(notes, unit) Then
-            Debug.Print "  " & cullId & " acc=" & accession & " notes=[" & notes & "] -> StockPlant (skip)"
-        ElseIf Not IsSellUnit_(unit) Then
-            Debug.Print "  " & cullId & " acc=" & accession & " unit=[" & unit & "] -> NoMatch"
         Else
-            matches = CountBatchMatches_(db, accession)
-            Select Case matches
-                Case 1
-                    Debug.Print "  " & cullId & " acc=" & accession & " " & unit & " x" & qty & _
-                                " name=[" & plantName & "]" & _
-                                IIf(NeedsPlantEnrichment_(plantName), " -> would deduct + enrich", _
-                                    " -> would deduct (status only)")
-                Case 0
-                    Debug.Print "  " & cullId & " acc=" & accession & " -> NoMatch (no batch)"
-                Case Else
-                    Debug.Print "  " & cullId & " acc=" & accession & " -> NoMatch (ambiguous: " & matches & ")"
-            End Select
+            retryNote = IIf(ledStatus = "NoMatch", "clear NoMatch + retry: ", "")
+            If IsStockPlantCull_(notes, unit) Then
+                Debug.Print "  " & cullId & " acc=" & accession & " notes=[" & notes & "]" & _
+                            " -> " & retryNote & "StockPlant (skip)"
+            ElseIf Not IsSellUnit_(unit) Then
+                Debug.Print "  " & cullId & " acc=" & accession & " unit=[" & unit & "]" & _
+                            " -> " & retryNote & "NoMatch"
+            Else
+                matches = CountBatchMatches_(db, accession)
+                Select Case matches
+                    Case 1
+                        Debug.Print "  " & cullId & " acc=" & accession & " " & unit & " x" & qty & _
+                                    " name=[" & plantName & "]" & _
+                                    IIf(NeedsPlantEnrichment_(plantName), _
+                                        " -> " & retryNote & "would deduct + enrich", _
+                                        " -> " & retryNote & "would deduct (status only)")
+                    Case 0
+                        Debug.Print "  " & cullId & " acc=" & accession & _
+                                    " -> " & retryNote & "NoMatch (no batch)"
+                    Case Else
+                        Debug.Print "  " & cullId & " acc=" & accession & _
+                                    " -> " & retryNote & "NoMatch (ambiguous: " & matches & ")"
+                End Select
+            End If
         End If
     Next i
 End Sub
@@ -392,13 +412,14 @@ End Sub
 ' ============================================================================
 
 ' Pull every "Pending" Sales row from the Sheet and route each one to a terminal state, recording the
-' outcome in the local ledger so it is never reconsidered:
+' outcome in the local ledger:
 '   * a pots/tubes/misc sale matching EXACTLY ONE Batches row -> decrement the matching stock count(s)
 '     and ledger "Synced", the two in ONE DAO transaction so a crash can't leave one without the other;
 '   * a row that can't be acted on -- no batch match, an ambiguous (>1) match, or an unrecognized/blank
 '     unit -> ledger "NoMatch", moving NO stock (never guessed; surfaced for human reconciliation).
-' Already-ledgered rows are re-flipped on the Sheet only (never re-applied). Finally mark every pulled
-' row on the Sheet with the status the ledger now holds ("Synced" or "NoMatch").
+' Synced ledger rows are re-flipped on the Sheet only (never re-applied). NoMatch ledger rows are
+' cleared when the Sheet is Pending again (#124), then the normal apply path re-runs. Finally mark
+' every pulled row on the Sheet with the status the ledger now holds ("Synced" or "NoMatch").
 '
 ' StockInNursery and the *ForSale flags are never touched by any path -- only PotsInNursery/
 ' TubesInNursery/MiscInNursery move, and only on the deduct path.
@@ -433,9 +454,13 @@ Private Sub ApplyPendingSales_(ByVal url As String, ByVal secret As String)
         plantName = CStr(row(5))
 
         ledStatus = LedgerStatus_(db, receipt, itemSeq)
+        If ledStatus = "NoMatch" Then
+            ' Operator reset Sheet to Pending: drop sticky NoMatch and re-apply (#124).
+            If LedgerDeleteNoMatch_(db, receipt, itemSeq) Then ledStatus = ""
+            ' Delete failed -> keep NoMatch and re-flip below (retry next run).
+        End If
         If Len(ledStatus) > 0 Then
-            ' Already applied locally (Synced or NoMatch). Re-flip the Sheet only (a prior
-            ' markSalesSynced may have failed); the ledger is the authority, so we NEVER re-apply.
+            ' Synced: re-flip the Sheet only (a prior markSalesSynced may have failed); NEVER re-apply.
             ' If the prior mark failed after a Synced deduct, also retry enrichment when the Sheet
             ' row still needs it — otherwise sync_status recovers but name stays "unknown" forever.
             If ledStatus = "Synced" And NeedsPlantEnrichment_(plantName) Then
@@ -494,6 +519,7 @@ End Sub
 '   * ledger keyed on cull_id (not receipt/item_seq)
 '   * ComputeCullDeduction_ (single-type clamp, NO misc->pots overflow)
 '   * Notes = "Stock plant" -> ledger "StockPlant", no stock moved (#28)
+' NoMatch ledger rows are cleared on Pending retry (#124); Synced/StockPlant re-flip only.
 Private Sub ApplyPendingCulls_(ByVal url As String, ByVal secret As String)
     Dim db As DAO.Database
     Dim body As String, payload As String
@@ -522,9 +548,11 @@ Private Sub ApplyPendingCulls_(ByVal url As String, ByVal secret As String)
         plantName = CStr(row(5))
 
         ledStatus = CullLedgerStatus_(db, cullId)
+        If ledStatus = "NoMatch" Then
+            If CullLedgerDeleteNoMatch_(db, cullId) Then ledStatus = ""
+        End If
         If Len(ledStatus) > 0 Then
-            ' Same re-flip enrichment as sales-in: recover plant fields if a prior markCullsSynced
-            ' failed after a Synced deduct left the Sheet name still unknown/blank.
+            ' Synced/StockPlant: re-flip only. Enrichment retry when Synced and name still unknown.
             If ledStatus = "Synced" And NeedsPlantEnrichment_(plantName) Then
                 marks.Add CullMarkJson_(cullId, ledStatus, LookupSpeciesFields_(db, accession))
             Else
@@ -697,6 +725,23 @@ Private Sub CullLedgerInsert_(ByRef db As DAO.Database, ByVal cullId As String, 
     qd.Execute dbFailOnError
 End Sub
 
+' Delete a NoMatch cull ledger row for Pending retry (#124). Status='NoMatch' only.
+' Returns True if deleted (or already absent); False on error so the caller can re-flip.
+Private Function CullLedgerDeleteNoMatch_(ByRef db As DAO.Database, ByVal cullId As String) As Boolean
+    Dim qd As DAO.QueryDef
+    On Error GoTo Fail
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pId Text ( 255 ); " & _
+        "DELETE FROM " & CULL_LEDGER_NAME & _
+        " WHERE [cull_id]=[pId] AND [status]='NoMatch';")
+    qd.Parameters("pId").Value = cullId
+    qd.Execute dbFailOnError
+    CullLedgerDeleteNoMatch_ = True
+    Exit Function
+Fail:
+    CullLedgerDeleteNoMatch_ = False
+End Function
+
 Private Function CullMarkJson_(ByVal cullId As String, ByVal status As String, _
                                Optional ByVal enrich As Variant) As String
     CullMarkJson_ = "{""cull_id"":""" & JsonEscape(cullId) & """," & _
@@ -742,8 +787,9 @@ End Function
 '   * Insert PrintQueue (Ac No, Copies, DateQueued from phone confirm time)
 '   * Update Batches print tracking: NoPrinted += Copies, NoLastPrinted = Copies,
 '     LabelsLastPrinted = queued date
-'   * Ledger by queue_id so retries never double-insert / double-update
-' Already-ledgered ids are re-flipped on the Sheet only (never re-applied).
+'   * Ledger by queue_id so Synced retries never double-insert / double-update
+' Synced ledger ids are re-flipped on the Sheet only. NoMatch ledger ids are cleared when
+' Pending again (#124), then the normal apply path re-runs.
 Private Sub ApplyPendingPrintLabels_(ByVal url As String, ByVal secret As String)
     Dim db As DAO.Database
     Dim body As String, payload As String
@@ -770,6 +816,9 @@ Private Sub ApplyPendingPrintLabels_(ByVal url As String, ByVal secret As String
         copies = row(3)
 
         ledStatus = PrintLedgerStatus_(db, queueId)
+        If ledStatus = "NoMatch" Then
+            If PrintLedgerDeleteNoMatch_(db, queueId) Then ledStatus = ""
+        End If
         If Len(ledStatus) > 0 Then
             marks.Add PrintMarkJson_(queueId, ledStatus)
         ElseIf CountBatchMatches_(db, accession) = 1 Then
@@ -923,6 +972,22 @@ Private Sub PrintLedgerInsert_(ByRef db As DAO.Database, ByVal queueId As String
     qd.Execute dbFailOnError
 End Sub
 
+' Delete a NoMatch print-label ledger row for Pending retry (#124). Status='NoMatch' only.
+Private Function PrintLedgerDeleteNoMatch_(ByRef db As DAO.Database, ByVal queueId As String) As Boolean
+    Dim qd As DAO.QueryDef
+    On Error GoTo Fail
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pId Text ( 255 ); " & _
+        "DELETE FROM " & PRINT_LEDGER_NAME & _
+        " WHERE [queue_id]=[pId] AND [status]='NoMatch';")
+    qd.Parameters("pId").Value = queueId
+    qd.Execute dbFailOnError
+    PrintLedgerDeleteNoMatch_ = True
+    Exit Function
+Fail:
+    PrintLedgerDeleteNoMatch_ = False
+End Function
+
 Private Function PrintMarkJson_(ByVal queueId As String, ByVal status As String) As String
     PrintMarkJson_ = "{""queue_id"":""" & JsonEscape(queueId) & """," & _
                      """status"":""" & JsonEscape(status) & """}"
@@ -958,8 +1023,9 @@ End Function
 
 ' ---- Phase 1d: repots-in (absolute Batches stock + ForSale flags) -------------------------------
 ' Pull Pending Repots rows, SET Tubes/Pots/Misc/StockInNursery and the three *ForSale flags to the
-' row's after-counts (absolute, not relative), ledger by repot_id, then mark the Sheet. Already-
-' ledgered ids are re-flipped only (never re-applied). Non-matching accessions are ledgered and
+' row's after-counts (absolute, not relative), ledger by repot_id, then mark the Sheet. Synced
+' ledger ids are re-flipped only (never re-applied). NoMatch ledger ids are cleared when Pending
+' again (#124), then the normal apply path re-runs. Non-matching accessions are ledgered and
 ' marked NoMatch with no stock write — same convention as sales/culls/print labels.
 Private Sub ApplyPendingRepots_(ByVal url As String, ByVal secret As String)
     Dim db As DAO.Database
@@ -993,6 +1059,9 @@ Private Sub ApplyPendingRepots_(ByVal url As String, ByVal secret As String)
         miscFs = row(8)
 
         ledStatus = RepotLedgerStatus_(db, repotId)
+        If ledStatus = "NoMatch" Then
+            If RepotLedgerDeleteNoMatch_(db, repotId) Then ledStatus = ""
+        End If
         If Len(ledStatus) > 0 Then
             marks.Add RepotMarkJson_(repotId, ledStatus)
         ElseIf CountBatchMatches_(db, accession) = 1 Then
@@ -1120,6 +1189,22 @@ Private Sub RepotLedgerInsert_(ByRef db As DAO.Database, ByVal repotId As String
     qd.Execute dbFailOnError
 End Sub
 
+' Delete a NoMatch repot ledger row for Pending retry (#124). Status='NoMatch' only.
+Private Function RepotLedgerDeleteNoMatch_(ByRef db As DAO.Database, ByVal repotId As String) As Boolean
+    Dim qd As DAO.QueryDef
+    On Error GoTo Fail
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pId Text ( 255 ); " & _
+        "DELETE FROM " & REPOT_LEDGER_NAME & _
+        " WHERE [repot_id]=[pId] AND [status]='NoMatch';")
+    qd.Parameters("pId").Value = repotId
+    qd.Execute dbFailOnError
+    RepotLedgerDeleteNoMatch_ = True
+    Exit Function
+Fail:
+    RepotLedgerDeleteNoMatch_ = False
+End Function
+
 Private Function RepotMarkJson_(ByVal repotId As String, ByVal status As String) As String
     RepotMarkJson_ = "{""repot_id"":""" & JsonEscape(repotId) & """," & _
                      """status"":""" & JsonEscape(status) & """}"
@@ -1211,8 +1296,9 @@ Fail:
 End Function
 
 ' Record an unactionable row -- no batch match, an ambiguous (>1) match, or an unrecognized/blank unit --
-' in the ledger as "NoMatch" so it is never reconsidered, moving NO stock. A single INSERT is atomic, so
-' (unlike ApplyDeduction_) it needs no surrounding transaction; nothing here writes Batches at all, so
+' in the ledger as "NoMatch", moving NO stock. Surfaced for human reconciliation; clearable when the
+' operator resets Sheet sync_status to Pending (#124). A single INSERT is atomic, so (unlike
+' ApplyDeduction_) it needs no surrounding transaction; nothing here writes Batches at all, so
 ' StockInNursery and the *ForSale flags are untouched by construction. Returns True only if the ledger
 ' insert committed; on any error it returns False, leaving the row Pending for the next run so one bad
 ' row never aborts the batch.
@@ -1363,6 +1449,26 @@ Private Sub LedgerInsert_(ByRef db As DAO.Database, ByVal receipt As String, _
     qd.Parameters("pAt").Value = Now()
     qd.Execute dbFailOnError
 End Sub
+
+' Delete a NoMatch ledger row so a Pending Sheet retry can re-apply (#124). Constrained to status=
+' NoMatch so a Synced row can never be wiped (double-deduct risk). Returns True on success (including
+' zero rows deleted); False on error so the caller keeps NoMatch and re-flips / retries next run.
+Private Function LedgerDeleteNoMatch_(ByRef db As DAO.Database, ByVal receipt As String, _
+                                      ByVal itemSeq As Long) As Boolean
+    Dim qd As DAO.QueryDef
+    On Error GoTo Fail
+    Set qd = db.CreateQueryDef("", _
+        "PARAMETERS pR Text ( 255 ), pS Long; " & _
+        "DELETE FROM " & LEDGER_NAME & _
+        " WHERE [receipt]=[pR] AND [item_seq]=[pS] AND [status]='NoMatch';")
+    qd.Parameters("pR").Value = receipt
+    qd.Parameters("pS").Value = itemSeq
+    qd.Execute dbFailOnError
+    LedgerDeleteNoMatch_ = True
+    Exit Function
+Fail:
+    LedgerDeleteNoMatch_ = False
+End Function
 
 ' Build one {"receipt":..,"item_seq":..,"status":..} object for the markSalesSynced keys array.
 ' Optional enrich is a Variant array from LookupSpeciesFields_: (name, genus, species, cultivar,
