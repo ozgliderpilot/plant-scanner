@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GF Nursery — device setup</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      font-family: system-ui, sans-serif;
+      line-height: 1.45;
+      max-width: 28rem;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 3rem;
+      color: #14261a;
+      background: #f3f6f1;
+    }
+    h1 { font-size: 1.85rem; line-height: 1.15; margin: 0 0 0.75rem; }
+    p { font-size: 1.125rem; margin: 0 0 1.25rem; }
+    .open {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      text-align: center;
+      text-decoration: none;
+      font-size: 1.35rem;
+      font-weight: 700;
+      padding: 1.1rem 1rem;
+      border-radius: 0.5rem;
+      background: #1f6b3a;
+      color: #fff;
+      border: 0;
+      cursor: pointer;
+    }
+    .open[hidden], .err[hidden], .ok[hidden] { display: none !important; }
+    .err { color: #8a1f1f; font-size: 1.125rem; }
+    .hint { color: #3d5344; font-size: 1rem; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>GF Nursery</h1>
+  <p id="lead">Open this page on the phone that should be set up, then tap the button.</p>
+  <a class="open" id="open" hidden href="#">Open app and finish setup</a>
+  <p class="err" id="err" hidden></p>
+  <p class="hint ok" id="ok" hidden>
+    If nothing opens, install GF Nursery from Play first, then tap the button again.
+  </p>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var prefix = (params.get('prefix') || '').trim();
+      var url = (params.get('url') || '').trim();
+      var code = (params.get('code') || '').trim();
+      var err = document.getElementById('err');
+      var open = document.getElementById('open');
+      var ok = document.getElementById('ok');
+
+      function showError(msg) {
+        err.textContent = msg;
+        err.hidden = false;
+      }
+
+      if (!/^\d{2}$/.test(prefix) || !url || !code) {
+        showError('This setup link is incomplete. Ask the nursery for a new link.');
+        return;
+      }
+
+      var appUri =
+        'plantscanner://setup?prefix=' + encodeURIComponent(prefix) +
+        '&url=' + encodeURIComponent(url) +
+        '&code=' + encodeURIComponent(code);
+
+      open.href = appUri;
+      open.hidden = false;
+      ok.hidden = false;
+
+      // Best-effort auto-open; many browsers still need the tap below.
+      window.setTimeout(function () {
+        window.location.href = appUri;
+      }, 250);
+    })();
+  </script>
+</body>
+</html>
