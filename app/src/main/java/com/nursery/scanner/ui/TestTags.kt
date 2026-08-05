@@ -19,4 +19,5 @@ object TestTags {
     const val REPOT = "repot"
     const val CONFIRM_PRINT = "confirm_print"
     const val SAVE_REPOT = "save_repot"
+    const val SCAN_ACCESSION = "scan_accession"
 }
