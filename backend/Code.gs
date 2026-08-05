@@ -1,6 +1,8 @@
 /**
- * Google Apps Script Web App for the Nursery app. POST actions, all authorised by a shared
- * secret stored in Script Properties (key SHARED_SECRET):
+ * Google Apps Script Web App for the Nursery app. POST actions, authorised by a shared secret
+ * stored in Script Properties (key SHARED_SECRET). Device-bound actions (getPlants + append*)
+ * also claim/verify against the "Users" tab (device_prefix, name, secret) — see ADR-0017.
+ *
  *   - getPlants       -> reads the "Plants" sheet, returns plant objects (the manual "Update plant list")
  *   - replacePlants   -> full-mirror rewrite of the "Plants" sheet from Access (in-stock plants only)
  *   - appendSales     -> appends sales rows to "Sales" (deduped by receipt #), stamping each newly
@@ -36,6 +38,12 @@ function doPost(e) {
     if (!isAuthorized(body, secret)) {
       return json_({ ok: false, error: 'Unauthorized' });
     }
+    if (isDeviceBoundAction(body.action)) {
+      var deviceAuth = authorizeDeviceRequest_(body);
+      if (!deviceAuth.ok) {
+        return json_({ ok: false, error: deviceAuth.error || 'Unauthorized' });
+      }
+    }
     switch (body.action) {
       case 'getPlants': return handleGetPlants_(body);
       case 'replacePlants': return handleReplacePlants_(body);
@@ -58,6 +66,47 @@ function doPost(e) {
     // around JSON.parse and the auth check, so it's reachable before a request is even authorised.
     console.error(err);
     return json_({ ok: false, error: 'Bad request' });
+  }
+}
+
+/**
+ * Claim or verify the device against the Users tab (device_prefix / name / secret).
+ * First successful call for a prefix writes the device secret; later calls must match.
+ * Runs under the document lock so two phones cannot race-claim the same prefix.
+ * Returns a plain { ok, error? } object (not a ContentService response).
+ */
+function authorizeDeviceRequest_(body) {
+  var lock = LockService.getDocumentLock();
+  try {
+    lock.waitLock(30000);
+  } catch (e) {
+    return { ok: false, error: 'Sheet busy, please retry' };
+  }
+  try {
+    var ss = SpreadsheetApp.getActive();
+    var sheet = ss.getSheetByName('Users');
+    var values = [];
+    if (sheet && sheet.getLastRow() > 0) {
+      values = sheet.getDataRange().getValues();
+    }
+    var plan = planDeviceAuthorization(values, body.devicePrefix, body.deviceSecret);
+    if (!plan.ok) return { ok: false, error: plan.error };
+
+    if (plan.mutated) {
+      if (!sheet) {
+        sheet = ss.insertSheet('Users');
+      }
+      var out = plan.values;
+      sheet.clearContents();
+      sheet.getRange(1, 1, out.length, out[0].length).setValues(out);
+      // Keep device_prefix + secret as plain text (leading zeros / long tokens).
+      var header = out[0];
+      forceTextColumn_(sheet, 1, out.length, headerColIndex(header, 'device_prefix'));
+      forceTextColumn_(sheet, 1, out.length, headerColIndex(header, 'secret'));
+    }
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
   }
 }
 

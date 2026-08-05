@@ -1,6 +1,6 @@
 # Connect a device to the backend
 
-Do this once per device, after installing the app (`android.md`) and deploying the backend
+Do this once per device, after installing the app (`android.md` / Play) and deploying the backend
 (`backend.md`).
 
 > **Running the test app too?** The **"GF Nursery TEST"** install is a separate app with its own
@@ -8,7 +8,33 @@ Do this once per device, after installing the app (`android.md`) and deploying t
 > [backend.md → Standing up a test deployment](backend.md)). Its local data is fully separate from
 > production.
 
-## 1. Enter the settings
+## Prefer: magic link (one tap)
+
+1. Ensure the Sheet has a **`Users`** tab with header row `device_prefix | name | secret`
+   (the script can create the tab on first claim if missing). Optionally pre-fill rows with a
+   prefix + volunteer name and leave **secret** blank.
+2. Build one link per device prefix (URL and access code must be form-urlencoded):
+
+   ```text
+   plantscanner://setup?prefix=07&url=<urlencoded-/exec-URL>&code=<urlencoded-access-code>
+   ```
+
+   From a machine with the repo:
+
+   ```bash
+   node scripts/magic-link.js 07 'https://script.google.com/macros/s/…/exec' 'nursery-secret'
+   ```
+
+   ```text
+   plantscanner://setup?prefix=07&url=https%3A%2F%2Fscript.google.com%2Fmacros%2Fs%2F…%2Fexec&code=nursery-secret
+   ```
+
+3. Send that link (or a QR of it) to the volunteer. They install from Play, tap the link once.
+   The app saves settings, generates a **device secret**, and syncs. First successful sync claims
+   that prefix on the Users tab — a second phone with the same link is rejected until an admin
+   clears that row’s **secret** cell.
+
+## Or: enter settings by hand
 
 In the app: **History** tab → five taps on the version string → **Settings**. Fill in:
 
@@ -19,7 +45,8 @@ In the app: **History** tab → five taps on the version string → **Settings**
 | **Access code (shared secret)** | The `SHARED_SECRET` value you set in `backend.md` step 3. |
 | **Auto-export every (seconds)** | `60` (default = 1 minute). Minimum 10. Interval for background cloud sync. |
 
-Tap **Save**.
+Tap **Save**. The app generates a device secret automatically; the first sync claims the Users row
+the same way as a magic link.
 
 ## 2. Pull the plant list
 
@@ -40,10 +67,10 @@ fully offline. (History ↻ runs the same cloud sync.)
 ## How the two talk
 
 ```
- Android app  ──HTTPS POST {secret, action}──►  Apps Script Web App (/exec)  ──►  Google Sheet
-   (per device)         JSON over the wire            shared-secret auth          Plants / Sales tabs
-        ▲                                                                              │
-        └───────────────  getPlants returns the plant list (cloud sync import)  ◄──────┘
+ Android app  ──HTTPS POST {secret, devicePrefix, deviceSecret, action}──►  Apps Script (/exec)  ──►  Google Sheet
+   (per device)         JSON over the wire            shared secret + Users claim          Plants / Sales / Users
+        ▲                                                                                         │
+        └──────────────  getPlants returns the plant list (cloud sync import)  ◄──────────────────┘
 ```
 
 - **Selling works offline.** Receipts are saved on the device immediately.
@@ -52,10 +79,14 @@ fully offline. (History ↻ runs the same cloud sync.)
   retries next minute; nothing is lost.
 - **No double counting:** each receipt # is sent once; the backend also skips any receipt # already in
   the Sheet.
+- **One phone per prefix:** Users-tab `secret` is set on first claim; mismatched device secrets are
+  rejected (`Unauthorized`). Clear the cell to allow a replacement phone.
 
 ## If something looks wrong
 
 - Status chip stuck on **Offline·N** → device has no internet; sales are safe, they'll go when back online.
 - History/Plants **↻** shows an error → check the URL (must end `/exec`) and access code match the backend.
+- Sync says **Unauthorized** after a magic link → that prefix is already claimed by another phone, or
+  this phone was reinstalled; clear **Users → secret** for that prefix (or assign a new prefix).
 - Plants don't load → confirm the Sheet tab is named exactly `Plants` and has an `accession` header.
 - Two devices show the same receipt numbers → give them **different two-digit prefixes** in Settings.

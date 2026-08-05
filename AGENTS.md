@@ -57,6 +57,9 @@ These are behavioural guarantees, not reference data — see `Sync`, `CullSync`,
 - **Export `HEADER` column order is a backend contract** — keep stable; coordinate `core/` and
   `backend/` changes together (`Export`, `CullExport`, `LabelPrintExport`, `RepotExport`).
   ([ADR-0008](./docs/adr/0008-independent-queues-header-contract.md))
+- **Device-bound POSTs** (`getPlants`, `append*`) send `devicePrefix` + `deviceSecret` and claim
+  against the Users tab; Access-only actions stay shared-secret only.
+  ([ADR-0017](./docs/adr/0017-magic-link-device-claim.md))
 
 ## Verify changes
 

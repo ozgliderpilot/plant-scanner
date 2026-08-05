@@ -122,5 +122,6 @@ object CiFixtures {
         endpointUrl = ENDPOINT_URL,
         sharedSecret = SHARED_SECRET,
         autoExportSeconds = DeviceConfig.DEFAULT_INTERVAL_SECONDS,
+        deviceSecret = "ci-device-secret",
     )
 }

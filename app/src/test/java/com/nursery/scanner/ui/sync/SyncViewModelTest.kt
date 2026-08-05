@@ -26,7 +26,7 @@ class SyncViewModelTest {
         val sync = RecordingCloudSync(SyncResult.Done(salesCount = 2, cullCount = 1))
         val vm = SyncViewModel(
             sync,
-            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60))),
+            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60, "dev"))),
         )
 
         vm.syncNow()
@@ -42,7 +42,7 @@ class SyncViewModelTest {
         val sync = RecordingCloudSync(SyncResult.Error("sales push failed"))
         val vm = SyncViewModel(
             sync,
-            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60))),
+            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60, "dev"))),
         )
 
         vm.syncNow()
@@ -59,7 +59,7 @@ class SyncViewModelTest {
         )
         val vm = SyncViewModel(
             sync,
-            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60))),
+            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60, "dev"))),
         )
 
         vm.syncNow()
@@ -75,7 +75,7 @@ class SyncViewModelTest {
         )
         val vm = SyncViewModel(
             sync,
-            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60))),
+            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60, "dev"))),
         )
 
         vm.syncNow()
@@ -91,7 +91,7 @@ class SyncViewModelTest {
         )
         val vm = SyncViewModel(
             sync,
-            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60))),
+            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60, "dev"))),
         )
 
         vm.syncNow()
@@ -107,7 +107,7 @@ class SyncViewModelTest {
         )
         val vm = SyncViewModel(
             sync,
-            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60))),
+            FakeSettingsConfigSource(MutableStateFlow(DeviceConfig("07", "https://x/exec", "secret", 60, "dev"))),
         )
 
         vm.syncNow()
