@@ -122,9 +122,9 @@ fun PlantListScreen(
 }
 
 @Composable
-private fun PlantRow(plant: Plant) {
-    Card(shape = RoundedCornerShape(Dimens.CardCorner), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier.padding(Dimens.Gap)) {
+private fun PlantRow(plant: Plant, modifier: Modifier = Modifier) {
+    Card(shape = RoundedCornerShape(Dimens.CardCorner), modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(Dimens.Gap)) {
             Text(plant.name, style = MaterialTheme.typography.titleMedium)
             Text("Accession: ${plant.accession}", style = MaterialTheme.typography.bodyMedium)
             plant.group?.takeIf { it.isNotBlank() }?.let {
