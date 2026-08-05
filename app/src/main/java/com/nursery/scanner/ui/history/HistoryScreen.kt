@@ -26,6 +26,7 @@ import com.nursery.scanner.BuildConfig
 import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.BigButtonStyle
+import com.nursery.scanner.ui.components.SyncResultDialog
 import com.nursery.scanner.ui.components.SyncTabHeader
 import com.nursery.scanner.ui.components.rememberSettingsGate
 import com.nursery.scanner.ui.theme.Dimens
@@ -48,6 +49,7 @@ fun HistoryScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val config by vm.config.collectAsStateWithLifecycle()
+    val message by vm.message.collectAsStateWithLifecycle()
     val now = System.currentTimeMillis()
     val canExport = state.online && !state.isBusy && config.isComplete
     val onVersionTap = rememberSettingsGate(active = true, onTriggered = onOpenSettings)
@@ -117,4 +119,6 @@ fun HistoryScreen(
             )
         }
     }
+
+    SyncResultDialog(message = message, onDismiss = vm::clearMessage)
 }

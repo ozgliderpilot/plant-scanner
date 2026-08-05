@@ -10,7 +10,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -29,6 +28,7 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nursery.scanner.di.AppContainer
+import com.nursery.scanner.data.repo.SyncResult
 import com.nursery.scanner.setup.MagicLinkApplicator
 import com.nursery.scanner.ui.components.NurseryBottomBar
 import com.nursery.scanner.ui.cull.CullScanScreen
@@ -68,7 +68,7 @@ import com.nursery.scanner.ui.settings.SettingsScreen
 import com.nursery.scanner.ui.settings.SettingsViewModel
 import com.nursery.scanner.ui.sync.SyncViewModel
 import com.nursery.scanner.ui.theme.NurseryTheme
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 
 /** SavedStateHandle key: accession returned from [Routes.PLANTS_SCAN] into the Plants list. */
 private const val SCANNED_ACCESSION_KEY = "scanned_accession"
@@ -83,24 +83,35 @@ fun NurseryRoot(container: AppContainer) {
         val showBottomBar = route in TabRoutes
         val syncState by container.syncRepository.state.collectAsStateWithLifecycle()
         var setupMessage by remember { mutableStateOf<String?>(null) }
-        val scope = rememberCoroutineScope()
         val pendingLink by container.pendingMagicLink.collectAsStateWithLifecycle()
 
         LaunchedEffect(pendingLink) {
             val uri = pendingLink ?: return@LaunchedEffect
-            container.consumeMagicLink()
-            when (val result = container.magicLinkApplicator.apply(uri)) {
-                is MagicLinkApplicator.Result.Applied -> {
-                    setupMessage =
-                        "Device ${result.config.devicePrefix} is set up. Syncing with the nursery…"
-                    scope.launch {
-                        container.syncRepository.syncCloud()
+            // Apply before clearing pending — consuming first cancels this effect at the next
+            // suspend point, which dropped the dialog and skipped sync.
+            try {
+                when (val result = container.magicLinkApplicator.apply(uri)) {
+                    is MagicLinkApplicator.Result.Applied -> {
+                        setupMessage =
+                            "Device ${result.config.devicePrefix} is set up. Syncing with the nursery…"
+                        yield()
+                        setupMessage = when (val sync = container.syncRepository.syncCloud()) {
+                            is SyncResult.Done ->
+                                "Device ${result.config.devicePrefix} is set up and synced."
+                            is SyncResult.Error ->
+                                "Device ${result.config.devicePrefix} is set up, but sync failed: ${sync.message}"
+                            SyncResult.NotConfigured ->
+                                "Device ${result.config.devicePrefix} is set up, but sync is not configured."
+                        }
+                    }
+                    is MagicLinkApplicator.Result.Invalid -> {
+                        setupMessage = result.reason
                     }
                 }
-                is MagicLinkApplicator.Result.Invalid -> {
-                    setupMessage = result.reason
-                }
+            } catch (e: Exception) {
+                setupMessage = "Setup failed. Try the link again."
             }
+            container.consumeMagicLink()
         }
 
         Scaffold(
@@ -189,6 +200,7 @@ private fun NurseryNavHost(
             val syncVm: SyncViewModel = viewModel(factory = container.viewModelFactory)
             val syncState by syncVm.state.collectAsStateWithLifecycle()
             val config by syncVm.config.collectAsStateWithLifecycle()
+            val syncMessage by syncVm.message.collectAsStateWithLifecycle()
             val scannedAccession by entry.savedStateHandle
                 .getStateFlow<String?>(SCANNED_ACCESSION_KEY, null)
                 .collectAsStateWithLifecycle()
@@ -205,6 +217,8 @@ private fun NurseryNavHost(
                 canUpdate = syncState.online && !syncState.isBusy && config.isComplete,
                 onUpdate = { syncVm.syncNow() },
                 onScanAccession = { navController.navigate(Routes.PLANTS_SCAN) },
+                syncMessage = syncMessage,
+                onClearSyncMessage = syncVm::clearMessage,
             )
         }
 
