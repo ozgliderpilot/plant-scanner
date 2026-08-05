@@ -32,7 +32,7 @@ class NurseryViewModelFactory(private val c: AppContainer) : ViewModelProvider.F
             modelClass.isAssignableFrom(SyncViewModel::class.java) ->
                 SyncViewModel(c.syncRepository, c.settingsRepository)
             modelClass.isAssignableFrom(PlantListViewModel::class.java) ->
-                PlantListViewModel(c.plantRepository)
+                PlantListViewModel(c.plantRepository.plants)
             modelClass.isAssignableFrom(CullListViewModel::class.java) ->
                 CullListViewModel(c.cullRepository)
             modelClass.isAssignableFrom(LabelListViewModel::class.java) ->

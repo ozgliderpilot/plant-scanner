@@ -10,6 +10,8 @@ object Routes {
     const val ACTIONS = "actions"
     const val HISTORY = "history"
     const val PLANTS = "plants"
+    /** Camera scan that fills the Plants search box (lookup only). */
+    const val PLANTS_SCAN = "plants/scan"
     const val SETTINGS = "settings"
     const val RECEIPTS = "receipts"
 

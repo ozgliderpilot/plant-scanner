@@ -3,6 +3,7 @@ package com.nursery.scanner.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -36,6 +37,7 @@ import com.nursery.scanner.ui.nav.Routes
 import com.nursery.scanner.ui.nav.TabRoutes
 import com.nursery.scanner.ui.plants.PlantListScreen
 import com.nursery.scanner.ui.plants.PlantListViewModel
+import com.nursery.scanner.ui.plants.PlantLookupScanScreen
 import com.nursery.scanner.ui.printlabel.LabelPrintCopiesScreen
 import com.nursery.scanner.ui.printlabel.LabelPrintScanScreen
 import com.nursery.scanner.ui.printlabel.LabelPrintSuccessScreen
@@ -58,6 +60,9 @@ import com.nursery.scanner.ui.settings.SettingsScreen
 import com.nursery.scanner.ui.settings.SettingsViewModel
 import com.nursery.scanner.ui.sync.SyncViewModel
 import com.nursery.scanner.ui.theme.NurseryTheme
+
+/** SavedStateHandle key: accession returned from [Routes.PLANTS_SCAN] into the Plants list. */
+private const val SCANNED_ACCESSION_KEY = "scanned_accession"
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -137,17 +142,39 @@ private fun NurseryNavHost(
             ReceiptDetailScreen(vm, receiptId = id, onBack = { navController.popBackStack() })
         }
 
-        composable(Routes.PLANTS) {
+        composable(Routes.PLANTS) { entry ->
             val plantVm: PlantListViewModel = viewModel(factory = container.viewModelFactory)
             val syncVm: SyncViewModel = viewModel(factory = container.viewModelFactory)
             val syncState by syncVm.state.collectAsStateWithLifecycle()
             val config by syncVm.config.collectAsStateWithLifecycle()
+            val scannedAccession by entry.savedStateHandle
+                .getStateFlow<String?>(SCANNED_ACCESSION_KEY, null)
+                .collectAsStateWithLifecycle()
+            LaunchedEffect(scannedAccession) {
+                scannedAccession?.let { code ->
+                    plantVm.applyScannedAccession(code)
+                    entry.savedStateHandle[SCANNED_ACCESSION_KEY] = null
+                }
+            }
             PlantListScreen(
                 vm = plantVm,
                 syncState = syncState,
                 isTabRoot = true,
                 canUpdate = syncState.online && !syncState.isBusy && config.isComplete,
                 onUpdate = { syncVm.syncNow() },
+                onScanAccession = { navController.navigate(Routes.PLANTS_SCAN) },
+            )
+        }
+
+        composable(Routes.PLANTS_SCAN) {
+            PlantLookupScanScreen(
+                onScanned = { code ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(SCANNED_ACCESSION_KEY, code)
+                    navController.popBackStack()
+                },
+                onClose = { navController.popBackStack() },
             )
         }
 
