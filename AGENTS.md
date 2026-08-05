@@ -84,7 +84,7 @@ Single-context: `CONTEXT.md` + `docs/adr/`. See [`docs/agents/domain.md`](./docs
 ## Docs
 
 - [`docs/adr/`](./docs/adr/) — architectural decisions
-- [`docs/deploy/`](./docs/deploy/) — backend → android → connect → access
+- [`docs/deploy/`](./docs/deploy/) — backend → android → play (internal) → connect → access
 - [`docs/deploy/screenshots-ci.md`](./docs/deploy/screenshots-ci.md) — PR screenshot gallery (emulator + Maestro)
 
 ## Gotchas
@@ -95,7 +95,7 @@ Single-context: `CONTEXT.md` + `docs/adr/`. See [`docs/agents/domain.md`](./docs
 ## Cursor Cloud specific instructions
 
 Toolchain is preinstalled in the VM snapshot: JDK 21, Node 22, a system `gradle` 8.9 (on `PATH`,
-used by `core/`), and the Android SDK at `~/android-sdk` (platform 34 + build-tools 35). The update
+used by `core/`), and the Android SDK at `~/android-sdk` (platform 36 + build-tools 35). The update
 script refreshes `backend/` npm deps and (re)writes the git-ignored `local.properties` with
 `sdk.dir=$HOME/android-sdk`; everything else persists in the snapshot.
 
