@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,16 +8,62 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+fun envOrProp(name: String): String? =
+    System.getenv(name)?.takeIf { it.isNotBlank() }
+        ?: (project.findProperty(name) as String?)?.takeIf { it.isNotBlank() }
+
+val playVersionCode: Int = envOrProp("VERSION_CODE")?.toIntOrNull() ?: 1
+val playVersionName: String = envOrProp("VERSION_NAME") ?: "1.0"
+
+// Play upload keystore: keystore.properties (local) or PLAY_UPLOAD_* env (CI).
+// Without either, release builds keep the debug keystore for sideload convenience.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
+fun keystoreProp(name: String, envName: String): String? =
+    System.getenv(envName)?.takeIf { it.isNotBlank() }
+        ?: keystoreProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+
+val uploadStoreFilePath = keystoreProp("storeFile", "PLAY_UPLOAD_STORE_FILE")
+val uploadStorePassword = keystoreProp("storePassword", "PLAY_UPLOAD_STORE_PASSWORD")
+val uploadKeyAlias = keystoreProp("keyAlias", "PLAY_UPLOAD_KEY_ALIAS")
+val uploadKeyPassword = keystoreProp("keyPassword", "PLAY_UPLOAD_KEY_PASSWORD")
+val hasUploadKeystore =
+    !uploadStoreFilePath.isNullOrBlank() &&
+        !uploadStorePassword.isNullOrBlank() &&
+        !uploadKeyAlias.isNullOrBlank() &&
+        !uploadKeyPassword.isNullOrBlank()
+
 android {
     namespace = "com.nursery.scanner"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.nursery.scanner"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 36
+        versionCode = playVersionCode
+        versionName = playVersionName
+    }
+
+    signingConfigs {
+        if (hasUploadKeystore) {
+            create("upload") {
+                // storeFile in keystore.properties is relative to app/; absolute env paths also work.
+                val store = file(uploadStoreFilePath!!)
+                require(store.exists()) {
+                    "Upload keystore not found at ${store.absolutePath}. " +
+                        "Run ./scripts/create-upload-keystore.sh or set PLAY_UPLOAD_STORE_FILE."
+                }
+                storeFile = store
+                storePassword = uploadStorePassword
+                keyAlias = uploadKeyAlias
+                keyPassword = uploadKeyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -25,11 +73,14 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Sign release builds with the auto-generated debug keystore so the prod/test
-            // release APKs are installable for sideloading out of the box (no keystore secret
-            // to manage here). Swap in a real keystore for store/wide distribution — see
-            // docs/deploy/android.md. Release builds are non-debuggable by default.
-            signingConfig = signingConfigs.getByName("debug")
+            // Play / CI: upload keystore when configured. Otherwise debug keystore so
+            // sideload release APKs still install without secrets — see docs/deploy/play.md.
+            signingConfig =
+                if (hasUploadKeystore) {
+                    signingConfigs.getByName("upload")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
         }
     }
 
@@ -41,7 +92,7 @@ android {
         create("prod") {
             dimension = "environment"
             // applicationId stays com.nursery.scanner (defaultConfig).
-            resValue("string", "app_name", "Nursery")
+            resValue("string", "app_name", "GF Nursery")
             resValue("color", "ic_launcher_background", "#1B5E20")
         }
         // Named "qa", not "test": AGP reserves flavor names starting with "test" (collides with
@@ -53,7 +104,7 @@ android {
             versionNameSuffix = "-test"
             // Required: clearly different launcher label so a volunteer can never confuse the
             // two installs. Nice-to-have: red icon background to distinguish them at a glance.
-            resValue("string", "app_name", "Nursery TEST")
+            resValue("string", "app_name", "GF Nursery TEST")
             resValue("color", "ic_launcher_background", "#B71C1C")
         }
     }

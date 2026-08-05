@@ -16,6 +16,7 @@ captures/
 
 # Local SDK / machine config — never commit
 local.properties
+keystore.properties
 
 # Kotlin
 .kotlin/
@@ -30,6 +31,7 @@ local.properties
 # Signing material — never commit
 *.jks
 *.keystore
+upload-keystore.jks
 
 # Access database data exports (real nursery data — never commit)
 *.mdb

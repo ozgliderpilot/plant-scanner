@@ -84,7 +84,7 @@ Single-context: `CONTEXT.md` + `docs/adr/`. See [`docs/agents/domain.md`](./docs
 ## Docs
 
 - [`docs/adr/`](./docs/adr/) — architectural decisions
-- [`docs/deploy/`](./docs/deploy/) — backend → android → connect → access
+- [`docs/deploy/`](./docs/deploy/) — backend → android → play (internal) → connect → access
 - [`docs/deploy/screenshots-ci.md`](./docs/deploy/screenshots-ci.md) — PR screenshot gallery (emulator + Maestro)
 
 ## Gotchas

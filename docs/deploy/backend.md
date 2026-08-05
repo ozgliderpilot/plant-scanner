@@ -59,7 +59,7 @@ Expect `{"ok":true,"plants":[...],"count":N,...}`. A wrong secret returns `{"ok"
 
 ## Standing up a test deployment (isolated from production)
 
-To exercise the **test** app flavor (`com.nursery.scanner.test`, label "Nursery TEST" — see
+To exercise the **test** app flavor (`com.nursery.scanner.test`, label "GF Nursery TEST" — see
 [android.md](android.md)) without ever touching live data, give it its **own** Sheet + Apps Script
 deployment. Cloud isolation is purely operational — there is **nothing to change in code**:
 

@@ -1,7 +1,8 @@
 # Build & install the Android app
 
-The app is built once on a computer with the Android SDK, then sideloaded onto each device. No Play
-Store. (This build machine has no Android SDK, so the app ships as source — build it where the SDK is.)
+The app is built on a computer with the Android SDK. Volunteers can get **prod** via
+[Play Internal testing](play.md), or you can still **sideload** APKs (below). Keep **qa**
+sideloaded only — it is not published to Play.
 
 ## Prerequisites
 
@@ -17,7 +18,7 @@ Gradle composite build — you do not build it separately.
 ## Option A — Android Studio (easiest)
 
 1. **File → Open** and select the project root (`plant-scanner`).
-2. Let Gradle sync. If prompted to install **SDK Platform 34 / build-tools**, accept.
+2. Let Gradle sync. If prompted to install **SDK Platform 36 / build-tools**, accept.
 3. Plug in the device, enable **Developer options → USB debugging**, accept the RSA prompt.
 4. Pick the device in the toolbar and press **Run ▶**. Studio builds, installs, and launches it.
 
@@ -28,8 +29,8 @@ the **same device** and run safely without touching live data:
 
 | Flavor | Variant task           | applicationId               | Launcher label  | Icon  |
 |--------|------------------------|-----------------------------|-----------------|-------|
-| `prod` | `assembleProdRelease`  | `com.nursery.scanner`       | **Nursery**     | green |
-| `qa`   | `assembleQaRelease`    | `com.nursery.scanner.test`  | **Nursery TEST**| red   |
+| `prod` | `assembleProdRelease`  | `com.nursery.scanner`       | **GF Nursery**      | green |
+| `qa`   | `assembleQaRelease`    | `com.nursery.scanner.test`  | **GF Nursery TEST** | red   |
 
 Because the two installs have **different `applicationId`s**, Android keeps their local storage (the
 Room database and DataStore settings) completely separate — receipts and the pending-export queue in
@@ -56,8 +57,8 @@ gradlew.bat :app:assembleProdRelease :app:assembleQaRelease
 The APKs land at:
 
 ```
-app/build/outputs/apk/prod/release/app-prod-release.apk   # production — "Nursery"
-app/build/outputs/apk/qa/release/app-qa-release.apk       # test       — "Nursery TEST"
+app/build/outputs/apk/prod/release/app-prod-release.apk   # production — "GF Nursery"
+app/build/outputs/apk/qa/release/app-qa-release.apk       # test       — "GF Nursery TEST"
 ```
 
 Install **both** on one device (they coexist — neither replaces the other):
@@ -70,15 +71,13 @@ adb install -r app/build/outputs/apk/qa/release/app-qa-release.apk
 …or copy each `.apk` to the device (email/Drive/USB) and tap it. The device will ask to allow
 **"Install unknown apps"** for the app you opened it from — allow once.
 
-> These release APKs are **signed with the auto-generated debug keystore** (configured in
-> `app/build.gradle.kts`) so they install for sideloading out of the box — no keystore secret to
-> manage — while still being proper non-debuggable **release** builds (not the developer `debug`
-> build). For Play Store / wider distribution, replace that `signingConfig` with a real release
-> keystore. A plain debug build is still available as `:app:assembleProdDebug` if you want it.
+> Without a Play upload keystore, release APKs are **signed with the debug keystore** so they
+> sideload out of the box. For Play Internal testing, create an upload keystore and build an AAB —
+> see [play.md](play.md). A plain debug build is still available as `:app:assembleProdDebug`.
 
 ## First launch
 
-1. Open **Nursery**.
+1. Open **GF Nursery**.
 2. On first scan the app asks for **camera permission** — tap **Allow camera → Allow**.
 3. Configure the device once: bottom tab **Sync → Settings** (see `connect.md`).
 
