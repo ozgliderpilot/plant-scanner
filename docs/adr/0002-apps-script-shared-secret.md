@@ -10,4 +10,6 @@ Talk to a Google Apps Script web app over plain HTTPS/JSON, authenticated with a
 
 ## Consequences
 
-Ops is “paste URL + secret into device settings.” There is no per-user Google identity; anyone with the secret can call the endpoint.
+Ops is “paste URL + secret into device settings,” or hand out a per-prefix magic link (ADR-0017).
+There is no per-user Google identity; anyone with the nursery access code can call Access-style
+actions. Device-bound Android actions additionally require a claimed Users-tab device secret.

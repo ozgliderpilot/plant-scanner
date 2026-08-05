@@ -1,6 +1,7 @@
 package com.nursery.scanner.di
 
 import android.content.Context
+import android.net.Uri
 import androidx.room.Room
 import com.nursery.scanner.data.local.MIGRATION_2_3
 import com.nursery.scanner.data.local.MIGRATION_4_5
@@ -18,11 +19,15 @@ import com.nursery.scanner.data.repo.ReceiptRepository
 import com.nursery.scanner.data.repo.RepotRepository
 import com.nursery.scanner.data.repo.SyncRepository
 import com.nursery.scanner.data.settings.SettingsRepository
+import com.nursery.scanner.setup.MagicLinkApplicator
 import com.nursery.scanner.sync.AutoExportTicker
 import com.nursery.scanner.util.ConnectivityObserver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /** Manual dependency container (no Hilt — keeps the build simple). Single instance per process. */
 class AppContainer(context: Context) {
@@ -44,6 +49,19 @@ class AppContainer(context: Context) {
     private val connectivity = ConnectivityObserver(appContext)
 
     val settingsRepository = SettingsRepository(appContext)
+    val magicLinkApplicator = MagicLinkApplicator(settingsRepository)
+
+    private val _pendingMagicLink = MutableStateFlow<Uri?>(null)
+    val pendingMagicLink: StateFlow<Uri?> = _pendingMagicLink.asStateFlow()
+
+    fun offerMagicLink(uri: Uri?) {
+        if (uri != null) _pendingMagicLink.value = uri
+    }
+
+    fun consumeMagicLink() {
+        _pendingMagicLink.value = null
+    }
+
     val plantRepository = PlantRepository(db.plantDao(), sheets)
     val receiptRepository = ReceiptRepository(db.receiptDao(), settingsRepository)
     val cullRepository = CullRepository(db.cullDao(), settingsRepository)

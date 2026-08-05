@@ -28,6 +28,8 @@ data class GetPlantsRequest(
     val secret: String,
     val action: String = "getPlants",
     val plantListFingerprint: String? = null,
+    val devicePrefix: String,
+    val deviceSecret: String,
 )
 
 @Serializable
@@ -47,6 +49,8 @@ data class AppendExportRequest(
     val header: List<String>,
     val rows: List<List<String>>,
     val action: String,
+    val devicePrefix: String,
+    val deviceSecret: String,
 )
 
 @Serializable

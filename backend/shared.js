@@ -11,6 +11,83 @@ function isAuthorized(body, expectedSecret) {
   return !!expectedSecret && !!body && body.secret === expectedSecret;
 }
 
+/**
+ * Actions that come from Android devices and must carry a claimed devicePrefix + deviceSecret.
+ * Access reverse-sync / plant-push actions are omitted — they authenticate with the shared secret only.
+ */
+var DEVICE_BOUND_ACTIONS = {
+  getPlants: true,
+  appendSales: true,
+  appendCulls: true,
+  appendPrintLabels: true,
+  appendRepots: true,
+};
+
+function isDeviceBoundAction(action) {
+  return !!DEVICE_BOUND_ACTIONS[String(action || '')];
+}
+
+/**
+ * Pure Users-tab claim / match for a device-bound request.
+ *
+ * Sheet columns (header row, case-insensitive): device_prefix, name, secret.
+ *
+ * Rules:
+ * - No row for prefix → append { prefix, name: "unknown", secret }.
+ * - Row exists with empty secret → set secret (first claim).
+ * - Row exists with secret set → must equal the request secret, else reject.
+ *
+ * @param values 2D sheet range (row 0 = header). May be empty / header-only / missing.
+ * @param devicePrefix two-digit device prefix from the request
+ * @param deviceSecret per-device secret from the request
+ * @returns {{ ok: true, values: any[][], mutated: boolean } | { ok: false, error: string }}
+ *   On success, `values` is the full sheet ready to write when `mutated` is true.
+ */
+function planDeviceAuthorization(values, devicePrefix, deviceSecret) {
+  var prefix = String(devicePrefix === undefined || devicePrefix === null ? '' : devicePrefix).trim();
+  var secret = String(deviceSecret === undefined || deviceSecret === null ? '' : deviceSecret).trim();
+  if (!prefix || !secret) {
+    return { ok: false, error: 'Missing devicePrefix or deviceSecret' };
+  }
+
+  var sheet = (values && values.length > 0) ? values.map(function (row) { return row.slice(); }) : [];
+  if (sheet.length === 0) {
+    sheet = [['device_prefix', 'name', 'secret']];
+  }
+
+  var header = sheet[0];
+  var iPrefix = headerColIndex(header, 'device_prefix');
+  var iName = headerColIndex(header, 'name');
+  var iSecret = headerColIndex(header, 'secret');
+  if (iPrefix < 0 || iName < 0 || iSecret < 0) {
+    return { ok: false, error: 'Users sheet missing device_prefix/name/secret columns' };
+  }
+
+  for (var r = 1; r < sheet.length; r++) {
+    var row = sheet[r];
+    var rowPrefix = rowStr(row, iPrefix);
+    if (rowPrefix !== prefix) continue;
+    var existing = rowStr(row, iSecret);
+    if (!existing) {
+      row[iSecret] = secret;
+      return { ok: true, values: sheet, mutated: true };
+    }
+    if (existing === secret) {
+      return { ok: true, values: sheet, mutated: false };
+    }
+    return { ok: false, error: 'Unauthorized' };
+  }
+
+  var newRow = [];
+  var width = Math.max(header.length, iPrefix + 1, iName + 1, iSecret + 1);
+  for (var c = 0; c < width; c++) newRow.push('');
+  newRow[iPrefix] = prefix;
+  newRow[iName] = 'unknown';
+  newRow[iSecret] = secret;
+  sheet.push(newRow);
+  return { ok: true, values: sheet, mutated: true };
+}
+
 function emptyToNull(v) {
   if (v === undefined || v === null) return null;
   var s = String(v).trim();
@@ -890,7 +967,8 @@ function predictRepotStockUpdates_(plantsValues, exportHeader, appendedRows) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    isAuthorized, emptyToNull, rowStr, rowNum, composePlantName, isUnknownPlantName,
+    isAuthorized, isDeviceBoundAction, DEVICE_BOUND_ACTIONS, planDeviceAuthorization,
+    emptyToNull, rowStr, rowNum, composePlantName, isUnknownPlantName,
     pickPlantEnrichment, PLANT_ENRICHMENT_FIELDS, parsePlants, filterNewRows, planPlantReplace,
     accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
     selectPendingSales, resolveSalesMarks,

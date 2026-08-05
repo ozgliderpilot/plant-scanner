@@ -63,6 +63,8 @@ class SheetsClient(
                 GetPlantsRequest(
                     secret = config.sharedSecret,
                     plantListFingerprint = plantListFingerprint,
+                    devicePrefix = config.devicePrefix,
+                    deviceSecret = config.deviceSecret,
                 ),
             )
             val resp = json.decodeFromString<GetPlantsResponse>(postRaw(config.endpointUrl, requestBody))
@@ -140,6 +142,8 @@ class SheetsClient(
                     header = header,
                     rows = rows,
                     action = action,
+                    devicePrefix = config.devicePrefix,
+                    deviceSecret = config.deviceSecret,
                 ),
             )
             val resp = json.decodeFromString<AppendExportResponse>(postRaw(config.endpointUrl, requestBody))

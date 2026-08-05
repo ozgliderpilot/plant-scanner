@@ -16,7 +16,7 @@ The app requests **camera** permission to scan **Code 128 barcodes** on plant la
 
 **On the device**
 
-- Connection settings you enter (sync URL, access code, device prefix)
+- Connection settings you enter (sync URL, access code, device prefix) and a device secret generated on the phone for nursery sync
 - Local records of sales, culls, label print requests, and repots (including scanned accession codes, quantities, amounts you enter, and related plant details from the nursery list)
 - A local copy of the plant list used for offline lookup
 

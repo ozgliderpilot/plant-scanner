@@ -66,6 +66,14 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit, modifier: Modifier
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            Text(
+                text = if (config.deviceSecret.isNotBlank()) {
+                    "Device secret: saved on this phone (claimed on first sync)"
+                } else {
+                    "Device secret: not set yet — tap Save or open a setup link"
+                },
+                style = MaterialTheme.typography.bodyLarge,
+            )
             OutlinedTextField(
                 value = intervalText,
                 onValueChange = { intervalText = it.filter(Char::isDigit).take(5) },

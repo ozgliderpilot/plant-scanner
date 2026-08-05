@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const {
-  isAuthorized, emptyToNull, parsePlants, composePlantName, filterNewRows, planPlantReplace,
+  isAuthorized, isDeviceBoundAction, planDeviceAuthorization,
+  emptyToNull, parsePlants, composePlantName, filterNewRows, planPlantReplace,
   accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
   selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction, computeSalesDeduction,
   predictStockUpdates,
@@ -18,6 +19,80 @@ test('isAuthorized accepts the right secret only', () => {
   assert.strictEqual(isAuthorized({}, 's3cr3t'), false);
   assert.strictEqual(isAuthorized({ secret: 's3cr3t' }, ''), false); // no secret configured
   assert.strictEqual(isAuthorized(null, 's3cr3t'), false);
+});
+
+test('isDeviceBoundAction covers Android sync actions only', () => {
+  assert.strictEqual(isDeviceBoundAction('getPlants'), true);
+  assert.strictEqual(isDeviceBoundAction('appendSales'), true);
+  assert.strictEqual(isDeviceBoundAction('appendCulls'), true);
+  assert.strictEqual(isDeviceBoundAction('appendPrintLabels'), true);
+  assert.strictEqual(isDeviceBoundAction('appendRepots'), true);
+  assert.strictEqual(isDeviceBoundAction('replacePlants'), false);
+  assert.strictEqual(isDeviceBoundAction('pendingSales'), false);
+  assert.strictEqual(isDeviceBoundAction('markSalesSynced'), false);
+});
+
+test('planDeviceAuthorization rejects missing prefix or secret', () => {
+  const header = [['device_prefix', 'name', 'secret']];
+  assert.strictEqual(planDeviceAuthorization(header, '', 'abc').ok, false);
+  assert.strictEqual(planDeviceAuthorization(header, '07', '').ok, false);
+  assert.strictEqual(planDeviceAuthorization(header, null, 'abc').ok, false);
+});
+
+test('planDeviceAuthorization appends unknown row when prefix is new', () => {
+  const values = [['device_prefix', 'name', 'secret']];
+  const result = planDeviceAuthorization(values, '07', 'dev-secret');
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.mutated, true);
+  assert.deepStrictEqual(result.values, [
+    ['device_prefix', 'name', 'secret'],
+    ['07', 'unknown', 'dev-secret'],
+  ]);
+  // input unchanged
+  assert.deepStrictEqual(values, [['device_prefix', 'name', 'secret']]);
+});
+
+test('planDeviceAuthorization claims empty secret on existing row', () => {
+  const values = [
+    ['device_prefix', 'name', 'secret'],
+    ['07', 'Alice', ''],
+    ['08', 'Bob', 'bob-secret'],
+  ];
+  const result = planDeviceAuthorization(values, '07', 'alice-secret');
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.mutated, true);
+  assert.deepStrictEqual(result.values[1], ['07', 'Alice', 'alice-secret']);
+  assert.deepStrictEqual(result.values[2], ['08', 'Bob', 'bob-secret']);
+});
+
+test('planDeviceAuthorization accepts matching secret', () => {
+  const values = [
+    ['device_prefix', 'name', 'secret'],
+    ['07', 'Alice', 'alice-secret'],
+  ];
+  const result = planDeviceAuthorization(values, '07', 'alice-secret');
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.mutated, false);
+  assert.deepStrictEqual(result.values, values);
+});
+
+test('planDeviceAuthorization rejects mismatched secret (already claimed)', () => {
+  const values = [
+    ['device_prefix', 'name', 'secret'],
+    ['07', 'Alice', 'alice-secret'],
+  ];
+  const result = planDeviceAuthorization(values, '07', 'other-phone');
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.error, 'Unauthorized');
+});
+
+test('planDeviceAuthorization creates header when Users sheet is empty', () => {
+  const result = planDeviceAuthorization([], '07', 'dev-secret');
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.values, [
+    ['device_prefix', 'name', 'secret'],
+    ['07', 'unknown', 'dev-secret'],
+  ]);
 });
 
 test('emptyToNull normalises blanks', () => {

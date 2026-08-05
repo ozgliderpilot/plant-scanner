@@ -50,7 +50,25 @@ _Avoid_: line id, row id (it is not globally unique on its own)
 **Device prefix**:
 The two-digit per-device code from settings that namespaces local IDs in the shared Sheet (the `PP`
 in `PP-<epochSeconds>-<seq>`). Keeps multiple devices from colliding without a central allocator.
+Also the key in the Users tab for the per-device secret claim (ADR-0017).
 _Avoid_: device id, store id
+
+**Device secret**:
+A random secret generated on the phone at setup (magic link or Settings save) and stored only on
+that device. Sent with every device sync request; the Users tab records the first claim for a
+device prefix and rejects later mismatches. Not the nursery access code.
+_Avoid_: shared secret, access code, API key (as the product name for this field)
+
+**Access code**:
+The nursery-wide shared secret (`SHARED_SECRET` in Apps Script / Settings). Still required on every
+request; distinct from the per-device secret.
+_Avoid_: device secret
+
+**Magic link**:
+A `plantscanner://setup?…` link that prefills device prefix, Web App URL, and access code. Opens
+the Play Store app via a custom scheme (no domain). Claims the Users-tab row on first successful
+device sync.
+_Avoid_: deep link (generic), App Link (verified HTTPS — not used here)
 
 **Receipt number**:
 Per-device identifier for a saved sale, formatted `PP-<epochSeconds>-<seq>` where `PP` is the

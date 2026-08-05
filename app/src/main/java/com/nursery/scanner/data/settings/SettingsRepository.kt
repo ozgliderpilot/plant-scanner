@@ -21,8 +21,9 @@ interface SettingsConfigSource {
 
 /**
  * Per-device configuration + local counters, persisted with DataStore. Holds the receipt sequence
- * (for `PP-NNN`, #11), the auto-export interval (#10), the Apps Script URL + shared secret, and the
- * last successful sync time (for the status chip).
+ * (for `PP-NNN`, #11), the auto-export interval (#10), the Apps Script URL + nursery access code,
+ * the per-device secret for Users-tab claim (ADR-0017), and the last successful sync time (for the
+ * status chip).
  */
 class SettingsRepository(context: Context) : SettingsConfigSource {
 
@@ -32,6 +33,7 @@ class SettingsRepository(context: Context) : SettingsConfigSource {
         val PREFIX = stringPreferencesKey("device_prefix")
         val URL = stringPreferencesKey("endpoint_url")
         val SECRET = stringPreferencesKey("shared_secret")
+        val DEVICE_SECRET = stringPreferencesKey("device_secret")
         val INTERVAL = intPreferencesKey("auto_export_seconds")
         val SEQ = intPreferencesKey("receipt_seq")
         val SEQ_DAY = longPreferencesKey("receipt_seq_day")
@@ -48,6 +50,7 @@ class SettingsRepository(context: Context) : SettingsConfigSource {
             sharedSecret = p[Keys.SECRET] ?: "",
             autoExportSeconds = (p[Keys.INTERVAL] ?: DeviceConfig.DEFAULT_INTERVAL_SECONDS)
                 .coerceAtLeast(DeviceConfig.MIN_INTERVAL_SECONDS),
+            deviceSecret = p[Keys.DEVICE_SECRET] ?: "",
         )
     }
 
@@ -70,6 +73,7 @@ class SettingsRepository(context: Context) : SettingsConfigSource {
             p[Keys.PREFIX] = config.devicePrefix
             p[Keys.URL] = config.endpointUrl
             p[Keys.SECRET] = config.sharedSecret
+            p[Keys.DEVICE_SECRET] = config.deviceSecret
             p[Keys.INTERVAL] = config.autoExportSeconds
         }
     }

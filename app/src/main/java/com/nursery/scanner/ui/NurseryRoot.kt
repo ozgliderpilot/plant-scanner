@@ -1,10 +1,17 @@
 package com.nursery.scanner.ui
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
@@ -22,6 +29,7 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nursery.scanner.di.AppContainer
+import com.nursery.scanner.setup.MagicLinkApplicator
 import com.nursery.scanner.ui.components.NurseryBottomBar
 import com.nursery.scanner.ui.cull.CullScanScreen
 import com.nursery.scanner.ui.cull.CullSuccessScreen
@@ -60,6 +68,7 @@ import com.nursery.scanner.ui.settings.SettingsScreen
 import com.nursery.scanner.ui.settings.SettingsViewModel
 import com.nursery.scanner.ui.sync.SyncViewModel
 import com.nursery.scanner.ui.theme.NurseryTheme
+import kotlinx.coroutines.launch
 
 /** SavedStateHandle key: accession returned from [Routes.PLANTS_SCAN] into the Plants list. */
 private const val SCANNED_ACCESSION_KEY = "scanned_accession"
@@ -73,6 +82,26 @@ fun NurseryRoot(container: AppContainer) {
         val route = backStackEntry?.destination?.route
         val showBottomBar = route in TabRoutes
         val syncState by container.syncRepository.state.collectAsStateWithLifecycle()
+        var setupMessage by remember { mutableStateOf<String?>(null) }
+        val scope = rememberCoroutineScope()
+        val pendingLink by container.pendingMagicLink.collectAsStateWithLifecycle()
+
+        LaunchedEffect(pendingLink) {
+            val uri = pendingLink ?: return@LaunchedEffect
+            container.consumeMagicLink()
+            when (val result = container.magicLinkApplicator.apply(uri)) {
+                is MagicLinkApplicator.Result.Applied -> {
+                    setupMessage =
+                        "Device ${result.config.devicePrefix} is set up. Syncing with the nursery…"
+                    scope.launch {
+                        container.syncRepository.syncCloud()
+                    }
+                }
+                is MagicLinkApplicator.Result.Invalid -> {
+                    setupMessage = result.reason
+                }
+            }
+        }
 
         Scaffold(
             modifier = Modifier.semantics { testTagsAsResourceId = true },
@@ -89,6 +118,19 @@ fun NurseryRoot(container: AppContainer) {
             },
         ) { padding ->
             NurseryNavHost(navController, container, syncState.online, Modifier.padding(padding))
+        }
+
+        setupMessage?.let { message ->
+            AlertDialog(
+                onDismissRequest = { setupMessage = null },
+                confirmButton = {
+                    TextButton(onClick = { setupMessage = null }) {
+                        Text("OK")
+                    }
+                },
+                title = { Text("Device setup") },
+                text = { Text(message) },
+            )
         }
     }
 }

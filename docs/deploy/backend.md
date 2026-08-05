@@ -14,7 +14,15 @@ no OAuth — the app authenticates with a shared secret. ~10 minutes.
    Fill rows below with your plant list. The **accession** is the value the label's Code 128 barcode
    encodes (there is no separate barcode column). Only **accession** and **name** are required;
    `group`, `light` may be blank. Columns can be reordered — they are matched by header name.
-3. You do **not** need to create a `Sales` tab — the script creates it (with headers) on first export.
+3. Add a **`Users`** tab (exact name) with header row:
+
+   | device_prefix | name | secret |
+   |---------------|------|--------|
+
+   Optionally pre-fill rows with a two-digit prefix and volunteer name; leave **secret** blank so
+   the first phone to sync claims that row (ADR-0017). The script can also create this tab on first
+   device claim if it is missing.
+4. You do **not** need to create a `Sales` tab — the script creates it (with headers) on first export.
 
 ## 2. Add the script
 
@@ -52,10 +60,13 @@ From any machine:
 ```bash
 curl -L -X POST "<YOUR_EXEC_URL>" \
   -H "Content-Type: application/json" \
-  -d '{"secret":"<YOUR_SECRET>","action":"getPlants"}'
+  -d '{"secret":"<YOUR_SECRET>","action":"getPlants","devicePrefix":"07","deviceSecret":"smoke-test-secret"}'
 ```
 
-Expect `{"ok":true,"plants":[...],"count":N,...}`. A wrong secret returns `{"ok":false,"error":"Unauthorized"}`.
+Expect `{"ok":true,"plants":[...],"count":N,...}` (and a new/updated **Users** row for prefix `07`).
+A wrong nursery secret or a second different `deviceSecret` for the same prefix returns
+`{"ok":false,"error":"Unauthorized"}`. Access-only actions (`pendingSales`, `replacePlants`, …)
+still use `{secret, action}` without device fields.
 
 ## Standing up a test deployment (isolated from production)
 
