@@ -10,7 +10,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -68,7 +67,6 @@ import com.nursery.scanner.ui.settings.SettingsScreen
 import com.nursery.scanner.ui.settings.SettingsViewModel
 import com.nursery.scanner.ui.sync.SyncViewModel
 import com.nursery.scanner.ui.theme.NurseryTheme
-import kotlinx.coroutines.launch
 
 /** SavedStateHandle key: accession returned from [Routes.PLANTS_SCAN] into the Plants list. */
 private const val SCANNED_ACCESSION_KEY = "scanned_accession"
@@ -83,24 +81,27 @@ fun NurseryRoot(container: AppContainer) {
         val showBottomBar = route in TabRoutes
         val syncState by container.syncRepository.state.collectAsStateWithLifecycle()
         var setupMessage by remember { mutableStateOf<String?>(null) }
-        val scope = rememberCoroutineScope()
         val pendingLink by container.pendingMagicLink.collectAsStateWithLifecycle()
 
         LaunchedEffect(pendingLink) {
             val uri = pendingLink ?: return@LaunchedEffect
-            container.consumeMagicLink()
-            when (val result = container.magicLinkApplicator.apply(uri)) {
-                is MagicLinkApplicator.Result.Applied -> {
-                    setupMessage =
-                        "Device ${result.config.devicePrefix} is set up. Syncing with the nursery…"
-                    scope.launch {
+            // Apply before clearing pending — consuming first cancels this effect at the next
+            // suspend point, which dropped the dialog and skipped sync.
+            try {
+                when (val result = container.magicLinkApplicator.apply(uri)) {
+                    is MagicLinkApplicator.Result.Applied -> {
+                        setupMessage =
+                            "Device ${result.config.devicePrefix} is set up. Syncing with the nursery…"
                         container.syncRepository.syncCloud()
                     }
+                    is MagicLinkApplicator.Result.Invalid -> {
+                        setupMessage = result.reason
+                    }
                 }
-                is MagicLinkApplicator.Result.Invalid -> {
-                    setupMessage = result.reason
-                }
+            } catch (e: Exception) {
+                setupMessage = "Setup failed. Try the link again."
             }
+            container.consumeMagicLink()
         }
 
         Scaffold(
