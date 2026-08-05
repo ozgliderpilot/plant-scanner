@@ -76,7 +76,8 @@ jobs:
           retention-days: 30
 
       - name: Deploy to Play Internal testing
-        uses: r0adkll/upload-google-play@v1
+        # Pin to full commit SHA — mutable tags can be retargeted (Play creds in this step).
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.nursery.scanner
