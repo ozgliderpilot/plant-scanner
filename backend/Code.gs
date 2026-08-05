@@ -38,12 +38,8 @@ function doPost(e) {
     if (!isAuthorized(body, secret)) {
       return json_({ ok: false, error: 'Unauthorized' });
     }
-    if (isDeviceBoundAction(body.action)) {
-      var deviceAuth = authorizeDeviceRequest_(body);
-      if (!deviceAuth.ok) {
-        return json_({ ok: false, error: deviceAuth.error || 'Unauthorized' });
-      }
-    }
+    // Device-bound actions claim/verify inside their handler's document lock so
+    // getPlants/append* take one waitLock, not two.
     switch (body.action) {
       case 'getPlants': return handleGetPlants_(body);
       case 'replacePlants': return handleReplacePlants_(body);
@@ -72,42 +68,45 @@ function doPost(e) {
 /**
  * Claim or verify the device against the Users tab (device_prefix / name / secret).
  * First successful call for a prefix writes the device secret; later calls must match.
- * Runs under the document lock so two phones cannot race-claim the same prefix.
+ * Caller MUST hold the document lock so two phones cannot race-claim the same prefix
+ * and so getPlants/append* do not pay a second waitLock (hot path for the sync ticker).
  * Returns a plain { ok, error? } object (not a ContentService response).
  */
 function authorizeDeviceRequest_(body) {
-  var lock = LockService.getDocumentLock();
-  try {
-    lock.waitLock(30000);
-  } catch (e) {
-    return { ok: false, error: 'Sheet busy, please retry' };
+  var ss = SpreadsheetApp.getActive();
+  var sheet = ss.getSheetByName('Users');
+  var values = [];
+  if (sheet && sheet.getLastRow() > 0) {
+    values = sheet.getDataRange().getValues();
   }
-  try {
-    var ss = SpreadsheetApp.getActive();
-    var sheet = ss.getSheetByName('Users');
-    var values = [];
-    if (sheet && sheet.getLastRow() > 0) {
-      values = sheet.getDataRange().getValues();
-    }
-    var plan = planDeviceAuthorization(values, body.devicePrefix, body.deviceSecret);
-    if (!plan.ok) return { ok: false, error: plan.error };
+  var plan = planDeviceAuthorization(values, body.devicePrefix, body.deviceSecret);
+  if (!plan.ok) return { ok: false, error: plan.error };
 
-    if (plan.mutated) {
-      if (!sheet) {
-        sheet = ss.insertSheet('Users');
-      }
-      var out = plan.values;
-      sheet.clearContents();
-      sheet.getRange(1, 1, out.length, out[0].length).setValues(out);
-      // Keep device_prefix + secret as plain text (leading zeros / long tokens).
-      var header = out[0];
-      forceTextColumn_(sheet, 1, out.length, headerColIndex(header, 'device_prefix'));
-      forceTextColumn_(sheet, 1, out.length, headerColIndex(header, 'secret'));
+  if (plan.mutated) {
+    if (!sheet) {
+      sheet = ss.insertSheet('Users');
     }
-    return { ok: true };
-  } finally {
-    lock.releaseLock();
+    var out = plan.values;
+    sheet.clearContents();
+    sheet.getRange(1, 1, out.length, out[0].length).setValues(out);
+    // Keep device_prefix + secret as plain text (leading zeros / long tokens).
+    var header = out[0];
+    forceTextColumn_(sheet, 1, out.length, headerColIndex(header, 'device_prefix'));
+    forceTextColumn_(sheet, 1, out.length, headerColIndex(header, 'secret'));
   }
+  return { ok: true };
+}
+
+/**
+ * Run device claim/verify; on failure return a JSON error response for the HTTP handler.
+ * Caller holds the document lock.
+ */
+function requireDeviceAuthorization_(body) {
+  var deviceAuth = authorizeDeviceRequest_(body);
+  if (!deviceAuth.ok) {
+    return json_({ ok: false, error: deviceAuth.error || 'Unauthorized' });
+  }
+  return null;
 }
 
 function doGet() {
@@ -157,6 +156,9 @@ function withDocumentLock_(fn) {
 
 function handleGetPlants_(body) {
   return withDocumentLock_(function () {
+    var denied = requireDeviceAuthorization_(body);
+    if (denied) return denied;
+
     var cached = getCachedPlantListFingerprint_();
     if (plantListFingerprintMatches(body && body.plantListFingerprint, cached)) {
       return json_({
@@ -256,6 +258,9 @@ function handleAppendExport_(body, opts) {
   }
 
   return withDocumentLock_(function () {
+    var denied = requireDeviceAuthorization_(body);
+    if (denied) return denied;
+
     var sheet = getOrCreateExportSheet_(opts.sheetName, body.header);
     var keyCol = salesColIndex(body.header, opts.keyColumn);
     if (keyCol < 0) keyCol = 0;
