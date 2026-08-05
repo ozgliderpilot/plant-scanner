@@ -28,6 +28,7 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nursery.scanner.di.AppContainer
+import com.nursery.scanner.data.repo.SyncResult
 import com.nursery.scanner.setup.MagicLinkApplicator
 import com.nursery.scanner.ui.components.NurseryBottomBar
 import com.nursery.scanner.ui.cull.CullScanScreen
@@ -67,6 +68,7 @@ import com.nursery.scanner.ui.settings.SettingsScreen
 import com.nursery.scanner.ui.settings.SettingsViewModel
 import com.nursery.scanner.ui.sync.SyncViewModel
 import com.nursery.scanner.ui.theme.NurseryTheme
+import kotlinx.coroutines.yield
 
 /** SavedStateHandle key: accession returned from [Routes.PLANTS_SCAN] into the Plants list. */
 private const val SCANNED_ACCESSION_KEY = "scanned_accession"
@@ -92,7 +94,15 @@ fun NurseryRoot(container: AppContainer) {
                     is MagicLinkApplicator.Result.Applied -> {
                         setupMessage =
                             "Device ${result.config.devicePrefix} is set up. Syncing with the nursery…"
-                        container.syncRepository.syncCloud()
+                        yield()
+                        setupMessage = when (val sync = container.syncRepository.syncCloud()) {
+                            is SyncResult.Done ->
+                                "Device ${result.config.devicePrefix} is set up and synced."
+                            is SyncResult.Error ->
+                                "Device ${result.config.devicePrefix} is set up, but sync failed: ${sync.message}"
+                            SyncResult.NotConfigured ->
+                                "Device ${result.config.devicePrefix} is set up, but sync is not configured."
+                        }
                     }
                     is MagicLinkApplicator.Result.Invalid -> {
                         setupMessage = result.reason
@@ -190,6 +200,7 @@ private fun NurseryNavHost(
             val syncVm: SyncViewModel = viewModel(factory = container.viewModelFactory)
             val syncState by syncVm.state.collectAsStateWithLifecycle()
             val config by syncVm.config.collectAsStateWithLifecycle()
+            val syncMessage by syncVm.message.collectAsStateWithLifecycle()
             val scannedAccession by entry.savedStateHandle
                 .getStateFlow<String?>(SCANNED_ACCESSION_KEY, null)
                 .collectAsStateWithLifecycle()
@@ -206,6 +217,8 @@ private fun NurseryNavHost(
                 canUpdate = syncState.online && !syncState.isBusy && config.isComplete,
                 onUpdate = { syncVm.syncNow() },
                 onScanAccession = { navController.navigate(Routes.PLANTS_SCAN) },
+                syncMessage = syncMessage,
+                onClearSyncMessage = syncVm::clearMessage,
             )
         }
 

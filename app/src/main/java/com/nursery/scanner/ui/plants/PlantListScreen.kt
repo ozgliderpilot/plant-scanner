@@ -32,6 +32,7 @@ import com.nursery.core.PlantStock
 import com.nursery.scanner.data.repo.SyncState
 import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.ScreenHeader
+import com.nursery.scanner.ui.components.SyncResultDialog
 import com.nursery.scanner.ui.components.SyncTabHeader
 import com.nursery.scanner.ui.theme.Dimens
 
@@ -52,6 +53,8 @@ fun PlantListScreen(
     canUpdate: Boolean,
     onUpdate: () -> Unit,
     onScanAccession: () -> Unit,
+    syncMessage: String? = null,
+    onClearSyncMessage: () -> Unit = {},
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -119,6 +122,8 @@ fun PlantListScreen(
                 }
         }
     }
+
+    SyncResultDialog(message = syncMessage, onDismiss = onClearSyncMessage)
 }
 
 @Composable
