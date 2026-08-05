@@ -13,26 +13,24 @@ Do this once per device, after installing the app (`android.md` / Play) and depl
 1. Ensure the Sheet has a **`Users`** tab with header row `device_prefix | name | secret`
    (the script can create the tab on first claim if missing). Optionally pre-fill rows with a
    prefix + volunteer name and leave **secret** blank.
-2. Build one link per device prefix (URL and access code must be form-urlencoded):
-
-   ```text
-   plantscanner://setup?prefix=07&url=<urlencoded-/exec-URL>&code=<urlencoded-access-code>
-   ```
-
-   From a machine with the repo:
+2. Host `docs/` on **GitHub Pages** (Settings → Pages → Deploy from branch `main` / folder `/docs`)
+   so `https://ozgliderpilot.github.io/plant-scanner/setup.html` is public. Gmail and most chat
+   apps only make `https://` links tappable — plain `plantscanner://` is not.
+3. Build one link per device prefix:
 
    ```bash
    node scripts/magic-link.js 07 'https://script.google.com/macros/s/…/exec' 'nursery-secret'
    ```
 
-   ```text
-   plantscanner://setup?prefix=07&url=https%3A%2F%2Fscript.google.com%2Fmacros%2Fs%2F…%2Fexec&code=nursery-secret
-   ```
+   The script prints two lines:
 
-3. Send that link (or a QR of it) to the volunteer. They install from Play, tap the link once.
-   The app saves settings, generates a **device secret**, and syncs. First successful sync claims
-   that prefix on the Users tab — a second phone with the same link is rejected until an admin
-   clears that row’s **secret** cell.
+   1. **`https://…/setup.html?…`** — send this in email/SMS (volunteer taps → bridge page → app)
+   2. **`plantscanner://setup?…`** — for QR codes or `adb` testing
+
+4. Volunteer installs from Play, opens the **https** link on that phone, taps **Open app and finish
+   setup**. The app saves settings, generates a **device secret**, and syncs. First successful sync
+   claims that prefix on the Users tab — a second phone with the same link is rejected until an
+   admin clears that row’s **secret** cell.
 
 ## Or: enter settings by hand
 
