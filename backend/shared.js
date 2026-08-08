@@ -292,6 +292,18 @@ function ensureSyncStatusColumn(header) {
   return h.concat(['sync_status']);
 }
 
+/** Fixed header for the SyncStatus rolling log (newest-first history). Positional; do not reorder. */
+var SYNC_STATUS_HISTORY_HEADER = ['Event', 'Direction', 'Last Sync', 'Detail', 'Device Prefix'];
+
+/**
+ * Build one SyncStatus history data row. devicePrefix is the two-digit device code when a device
+ * is a party to the sync; blank for Access↔Sheet-only events.
+ */
+function buildSyncStatusHistoryRow(event, direction, when, detail, devicePrefix) {
+  var prefix = String(devicePrefix === undefined || devicePrefix === null ? '' : devicePrefix).trim();
+  return [event, direction, when, detail, prefix];
+}
+
 /**
  * Append-safety net against double counting (spec). Skip every incoming row whose receipt number
  * already exists in the sheet; keep the rest. NOTE: it dedupes only against the EXISTING sheet, so
@@ -972,7 +984,8 @@ if (typeof module !== 'undefined' && module.exports) {
     pickPlantEnrichment, PLANT_ENRICHMENT_FIELDS, parsePlants, filterNewRows, planPlantReplace,
     accessionColIndex, headerColIndex, salesColIndex, salesRowKey,
     selectPendingSales, resolveSalesMarks,
-    ensureSyncStatusColumn, validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
+    ensureSyncStatusColumn, SYNC_STATUS_HISTORY_HEADER, buildSyncStatusHistoryRow,
+    validateAppendCullsNotes, cullRowKey, selectPendingCulls, resolveCullMarks,
     selectPendingPrintLabels, resolvePrintLabelMarks, validateAppendPrintLabelCopies,
     PRINT_LABEL_COPIES_MAX, validateAppendRepotCounts,
     selectPendingRepots, resolveRepotMarks,

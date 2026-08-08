@@ -4,6 +4,7 @@ const {
   isAuthorized, isDeviceBoundAction, planDeviceAuthorization,
   emptyToNull, parsePlants, composePlantName, filterNewRows, planPlantReplace,
   accessionColIndex, selectPendingSales, resolveSalesMarks, ensureSyncStatusColumn,
+  SYNC_STATUS_HISTORY_HEADER, buildSyncStatusHistoryRow,
   selectPendingCulls, resolveCullMarks, isStockPlantCull, computeCullDeduction, computeSalesDeduction,
   predictStockUpdates,
   validateAppendCullsNotes, applyMarksToValues,
@@ -671,6 +672,30 @@ test('ensureSyncStatusColumn does not duplicate an existing sync_status column',
   assert.deepStrictEqual(ensureSyncStatusColumn(withStatus), withStatus);
   const midStatus = ['cull_id', 'sync_status', 'date'];
   assert.deepStrictEqual(ensureSyncStatusColumn(midStatus), midStatus);
+});
+
+test('SYNC_STATUS_HISTORY_HEADER is five columns with Device Prefix after Detail', () => {
+  assert.deepStrictEqual(SYNC_STATUS_HISTORY_HEADER, [
+    'Event', 'Direction', 'Last Sync', 'Detail', 'Device Prefix',
+  ]);
+});
+
+test('buildSyncStatusHistoryRow stores devicePrefix for a device-party stamp', () => {
+  assert.deepStrictEqual(
+    buildSyncStatusHistoryRow('Sales from device', 'device → Sheet', '06/08/2026 13:00:00', 'appended 2, skipped 0', '07'),
+    ['Sales from device', 'device → Sheet', '06/08/2026 13:00:00', 'appended 2, skipped 0', '07'],
+  );
+});
+
+test('buildSyncStatusHistoryRow leaves Device Prefix blank for Access↔Sheet', () => {
+  assert.deepStrictEqual(
+    buildSyncStatusHistoryRow('Plants from Access', 'Access → Sheet', '06/08/2026 13:00:00', '3 plants', ''),
+    ['Plants from Access', 'Access → Sheet', '06/08/2026 13:00:00', '3 plants', ''],
+  );
+  assert.deepStrictEqual(
+    buildSyncStatusHistoryRow('Sales to Access', 'Sheet → Access', '06/08/2026 13:00:00', '1 pending'),
+    ['Sales to Access', 'Sheet → Access', '06/08/2026 13:00:00', '1 pending', ''],
+  );
 });
 
 // ---- Reverse sync (Culls -> Access) selection & marking -------------------------------------------

@@ -22,8 +22,10 @@
  *   - pendingRepots   -> returns every "Repots" row whose sync_status is "Pending" (Access reverse sync)
  *   - markRepotsSynced -> sets sync_status by repot_id key (Access reverse sync, status-agnostic)
  *
- * Every action also stamps a "SyncStatus" sheet (rolling log of the last 100 sync events, newest
- * first) so the Sheet shows recent plant pushes from Access and pulls / pushes with the device.
+ * Every action also stamps a "SyncStatus" sheet (rolling log of the last 500 sync events, newest
+ * first; columns Event, Direction, Last Sync, Detail, Device Prefix) so the Sheet shows recent
+ * plant pushes from Access and pulls / pushes with the device. Device Prefix is filled when a
+ * device is a party; blank for Access↔Sheet-only events.
  *
  * Plant-list fingerprints for conditional getPlants are cached in Script Properties
  * (key PLANT_LIST_FINGERPRINT) — see ADR-0016.
@@ -174,7 +176,7 @@ function handleGetPlants_(body) {
     var plants = parsePlants(values);
     var fingerprint = computePlantListFingerprint(plants);
     setCachedPlantListFingerprint_(fingerprint);
-    recordSync_('Plant list to device', 'Sheet → device', plants.length + ' plants');
+    recordSync_('Plant list to device', 'Sheet → device', plants.length + ' plants', body.devicePrefix);
     return json_({
       ok: true,
       plants: plants,
@@ -207,7 +209,7 @@ function handleReplacePlants_(body) {
     var fingerprint = computePlantListFingerprint(parsePlants(out));
     setCachedPlantListFingerprint_(fingerprint);
 
-    recordSync_('Plants from Access', 'Access → Sheet', plan.rows.length + ' plants');
+    recordSync_('Plants from Access', 'Access → Sheet', plan.rows.length + ' plants', '');
     return json_({ ok: true, written: plan.rows.length });
   });
 }
@@ -290,7 +292,7 @@ function handleAppendExport_(body, opts) {
       }
     }
     recordSync_(opts.syncEvent, 'device → Sheet',
-      'appended ' + result.rows.length + ', skipped ' + result.skipped);
+      'appended ' + result.rows.length + ', skipped ' + result.skipped, body.devicePrefix);
     return json_({ ok: true, appended: result.rows.length, skipped: result.skipped });
   });
 }
@@ -390,7 +392,7 @@ function handlePendingExport_(sheetName, selectFn, resultKey, syncEvent) {
     if (!sheet) return json_({ ok: false, error: 'No "' + sheetName + '" sheet found' });
     var values = sheet.getDataRange().getValues();
     var items = selectFn(values);
-    recordSync_(syncEvent, 'Sheet → Access', items.length + ' pending');
+    recordSync_(syncEvent, 'Sheet → Access', items.length + ' pending', '');
     var resp = { ok: true, count: items.length };
     resp[resultKey] = items;
     return json_(resp);
@@ -409,7 +411,7 @@ function handleMarkExportSynced_(body, sheetName, resolveFn, syncEvent) {
 
     var marks = resolveFn(values, body.keys);
     applyExportMarks_(sheet, values, marks, statusCol);
-    recordSync_(syncEvent, 'Access → Sheet', 'marked ' + marks.length);
+    recordSync_(syncEvent, 'Access → Sheet', 'marked ' + marks.length, '');
     return json_({ ok: true, marked: marks.length });
   });
 }
@@ -494,27 +496,30 @@ function stampPending_(sheet, startRow, numRows, statusCol) {
 
 /**
  * Insert one history row at the top of the "SyncStatus" sheet (newest first), keeping at
- * most 100 data rows by deleting oldest rows from the bottom. Existing rows are left in
+ * most 500 data rows by deleting oldest rows from the bottom. Existing rows are left in
  * place (shifted down) — never wiped or rewritten. Wrapped in try/catch so a logging
  * hiccup can never fail the actual sync. Callers inside handleReplacePlants_/
  * handleAppendSales_ already hold the document lock; handleGetPlants_ calls it lock-free
- * (rare, benign).
+ * (rare, benign). devicePrefix is set when a device is a party; blank for Access↔Sheet.
  */
-function recordSync_(event, direction, detail) {
+function recordSync_(event, direction, detail, devicePrefix) {
   try {
     var ss = SpreadsheetApp.getActive();
     var sheet = ss.getSheetByName('SyncStatus');
+    var cols = SYNC_STATUS_HISTORY_HEADER.length;
     if (!sheet) {
       sheet = ss.insertSheet('SyncStatus');
-      sheet.getRange(1, 1, 1, 4).setValues([['Event', 'Direction', 'Last Sync', 'Detail']]);
+      sheet.getRange(1, 1, 1, cols).setValues([SYNC_STATUS_HISTORY_HEADER]);
       sheet.setFrozenRows(1);
     }
     sheet.insertRows(2, 1);
     var when = Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'dd/MM/yyyy HH:mm:ss');
-    sheet.getRange(2, 1, 1, 4).setValues([[event, direction, when, detail]]);
-    var excess = sheet.getLastRow() - 101; // header + 100 data rows
+    sheet.getRange(2, 1, 1, cols).setValues([
+      buildSyncStatusHistoryRow(event, direction, when, detail, devicePrefix),
+    ]);
+    var excess = sheet.getLastRow() - 501; // header + 500 data rows
     if (excess > 0) {
-      sheet.deleteRows(102, excess);
+      sheet.deleteRows(502, excess);
     }
   } catch (e) {
     console.error(e);

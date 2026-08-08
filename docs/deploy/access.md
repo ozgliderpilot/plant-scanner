@@ -75,8 +75,10 @@ accession — and auto-creates it (`qryPlantsExport`) on first run.
 - A **re-entrancy guard** prevents a slow POST from overlapping the next tick.
 - The first run (no stored hash) always pushes.
 - Each successful action is timestamped on the **`SyncStatus`** tab of the Sheet (rolling log of
-  the last 100 sync events, newest first), so you can see recent plant pushes from Access and
-  pulls / pushes with devices.
+  the last 500 sync events, newest first; columns Event, Direction, Last Sync, Detail, Device
+  Prefix), so you can see recent plant pushes from Access and pulls / pushes with devices.
+  Device Prefix is the requesting device's two-digit prefix when a device is a party; blank for
+  Access↔Sheet-only events.
 
 ## Notes / gotchas
 
