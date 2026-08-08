@@ -22,7 +22,7 @@
  *   - pendingRepots   -> returns every "Repots" row whose sync_status is "Pending" (Access reverse sync)
  *   - markRepotsSynced -> sets sync_status by repot_id key (Access reverse sync, status-agnostic)
  *
- * Every action also stamps a "SyncStatus" sheet (rolling log of the last 100 sync events, newest
+ * Every action also stamps a "SyncStatus" sheet (rolling log of the last 500 sync events, newest
  * first; columns Event, Direction, Last Sync, Detail, Device Prefix) so the Sheet shows recent
  * plant pushes from Access and pulls / pushes with the device. Device Prefix is filled when a
  * device is a party; blank for Access↔Sheet-only events.
@@ -496,7 +496,7 @@ function stampPending_(sheet, startRow, numRows, statusCol) {
 
 /**
  * Insert one history row at the top of the "SyncStatus" sheet (newest first), keeping at
- * most 100 data rows by deleting oldest rows from the bottom. Existing rows are left in
+ * most 500 data rows by deleting oldest rows from the bottom. Existing rows are left in
  * place (shifted down) — never wiped or rewritten. Wrapped in try/catch so a logging
  * hiccup can never fail the actual sync. Callers inside handleReplacePlants_/
  * handleAppendSales_ already hold the document lock; handleGetPlants_ calls it lock-free
@@ -517,9 +517,9 @@ function recordSync_(event, direction, detail, devicePrefix) {
     sheet.getRange(2, 1, 1, cols).setValues([
       buildSyncStatusHistoryRow(event, direction, when, detail, devicePrefix),
     ]);
-    var excess = sheet.getLastRow() - 101; // header + 100 data rows
+    var excess = sheet.getLastRow() - 501; // header + 500 data rows
     if (excess > 0) {
-      sheet.deleteRows(102, excess);
+      sheet.deleteRows(502, excess);
     }
   } catch (e) {
     console.error(e);
