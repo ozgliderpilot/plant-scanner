@@ -7,6 +7,9 @@ object TestTags {
     const val TYPE_NUMBER = "type_number"
     const val FIND = "find"
     const val ADD_TO_RECEIPT = "add_to_receipt"
+    const val DISCOUNT_PCT = "discount_pct"
+    /** Prefix for quick-pick tags: `discount_preset_10`, `discount_preset_15`, … */
+    const val DISCOUNT_PRESET_PREFIX = "discount_preset_"
     const val QTY_PLUS = "qty_plus"
     const val FINISH_SAVE = "finish_save"
     const val DONE = "done"
