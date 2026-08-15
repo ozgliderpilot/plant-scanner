@@ -6,16 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -31,12 +25,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nursery.core.CullRecord
 import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.BigButton
 import com.nursery.scanner.ui.components.PlantCard
+import com.nursery.scanner.ui.components.QtyStepper
 import com.nursery.scanner.ui.components.ReasonDropdown
 import com.nursery.scanner.ui.components.ScreenHeader
 import com.nursery.scanner.ui.components.UnitDropdown
@@ -87,16 +81,7 @@ fun EnterInfoScreen(
 
             Text("Quantity", style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.Gap)) {
-                FilledTonalIconButton(onClick = { if (qty > 1) qty-- }, modifier = Modifier.size(64.dp)) {
-                    Icon(Icons.Filled.Remove, contentDescription = "One fewer")
-                }
-                Text("$qty", style = MaterialTheme.typography.displaySmall)
-                FilledTonalIconButton(
-                    onClick = { qty++ },
-                    modifier = Modifier.size(64.dp).testTag(TestTags.QTY_PLUS),
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "One more")
-                }
+                QtyStepper(value = qty, onValueChange = { qty = it })
                 UnitDropdown(selected = unit, qty = qty, onSelect = { unit = it }, modifier = Modifier.weight(1f))
             }
 
