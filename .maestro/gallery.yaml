@@ -37,9 +37,7 @@ appId: com.nursery.scanner.test
 - inputText: "5.00"
 - hideKeyboard
 - tapOn:
-    text: "Discount %"
-- inputText: "10"
-- hideKeyboard
+    id: discount_preset_10
 - takeScreenshot:
     path: maestro-out/03-sell-line
 - tapOn:

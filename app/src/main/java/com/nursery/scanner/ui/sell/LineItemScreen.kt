@@ -5,18 +5,22 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,11 +37,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nursery.core.DiscountPresets
 import com.nursery.core.Money
 import com.nursery.core.SaleUnit
 import com.nursery.scanner.ui.TestTags
 import com.nursery.scanner.ui.components.BigButton
-import com.nursery.scanner.ui.components.BigButtonStyle
 import com.nursery.scanner.ui.components.PlantCard
 import com.nursery.scanner.ui.components.ScreenHeader
 import com.nursery.scanner.ui.components.UnitDropdown
@@ -47,8 +51,8 @@ import com.nursery.scanner.util.parseDollarsToCents
 
 /**
  * ② Line item: plant card auto-filled; Quantity stepper with a unit dropdown (pots/tubes/misc) to
- * its right, Unit price, Discount %. Live line total = qty × price × (1 − discount%) (spec). Unit price is always
- * keyed — no pre-fill (#6).
+ * its right, Unit price, Discount % with quick-pick presets ([DiscountPresets]). Live line total =
+ * qty × price × (1 − discount%) (spec). Unit price is always keyed — no pre-fill (#6).
  */
 @Composable
 fun LineItemScreen(
@@ -148,8 +152,40 @@ fun LineItemScreen(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 textStyle = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag(TestTags.DISCOUNT_PCT),
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Dimens.GapSmall),
+            ) {
+                val shape = RoundedCornerShape(Dimens.CardCorner)
+                DiscountPresets.pcts.forEach { pct ->
+                    val selected = discountPct == pct
+                    val label = "$pct%"
+                    val btnModifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = Dimens.BigButtonHeight)
+                        .testTag("${TestTags.DISCOUNT_PRESET_PREFIX}$pct")
+                    if (selected) {
+                        Button(
+                            onClick = { discountText = pct.toString() },
+                            shape = shape,
+                            modifier = btnModifier,
+                        ) {
+                            Text(label, style = MaterialTheme.typography.titleLarge)
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = { discountText = pct.toString() },
+                            shape = shape,
+                            modifier = btnModifier,
+                        ) {
+                            Text(label, style = MaterialTheme.typography.titleLarge)
+                        }
+                    }
+                }
+            }
 
             Text(
                 "Line total: ${Money.formatAud(lineTotal)}",
