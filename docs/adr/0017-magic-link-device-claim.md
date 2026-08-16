@@ -11,8 +11,8 @@ shared link must not let a second phone silently take over the same device prefi
 1. **Magic link** `plantscanner://setup?prefix=PP&url=…&code=…` prefills device prefix, endpoint
    URL, and nursery access code (`SHARED_SECRET`). The app generates a fresh **device secret** and
    stores it locally — the link never carries the device secret.
-2. Every Android device-bound POST (`getPlants`, `append*`) sends `devicePrefix` + `deviceSecret`
-   alongside the nursery access code.
+2. Every Android device-bound POST (`plantListSync`, and compat `getPlants` / `append*`) sends
+   `devicePrefix` + `deviceSecret` alongside the nursery access code.
 3. The Apps Script backend keeps the shared-secret gate, then for device-bound actions claims or
    verifies against a **Users** sheet tab (`device_prefix`, `name`, `secret`):
    - no row → append `name=unknown` and set `secret`

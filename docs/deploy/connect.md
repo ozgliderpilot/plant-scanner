@@ -68,7 +68,7 @@ fully offline. (History ↻ runs the same cloud sync.)
  Android app  ──HTTPS POST {secret, devicePrefix, deviceSecret, action}──►  Apps Script (/exec)  ──►  Google Sheet
    (per device)         JSON over the wire            shared secret + Users claim          Plants / Sales / Users
         ▲                                                                                         │
-        └──────────────  getPlants returns the plant list (cloud sync import)  ◄──────────────────┘
+        └──────────────  plantListSync returns queues marked + plants or unchanged  ◄──────────────┘
 ```
 
 - **Selling works offline.** Receipts are saved on the device immediately.

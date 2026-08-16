@@ -2,6 +2,7 @@ package com.nursery.scanner.data.remote
 
 import com.nursery.core.DeviceConfig
 import com.nursery.core.Plant
+import com.nursery.core.PlantListSync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
@@ -45,9 +46,14 @@ class SheetsClient(
         .followSslRedirects(true)
         .build()
 
-    private fun postRaw(url: String, body: String): String {
+    /** Longer read: one POST covers four queues plus the plant list (ADR-0018). */
+    private val plantListSyncClient = client.newBuilder()
+        .readTimeout(90, TimeUnit.SECONDS)
+        .build()
+
+    private fun postRaw(url: String, body: String, http: OkHttpClient = client): String {
         val request = Request.Builder().url(url).post(body.toRequestBody(mediaType)).build()
-        client.newCall(request).execute().use { response ->
+        http.newCall(request).execute().use { response ->
             val text = response.body?.string().orEmpty()
             if (!response.isSuccessful) error("HTTP ${response.code}")
             return text
@@ -71,27 +77,43 @@ class SheetsClient(
             FetchPlantsResult(
                 ok = resp.ok,
                 unchanged = resp.unchanged,
-                plants = resp.plants?.map {
-                    Plant(
-                        accession = it.accession,
-                        name = it.name,
-                        genus = it.genus,
-                        species = it.species,
-                        cultivar = it.cultivar,
-                        commonName = it.commonName,
-                        group = it.group,
-                        light = it.light,
-                        potsInNursery = it.potsInNursery,
-                        tubesInNursery = it.tubesInNursery,
-                        miscInNursery = it.miscInNursery,
-                        stockInNursery = it.stockInNursery,
-                        potsForSale = it.potsForSale,
-                        tubesForSale = it.tubesForSale,
-                        miscForSale = it.miscForSale,
-                    )
-                },
+                plants = resp.plants?.map { it.toPlant() },
                 plantListFingerprint = resp.plantListFingerprint,
                 error = resp.error,
+            )
+        }
+    }
+
+    suspend fun plantListSync(
+        config: DeviceConfig,
+        request: PlantListSync.Request,
+    ): Result<PlantListSync.Response> = withContext(Dispatchers.IO) {
+        runCatching {
+            val requestBody = json.encodeToString(
+                PlantListSyncRequestDto(
+                    secret = config.sharedSecret,
+                    plantListFingerprint = request.plantListFingerprint,
+                    devicePrefix = config.devicePrefix,
+                    deviceSecret = config.deviceSecret,
+                    sales = request.sales?.let { QueueRowsDto(it) },
+                    culls = request.culls?.let { QueueRowsDto(it) },
+                    printLabels = request.printLabels?.let { QueueRowsDto(it) },
+                    repots = request.repots?.let { QueueRowsDto(it) },
+                ),
+            )
+            val resp = json.decodeFromString<PlantListSyncResponseDto>(
+                postRaw(config.endpointUrl, requestBody, plantListSyncClient),
+            )
+            PlantListSync.Response(
+                ok = resp.ok,
+                error = resp.error,
+                sales = resp.sales?.toCore(),
+                culls = resp.culls?.toCore(),
+                printLabels = resp.printLabels?.toCore(),
+                repots = resp.repots?.toCore(),
+                unchanged = resp.unchanged,
+                plantListFingerprint = resp.plantListFingerprint,
+                plants = resp.plants?.map { it.toPlant() },
             )
         }
     }
@@ -152,3 +174,27 @@ class SheetsClient(
         }
     }
 }
+
+private fun PlantDto.toPlant(): Plant = Plant(
+    accession = accession,
+    name = name,
+    genus = genus,
+    species = species,
+    cultivar = cultivar,
+    commonName = commonName,
+    group = group,
+    light = light,
+    potsInNursery = potsInNursery,
+    tubesInNursery = tubesInNursery,
+    miscInNursery = miscInNursery,
+    stockInNursery = stockInNursery,
+    potsForSale = potsForSale,
+    tubesForSale = tubesForSale,
+    miscForSale = miscForSale,
+)
+
+private fun QueueSyncResultDto.toCore(): PlantListSync.QueueResult = PlantListSync.QueueResult(
+    appended = appended,
+    skipped = skipped,
+    error = error,
+)
