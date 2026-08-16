@@ -1,7 +1,7 @@
 /**
  * Ops-budget regression for getPlants latency.
  *
- * The ticker hits getPlants often (default 60s). SpreadsheetApp + LockService calls dominate
+ * The ticker hits plantListSync (or getPlants on old apps) often (default 60s). SpreadsheetApp + LockService calls dominate
  * Apps Script wall time, so the unchanged (fingerprint match) path must not pay for a second
  * exclusive document lock beyond the handler's own withDocumentLock_.
  *
@@ -59,4 +59,11 @@ test('handleAppendExport_ device-auths inside its single document lock', () => {
   const body = functionBody('handleAppendExport_');
   assert.match(body, /withDocumentLock_/);
   assert.match(body, /requireDeviceAuthorization_/);
+});
+
+test('handlePlantListSync_ device-auths inside its single document lock', () => {
+  const body = functionBody('handlePlantListSync_');
+  assert.match(body, /withDocumentLock_/);
+  assert.match(body, /requireDeviceAuthorization_/);
+  assert.doesNotMatch(body, /handleAppendSales_|handleGetPlants_/);
 });
