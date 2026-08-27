@@ -8,7 +8,10 @@ sideloaded only — it is not published to Play.
 
 - **Android Studio** (latest stable; it bundles the right JDK 17 and SDK manager).
   Or the command-line SDK + **JDK 17** with `JAVA_HOME` pointing at it.
-- An Android phone/tablet running **Android 8.0 (API 26) or newer** with a camera.
+- An Android phone/tablet running **Android 6.0 (API 23) or newer** with a camera.
+  Marshmallow devices should **sideload** (Play Internal / Play services may no longer
+  reach them). CameraX + ML Kit on 2015-era Camera2 hardware is unproven — if the
+  preview is black, use **Type number instead**.
 - A USB cable (for `adb`), or any way to copy an `.apk` to the device.
 
 The project already contains a Gradle wrapper (`gradlew` / `gradlew.bat`, Gradle 8.9) and pins all
@@ -90,4 +93,5 @@ adb install -r app/build/outputs/apk/qa/release/app-qa-release.apk
 - **Version suggestions** → if Studio flags a newer AGP/Kotlin, the pinned versions in
   `libs.versions.toml` are a known-good set; you can accept upgrades but it's not required.
 - **Camera won't scan** → labels are **Code 128**; ensure good light and hold steady. The scanner is
-  restricted to Code 128 on purpose.
+  restricted to Code 128 on purpose. On Android 6–7 a black preview is possible — use
+  **Type number instead**.
