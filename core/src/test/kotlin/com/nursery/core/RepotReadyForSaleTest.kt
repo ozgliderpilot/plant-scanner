@@ -7,136 +7,85 @@ import kotlin.test.assertTrue
 
 class RepotReadyForSaleTest {
 
-    @Test fun `pots unchecked when pots is zero`() {
-        val flags = RepotReadyForSale.defaults(
-            tubes = 0, pots = 0, misc = 0,
-            group = "Shrub", genus = "Acacia",
-            sheetPotsForSale = true,
+    private fun plant(
+        tubes: Int = 0,
+        pots: Int = 0,
+        misc: Int = 0,
+        group: String? = "Shrub",
+        genus: String = "Acacia",
+        tubesForSale: Boolean = false,
+        potsForSale: Boolean = false,
+        miscForSale: Boolean = false,
+    ) = Plant(
+        accession = "31011",
+        name = "Acacia pycnantha",
+        genus = genus,
+        group = group,
+        light = null,
+        potsInNursery = pots,
+        tubesInNursery = tubes,
+        miscInNursery = misc,
+        potsForSale = potsForSale,
+        tubesForSale = tubesForSale,
+        miscForSale = miscForSale,
+    )
+
+    @Test fun `pots tick follows the plant list even when pots count is positive`() {
+        val flags = RepotReadyForSale.fromPlant(
+            plant(pots = 5, potsForSale = false, group = "Shrub", genus = "Acacia"),
         )
         assertFalse(flags.pots)
     }
 
-    @Test fun `pots checked when pots positive and not an exception plant`() {
-        val flags = RepotReadyForSale.defaults(
-            tubes = 0, pots = 5, misc = 0,
-            group = "Shrub", genus = "Acacia",
-            sheetPotsForSale = false,
+    @Test fun `misc tick follows the plant list even when misc count is positive`() {
+        val flags = RepotReadyForSale.fromPlant(
+            plant(misc = 2, miscForSale = false),
         )
-        assertTrue(flags.pots)
+        assertFalse(flags.misc)
     }
 
-    @Test fun `pots exception Camellia uses sheet potsForSale`() {
+    @Test fun `tubes tick follows the plant list even for Herb with tubes`() {
+        val flags = RepotReadyForSale.fromPlant(
+            plant(tubes = 8, group = "Herb", genus = "Ocimum", tubesForSale = false),
+        )
+        assertFalse(flags.tubes)
+    }
+
+    @Test fun `checked plant-list ticks stay checked`() {
+        val flags = RepotReadyForSale.fromPlant(
+            plant(
+                tubes = 3, pots = 4, misc = 1,
+                tubesForSale = true, potsForSale = true, miscForSale = true,
+            ),
+        )
+        assertEquals(ReadyForSaleFlags(tubes = true, pots = true, misc = true), flags)
+    }
+
+    @Test fun `former pots exceptions still follow the plant list`() {
+        assertFalse(
+            RepotReadyForSale.fromPlant(
+                plant(pots = 3, group = "Camellia", genus = "Camellia", potsForSale = false),
+            ).pots,
+        )
         assertTrue(
-            RepotReadyForSale.defaults(
-                tubes = 0, pots = 3, misc = 0,
-                group = "Camellia", genus = "Camellia",
-                sheetPotsForSale = true,
+            RepotReadyForSale.fromPlant(
+                plant(pots = 2, group = "Rhododendron", genus = "Rhododendron", potsForSale = true),
             ).pots,
         )
         assertFalse(
-            RepotReadyForSale.defaults(
-                tubes = 0, pots = 3, misc = 0,
-                group = "camellia", genus = "Other",
-                sheetPotsForSale = false,
-            ).pots,
-        )
-    }
-
-    @Test fun `pots exception Rhododendron uses sheet potsForSale`() {
-        assertEquals(
-            true,
-            RepotReadyForSale.defaults(
-                tubes = 0, pots = 2, misc = 0,
-                group = "Rhododendron", genus = "Rhododendron",
-                sheetPotsForSale = true,
-            ).pots,
-        )
-        assertEquals(
-            false,
-            RepotReadyForSale.defaults(
-                tubes = 0, pots = 2, misc = 0,
-                group = "rhododendron", genus = "Other",
-                sheetPotsForSale = false,
+            RepotReadyForSale.fromPlant(
+                plant(pots = 4, group = "Perennial", genus = "Hosta", potsForSale = false),
             ).pots,
         )
     }
 
-    @Test fun `pots exception Hosta matches genus not Plant Type`() {
-        assertFalse(
-            RepotReadyForSale.defaults(
-                tubes = 0, pots = 4, misc = 0,
-                group = "Perennial", genus = "Hosta",
-                sheetPotsForSale = false,
-            ).pots,
-        )
-        assertTrue(
-            RepotReadyForSale.defaults(
-                tubes = 0, pots = 4, misc = 0,
-                group = "Hosta", genus = "SomethingElse",
-                sheetPotsForSale = false,
-            ).pots,
-        )
-        assertTrue(
-            RepotReadyForSale.defaults(
-                tubes = 0, pots = 4, misc = 0,
-                group = "Perennial", genus = "hosta",
-                sheetPotsForSale = true,
-            ).pots,
-        )
-    }
-
-    @Test fun `tubes checked only when tubes positive and Plant Type is Herb`() {
-        assertTrue(
-            RepotReadyForSale.defaults(
-                tubes = 8, pots = 0, misc = 0,
-                group = "Herb", genus = "Ocimum",
-                sheetPotsForSale = false,
-            ).tubes,
-        )
-        assertTrue(
-            RepotReadyForSale.defaults(
-                tubes = 8, pots = 0, misc = 0,
-                group = "herb", genus = "Ocimum",
-                sheetPotsForSale = false,
-            ).tubes,
-        )
-        assertFalse(
-            RepotReadyForSale.defaults(
-                tubes = 8, pots = 0, misc = 0,
-                group = "Herbs", genus = "Ocimum",
-                sheetPotsForSale = false,
-            ).tubes,
-        )
-        assertFalse(
-            RepotReadyForSale.defaults(
-                tubes = 8, pots = 0, misc = 0,
-                group = "Shrub", genus = "Ocimum",
-                sheetPotsForSale = false,
-            ).tubes,
-        )
-        assertFalse(
-            RepotReadyForSale.defaults(
+    @Test fun `zero counts still show the plant-list ticks`() {
+        val flags = RepotReadyForSale.fromPlant(
+            plant(
                 tubes = 0, pots = 0, misc = 0,
-                group = "Herb", genus = "Ocimum",
-                sheetPotsForSale = false,
-            ).tubes,
+                tubesForSale = true, potsForSale = true, miscForSale = true,
+            ),
         )
-    }
-
-    @Test fun `misc checked only when misc positive`() {
-        assertTrue(
-            RepotReadyForSale.defaults(
-                tubes = 0, pots = 0, misc = 2,
-                group = "Shrub", genus = "Acacia",
-                sheetPotsForSale = false,
-            ).misc,
-        )
-        assertFalse(
-            RepotReadyForSale.defaults(
-                tubes = 0, pots = 0, misc = 0,
-                group = "Shrub", genus = "Acacia",
-                sheetPotsForSale = false,
-            ).misc,
-        )
+        assertEquals(ReadyForSaleFlags(tubes = true, pots = true, misc = true), flags)
     }
 }

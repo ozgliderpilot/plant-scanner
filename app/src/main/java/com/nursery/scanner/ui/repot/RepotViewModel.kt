@@ -39,14 +39,7 @@ data class RepotDraft(
 ) {
     companion object {
         fun fromPlant(p: Plant): RepotDraft {
-            val initialForSale = RepotReadyForSale.defaults(
-                tubes = p.tubesInNursery,
-                pots = p.potsInNursery,
-                misc = p.miscInNursery,
-                group = p.group,
-                genus = p.genus,
-                sheetPotsForSale = p.potsForSale,
-            )
+            val initialForSale = RepotReadyForSale.fromPlant(p)
             return RepotDraft(
                 accession = p.accession,
                 name = p.name,
