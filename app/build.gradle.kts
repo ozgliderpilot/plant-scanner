@@ -43,7 +43,8 @@ android {
 
     defaultConfig {
         applicationId = "com.nursery.scanner"
-        minSdk = 26
+        // Android 6.0. java.time is native only from API 26 — keep coreLibraryDesugaring on.
+        minSdk = 23
         targetSdk = 36
         versionCode = playVersionCode
         versionName = playVersionName
@@ -112,6 +113,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -159,6 +161,8 @@ dependencies {
     implementation(libs.okhttp)
 
     implementation(libs.kotlinx.coroutines.android)
+
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
