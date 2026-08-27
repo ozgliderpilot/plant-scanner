@@ -12,6 +12,8 @@ const {
   PRINT_LABEL_COPIES_MAX, validateAppendRepotCounts,
   selectPendingRepots, resolveRepotMarks,
   computePlantListFingerprint, plantListFingerprintMatches,
+  SALES_EXPORT_HEADER, CULLS_EXPORT_HEADER, PRINT_LABELS_EXPORT_HEADER, REPOTS_EXPORT_HEADER,
+  QUEUE_ROW_WIDTH_ERROR, planPlantListSync,
 } = require('../shared.js');
 
 test('isAuthorized accepts the right secret only', () => {
@@ -28,6 +30,7 @@ test('isDeviceBoundAction covers Android sync actions only', () => {
   assert.strictEqual(isDeviceBoundAction('appendCulls'), true);
   assert.strictEqual(isDeviceBoundAction('appendPrintLabels'), true);
   assert.strictEqual(isDeviceBoundAction('appendRepots'), true);
+  assert.strictEqual(isDeviceBoundAction('plantListSync'), true);
   assert.strictEqual(isDeviceBoundAction('replacePlants'), false);
   assert.strictEqual(isDeviceBoundAction('pendingSales'), false);
   assert.strictEqual(isDeviceBoundAction('markSalesSynced'), false);
@@ -1343,4 +1346,146 @@ test('applyMarksToValues flips Repots sync_status without plant enrichment', () 
   const marked = applyMarksToValues(values, [{ rowIndex: 1, status: 'Synced' }]);
   assert.strictEqual(marked[1][REPOTS_SHEET_HEADER.indexOf('sync_status')], 'Synced');
   assert.strictEqual(marked[1][REPOTS_SHEET_HEADER.indexOf('name')], 'Acacia');
+});
+
+// ---- plantListSync (#141) — one POST, independent queues, fingerprint after predicted stock ----
+// HEADER constants match core/ Export.HEADER / CullExport.HEADER / LabelPrintExport.HEADER / RepotExport.HEADER.
+
+function salesSyncRow(receipt, accession = '31011', qty = '1') {
+  return [
+    receipt, '2026-08-16T10:00', '1', accession, 'Acacia', '', '', '', '', '',
+    qty, 'pots', '5.00', '0', '5.00', 'card',
+  ];
+}
+
+function cullSyncRow(cullId, notes = 'Dead') {
+  return [
+    cullId, '2026-08-16T10:00', '31011', 'Acacia', '', '', '', '', 'Tree',
+    2, 'tubes', 'Dead', notes,
+  ];
+}
+
+function labelSyncRow(queueId) {
+  return [queueId, '2026-08-16T10:00', '31011', 'Acacia', 2];
+}
+
+function plantsForSync() {
+  return [
+    PLANTS_HEADER,
+    ['31011', 'Acacia pycnantha', 'Tree', 'Full sun', 10, 5, 4, 2, true, false, false],
+  ];
+}
+
+test('plantListSync HEADER constants match core/ export column order', () => {
+  assert.deepStrictEqual(SALES_EXPORT_HEADER, [
+    'receipt', 'date', 'item_seq', 'accession', 'name',
+    'genus', 'species', 'cultivar', 'common_name', 'group',
+    'qty', 'unit', 'unit_price', 'discount_pct', 'line_total', 'payment_method',
+  ]);
+  assert.deepStrictEqual(CULLS_EXPORT_HEADER, [
+    'cull_id', 'date', 'accession', 'name', 'genus', 'species', 'cultivar', 'common_name',
+    'group', 'qty', 'unit', 'reason', 'notes',
+  ]);
+  assert.deepStrictEqual(PRINT_LABELS_EXPORT_HEADER, [
+    'queue_id', 'date', 'accession', 'name', 'copies',
+  ]);
+  assert.deepStrictEqual(REPOTS_EXPORT_HEADER, [
+    'repot_id', 'date', 'accession', 'name', 'genus', 'species', 'cultivar', 'common_name',
+    'group',
+    'tubes_before', 'pots_before', 'misc_before', 'stock_before',
+    'tubes', 'pots', 'misc', 'stock',
+    'tubes_for_sale', 'pots_for_sale', 'misc_for_sale',
+  ]);
+});
+
+test('empty queues + matching fingerprint → unchanged, no plant rows', () => {
+  const plants = plantsForSync();
+  const fp = computePlantListFingerprint(parsePlants(plants));
+  const plan = planPlantListSync(
+    { plantListFingerprint: fp },
+    { plantsValues: plants, cachedFingerprint: fp },
+  );
+  assert.strictEqual(plan.response.ok, true);
+  assert.strictEqual(plan.response.unchanged, true);
+  assert.strictEqual(plan.response.plants, undefined);
+  assert.strictEqual(plan.response.count, undefined);
+  assert.strictEqual(plan.response.sales, undefined);
+  assert.strictEqual(plan.stampPlantList, false);
+  assert.strictEqual(plan.cacheFingerprint, null);
+});
+
+test('omitted fingerprint full-pulls plants even when the cache matches', () => {
+  const plants = plantsForSync();
+  const fp = computePlantListFingerprint(parsePlants(plants));
+  const plan = planPlantListSync(
+    {},
+    { plantsValues: plants, cachedFingerprint: fp },
+  );
+  assert.strictEqual(plan.response.ok, true);
+  assert.strictEqual(plan.response.unchanged, false);
+  assert.ok(Array.isArray(plan.response.plants));
+  assert.strictEqual(plan.response.plants.length, 1);
+  assert.strictEqual(plan.response.count, 1);
+  assert.strictEqual(plan.response.plantListFingerprint, fp);
+  assert.strictEqual(plan.stampPlantList, true);
+});
+
+test('row width ≠ HEADER length errors that queue; siblings and plants still run', () => {
+  const plants = plantsForSync();
+  const fp = computePlantListFingerprint(parsePlants(plants));
+  const plan = planPlantListSync(
+    {
+      plantListFingerprint: fp,
+      sales: { rows: [['too', 'short']] },
+      printLabels: { rows: [labelSyncRow('07-3')] },
+    },
+    { plantsValues: plants, cachedFingerprint: fp },
+  );
+  assert.strictEqual(plan.response.ok, true);
+  assert.deepStrictEqual(plan.response.sales, { error: QUEUE_ROW_WIDTH_ERROR });
+  assert.strictEqual(plan.writes.sales, undefined);
+  assert.deepStrictEqual(plan.response.printLabels, { appended: 1, skipped: 0 });
+  assert.strictEqual(plan.writes.printLabels.rowsToAppend.length, 1);
+  assert.strictEqual(plan.response.unchanged, true);
+  assert.strictEqual(plan.stampPlantList, false);
+});
+
+test('sales succeed and culls fail validation → sales written, culls error, plants still run', () => {
+  const plants = plantsForSync();
+  const fp = computePlantListFingerprint(parsePlants(plants));
+  const plan = planPlantListSync(
+    {
+      sales: { rows: [salesSyncRow('07-1')] },
+      culls: { rows: [cullSyncRow('07-2', 'bad [note')] },
+    },
+    { plantsValues: plants, cachedFingerprint: fp },
+  );
+  assert.strictEqual(plan.response.ok, true);
+  assert.deepStrictEqual(plan.response.sales, { appended: 1, skipped: 0 });
+  assert.deepStrictEqual(plan.response.culls, { error: 'Cull notes contain unsupported characters' });
+  assert.strictEqual(plan.writes.culls, undefined);
+  assert.strictEqual(plan.response.unchanged, false);
+  assert.ok(Array.isArray(plan.response.plants));
+  assert.notStrictEqual(plan.response.plantListFingerprint, fp);
+  assert.strictEqual(plan.stampPlantList, true);
+  assert.strictEqual(plan.stockUpdates.length, 1);
+  assert.strictEqual(plan.stockUpdates[0].kind, 'sales');
+});
+
+test('labels-only export with matching fingerprint → unchanged', () => {
+  const plants = plantsForSync();
+  const fp = computePlantListFingerprint(parsePlants(plants));
+  const plan = planPlantListSync(
+    {
+      plantListFingerprint: fp,
+      printLabels: { rows: [labelSyncRow('07-3')] },
+    },
+    { plantsValues: plants, cachedFingerprint: fp },
+  );
+  assert.strictEqual(plan.response.ok, true);
+  assert.deepStrictEqual(plan.response.printLabels, { appended: 1, skipped: 0 });
+  assert.strictEqual(plan.response.unchanged, true);
+  assert.strictEqual(plan.response.plants, undefined);
+  assert.strictEqual(plan.stampPlantList, false);
+  assert.strictEqual(plan.stockUpdates.length, 0);
 });

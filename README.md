@@ -30,7 +30,7 @@ core/      Pure Kotlin/JVM — ALL business logic (money, receipt #, plant looku
            No Android types. Unit-tested with `gradle test`.
 app/       Android (Jetpack Compose + Room + CameraX + ML Kit + OkHttp + DataStore). Thin glue over
            `core`. Consumes core via a Gradle composite build.
-backend/   Google Apps Script web app (getPlants / appendSales / appendCulls, shared-secret auth,
+backend/   Google Apps Script web app (plantListSync; compat getPlants / append*, shared-secret auth,
            dedupe). Pure logic mirrored as Node-testable JS in `shared.js`. VBA sync module lives in
            `backend/access/modPlantSync.bas` (deployed to the nursery PC — see docs/deploy/access.md).
 ```
