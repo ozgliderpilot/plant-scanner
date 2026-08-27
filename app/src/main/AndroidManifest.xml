@@ -5,7 +5,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <uses-feature android:name="android.hardware.camera.any" android:required="true" />
+    <!-- CAMERA implies rear camera + autofocus required. Opt out so Play does not
+         hide the app from fixed-focus / odd-feature-list phones (Android 6 especially).
+         Typed accession entry still works without a camera. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <application
         android:name=".NurseryApplication"
