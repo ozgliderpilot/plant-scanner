@@ -52,8 +52,8 @@ data class RepotRecord(
         /**
          * Null when valid; otherwise a short reason the save should be rejected.
          *
-         * [initialForSale] is the Ready-for-sale defaults shown when the editor opened — used to
-         * detect no-op saves where neither counts nor ticks changed.
+         * [initialForSale] is the Ready-for-sale ticks copied from the plant list when the
+         * editor opened — used to detect no-op saves where neither counts nor ticks changed.
          */
         fun validationError(record: RepotRecord, initialForSale: ReadyForSaleFlags): String? {
             val counts = listOf(

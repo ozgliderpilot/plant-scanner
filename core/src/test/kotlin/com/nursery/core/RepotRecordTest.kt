@@ -87,6 +87,22 @@ class RepotRecordTest {
         assertNull(RepotRecord.validationError(tickOnly, initialForSale))
     }
 
+    @Test fun `ticking pots for sale against an unchecked plant list is a change`() {
+        val sheet = ReadyForSaleFlags(tubes = false, pots = false, misc = false)
+        val afterTick = record(
+            tubesBefore = 0, potsBefore = 5, miscBefore = 0, stockBefore = 0,
+            tubes = 0, pots = 5, misc = 0, stock = 0,
+            tubesForSale = false, potsForSale = true, miscForSale = false,
+        )
+        assertNull(RepotRecord.validationError(afterTick, sheet))
+        val leftAsShown = record(
+            tubesBefore = 0, potsBefore = 5, miscBefore = 0, stockBefore = 0,
+            tubes = 0, pots = 5, misc = 0, stock = 0,
+            tubesForSale = false, potsForSale = false, miscForSale = false,
+        )
+        assertEquals("Nothing changed", RepotRecord.validationError(leftAsShown, sheet))
+    }
+
     @Test fun `allows all-zero counts when that is a change`() {
         assertNull(
             RepotRecord.validationError(
