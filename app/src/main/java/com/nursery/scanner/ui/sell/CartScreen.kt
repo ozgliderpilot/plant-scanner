@@ -161,10 +161,16 @@ private fun LineRow(line: LineItem, onEdit: () -> Unit, onRemove: () -> Unit) {
                 .fillMaxWidth()
                 .clickable(onClick = onEdit)) {
                 Text(line.name, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Accession: ${line.accession}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
                 val discountLabel = if (line.discountPct > 0) "  −${line.discountPct}%" else ""
                 Text(
                     "${line.qty} ${line.unit.labelFor(line.qty)} × ${Money.formatAud(line.unitPriceCents)}$discountLabel",
                     style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 6.dp),
                 )
             }
             Row(
