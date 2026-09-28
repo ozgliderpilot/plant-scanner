@@ -62,7 +62,7 @@ class AppContainer(context: Context) {
         _pendingMagicLink.value = null
     }
 
-    val plantRepository = PlantRepository(db.plantDao(), sheets)
+    val plantRepository = PlantRepository(db.plantDao())
     val receiptRepository = ReceiptRepository(db.receiptDao(), settingsRepository)
     val cullRepository = CullRepository(db.cullDao(), settingsRepository)
     val labelPrintRepository = LabelPrintRepository(db.labelPrintDao(), settingsRepository)

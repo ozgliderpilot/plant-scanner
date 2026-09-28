@@ -10,4 +10,4 @@ One entry point (`SyncRepository.syncCloud`) always exports the sync queue (sale
 
 ## Consequences
 
-Every refresh path uses the same mutex-serialized sequence. Background sync while the app is closed is out of scope; promote to a foreground Service only if that need appears.
+Every refresh path uses the same mutex-serialized sequence. Background sync while the app is closed is out of scope; promote to a foreground Service only if that need appears. The HTTP shape is one `plantListSync` POST (ADR-0018).

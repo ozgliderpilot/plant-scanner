@@ -21,7 +21,35 @@ var DEVICE_BOUND_ACTIONS = {
   appendCulls: true,
   appendPrintLabels: true,
   appendRepots: true,
+  plantListSync: true,
 };
+
+/**
+ * Export column order — lockstep with core/ (`Export.HEADER`, `CullExport.HEADER`,
+ * `LabelPrintExport.HEADER`, `RepotExport.HEADER`). Do not reorder. plantListSync
+ * rows are positional against these lists; the request does not send `header`.
+ */
+var SALES_EXPORT_HEADER = [
+  'receipt', 'date', 'item_seq', 'accession', 'name',
+  'genus', 'species', 'cultivar', 'common_name', 'group',
+  'qty', 'unit', 'unit_price', 'discount_pct', 'line_total', 'payment_method',
+];
+var CULLS_EXPORT_HEADER = [
+  'cull_id', 'date', 'accession', 'name', 'genus', 'species', 'cultivar', 'common_name',
+  'group', 'qty', 'unit', 'reason', 'notes',
+];
+var PRINT_LABELS_EXPORT_HEADER = [
+  'queue_id', 'date', 'accession', 'name', 'copies',
+];
+var REPOTS_EXPORT_HEADER = [
+  'repot_id', 'date', 'accession', 'name', 'genus', 'species', 'cultivar', 'common_name',
+  'group',
+  'tubes_before', 'pots_before', 'misc_before', 'stock_before',
+  'tubes', 'pots', 'misc', 'stock',
+  'tubes_for_sale', 'pots_for_sale', 'misc_for_sale',
+];
+
+var QUEUE_ROW_WIDTH_ERROR = 'Row width does not match header';
 
 function isDeviceBoundAction(action) {
   return !!DEVICE_BOUND_ACTIONS[String(action || '')];
@@ -977,6 +1005,199 @@ function predictRepotStockUpdates_(plantsValues, exportHeader, appendedRows) {
   return out;
 }
 
+/**
+ * Keys already on an export tab (row 0 = header), for append dedupe.
+ */
+function existingExportKeys(values, keyColumn) {
+  if (!values || values.length < 2) return [];
+  var keyCol = headerColIndex(values[0], keyColumn);
+  if (keyCol < 0) keyCol = 0;
+  var keys = [];
+  for (var r = 1; r < values.length; r++) {
+    keys.push(String(values[r][keyCol]));
+  }
+  return keys;
+}
+
+/**
+ * Validate and dedupe one plantListSync queue. Returns null when the queue key was omitted.
+ * On failure `{ error }` — the queue is not written. Catch-all so a sibling can still run.
+ */
+function planExportQueue(queueBody, header, existingKeys, keyColumn, validateFn) {
+  if (!queueBody) return null;
+  try {
+    var rows = queueBody.rows;
+    if (!Array.isArray(rows)) {
+      return { error: 'Invalid rows' };
+    }
+    for (var i = 0; i < rows.length; i++) {
+      if (!rows[i] || rows[i].length !== header.length) {
+        return { error: QUEUE_ROW_WIDTH_ERROR };
+      }
+    }
+    if (validateFn) {
+      var v = validateFn(header, rows);
+      if (v) return { error: v };
+    }
+    var keyCol = headerColIndex(header, keyColumn);
+    if (keyCol < 0) keyCol = 0;
+    var result = filterNewRows(rows, existingKeys, keyCol);
+    return {
+      appended: result.rows.length,
+      skipped: result.skipped,
+      rowsToAppend: result.rows,
+    };
+  } catch (e) {
+    return { error: 'Export failed' };
+  }
+}
+
+/** Apply predictStockUpdates() results onto a cloned Plants 2D range (in-memory). */
+function applyPredictedStockToValues(plantsValues, updates, kind) {
+  if (!plantsValues || plantsValues.length < 1 || !updates || !updates.length) {
+    return plantsValues;
+  }
+  var out = plantsValues.map(function (row) { return row.slice(); });
+  var header = out[0];
+  var iPots = headerColIndex(header, 'potsinnursery');
+  var iTubes = headerColIndex(header, 'tubesinnursery');
+  var iMisc = headerColIndex(header, 'miscinnursery');
+  if (iPots < 0 || iTubes < 0 || iMisc < 0) return plantsValues;
+  var iStock = headerColIndex(header, 'stockinnursery');
+  var iPotsFs = headerColIndex(header, 'potsforsale');
+  var iTubesFs = headerColIndex(header, 'tubesforsale');
+  var iMiscFs = headerColIndex(header, 'miscforsale');
+  for (var i = 0; i < updates.length; i++) {
+    var u = updates[i];
+    var row = out[u.rowIndex];
+    if (!row) continue;
+    row[iPots] = u.pots;
+    row[iTubes] = u.tubes;
+    row[iMisc] = u.misc;
+    if (kind === 'repots') {
+      if (iStock >= 0 && u.stock !== undefined) row[iStock] = u.stock;
+      if (iPotsFs >= 0 && u.potsForSale !== undefined) row[iPotsFs] = u.potsForSale;
+      if (iTubesFs >= 0 && u.tubesForSale !== undefined) row[iTubesFs] = u.tubesForSale;
+      if (iMiscFs >= 0 && u.miscForSale !== undefined) row[iMiscFs] = u.miscForSale;
+    }
+  }
+  return out;
+}
+
+/**
+ * Plan one plantListSync: independent queues (sales → culls → labels → repots), in-memory
+ * predicted stock after successful sales/culls/repots, then the fingerprint gate.
+ *
+ * @param body request (optional queue keys `{ rows }`, optional plantListFingerprint)
+ * @param state `{ salesValues, cullsValues, printLabelsValues, repotsValues, plantsValues, cachedFingerprint }`
+ * @returns `{ response, writes, stockUpdates, stampPlantList, cacheFingerprint }`
+ */
+function planPlantListSync(body, state) {
+  body = body || {};
+  state = state || {};
+  var plantsValues = (state.plantsValues && state.plantsValues.length)
+    ? state.plantsValues.map(function (row) { return row.slice(); })
+    : [];
+  var response = { ok: true, unchanged: false };
+  var writes = {};
+  var stockUpdates = [];
+  var plantsMutated = false;
+
+  var queueSpecs = [
+    {
+      key: 'sales',
+      header: SALES_EXPORT_HEADER,
+      values: state.salesValues,
+      keyColumn: 'receipt',
+      validate: null,
+      predictKind: 'sales',
+    },
+    {
+      key: 'culls',
+      header: CULLS_EXPORT_HEADER,
+      values: state.cullsValues,
+      keyColumn: 'cull_id',
+      validate: validateAppendCullsNotes,
+      predictKind: 'culls',
+    },
+    {
+      key: 'printLabels',
+      header: PRINT_LABELS_EXPORT_HEADER,
+      values: state.printLabelsValues,
+      keyColumn: 'queue_id',
+      validate: validateAppendPrintLabelCopies,
+      predictKind: null,
+    },
+    {
+      key: 'repots',
+      header: REPOTS_EXPORT_HEADER,
+      values: state.repotsValues,
+      keyColumn: 'repot_id',
+      validate: validateAppendRepotCounts,
+      predictKind: 'repots',
+    },
+  ];
+
+  for (var q = 0; q < queueSpecs.length; q++) {
+    var spec = queueSpecs[q];
+    if (!body[spec.key]) continue;
+    var existing = existingExportKeys(spec.values, spec.keyColumn);
+    var planned = planExportQueue(
+      body[spec.key], spec.header, existing, spec.keyColumn, spec.validate,
+    );
+    if (!planned) continue;
+    if (planned.error) {
+      response[spec.key] = { error: planned.error };
+      continue;
+    }
+    response[spec.key] = { appended: planned.appended, skipped: planned.skipped };
+    writes[spec.key] = { header: spec.header, rowsToAppend: planned.rowsToAppend };
+    if (spec.predictKind && planned.rowsToAppend && planned.rowsToAppend.length) {
+      try {
+        var updates = predictStockUpdates(
+          plantsValues, spec.header, planned.rowsToAppend, spec.predictKind,
+        );
+        if (updates.length) {
+          plantsValues = applyPredictedStockToValues(plantsValues, updates, spec.predictKind);
+          stockUpdates.push({ kind: spec.predictKind, updates: updates });
+          plantsMutated = true;
+        }
+      } catch (e) {
+        // Prediction failure must not fail or roll back a successful queue.
+      }
+    }
+  }
+
+  var cached = String(state.cachedFingerprint == null ? '' : state.cachedFingerprint).trim();
+  var plants = null;
+  var fingerprint = cached;
+  var recomputed = plantsMutated || !plantListFingerprintMatches(body.plantListFingerprint, cached);
+  if (recomputed) {
+    plants = parsePlants(plantsValues);
+    fingerprint = computePlantListFingerprint(plants);
+  }
+
+  response.plantListFingerprint = fingerprint;
+  if (plantListFingerprintMatches(body.plantListFingerprint, fingerprint)) {
+    response.unchanged = true;
+  } else {
+    if (!plants) plants = parsePlants(plantsValues);
+    if (!recomputed) fingerprint = computePlantListFingerprint(plants);
+    response.unchanged = false;
+    response.plantListFingerprint = fingerprint;
+    response.plants = plants;
+    response.count = plants.length;
+  }
+
+  return {
+    response: response,
+    writes: writes,
+    stockUpdates: stockUpdates,
+    stampPlantList: !response.unchanged,
+    cacheFingerprint: recomputed ? fingerprint : null,
+  };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     isAuthorized, isDeviceBoundAction, DEVICE_BOUND_ACTIONS, planDeviceAuthorization,
@@ -992,5 +1213,8 @@ if (typeof module !== 'undefined' && module.exports) {
     isStockPlantCull, computeCullDeduction, computeSalesDeduction, predictStockUpdates,
     applyMarksToValues,
     computePlantListFingerprint, plantListFingerprintMatches,
+    SALES_EXPORT_HEADER, CULLS_EXPORT_HEADER, PRINT_LABELS_EXPORT_HEADER, REPOTS_EXPORT_HEADER,
+    QUEUE_ROW_WIDTH_ERROR, existingExportKeys, planExportQueue, applyPredictedStockToValues,
+    planPlantListSync,
   };
 }

@@ -1,9 +1,11 @@
 /**
  * Google Apps Script Web App for the Nursery app. POST actions, authorised by a shared secret
- * stored in Script Properties (key SHARED_SECRET). Device-bound actions (getPlants + append*)
- * also claim/verify against the "Users" tab (device_prefix, name, secret) — see ADR-0017.
+ * stored in Script Properties (key SHARED_SECRET). Device-bound actions (getPlants, append*,
+ * plantListSync) also claim/verify against the "Users" tab (device_prefix, name, secret) — see
+ * ADR-0017 / ADR-0018.
  *
- *   - getPlants       -> reads the "Plants" sheet, returns plant objects (the manual "Update plant list")
+ *   - plantListSync   -> one round trip: optional queue appends then plant-list import (new app)
+ *   - getPlants       -> reads the "Plants" sheet, returns plant objects (compat for old apps)
  *   - replacePlants   -> full-mirror rewrite of the "Plants" sheet from Access (in-stock plants only)
  *   - appendSales     -> appends sales rows to "Sales" (deduped by receipt #), stamping each newly
  *                        appended row's sync_status "Pending" for the Access reverse sync (auto-export/push),
@@ -27,8 +29,8 @@
  * plant pushes from Access and pulls / pushes with the device. Device Prefix is filled when a
  * device is a party; blank for Access↔Sheet-only events.
  *
- * Plant-list fingerprints for conditional getPlants are cached in Script Properties
- * (key PLANT_LIST_FINGERPRINT) — see ADR-0016.
+ * Plant-list fingerprints for conditional getPlants / plantListSync are cached in Script Properties
+ * (key PLANT_LIST_FINGERPRINT) — see ADR-0016 / ADR-0018.
  *
  * Requires a second script file `shared.gs` containing the contents of shared.js.
  */
@@ -41,8 +43,9 @@ function doPost(e) {
       return json_({ ok: false, error: 'Unauthorized' });
     }
     // Device-bound actions claim/verify inside their handler's document lock so
-    // getPlants/append* take one waitLock, not two.
+    // getPlants/append*/plantListSync take one waitLock, not two.
     switch (body.action) {
+      case 'plantListSync': return handlePlantListSync_(body);
       case 'getPlants': return handleGetPlants_(body);
       case 'replacePlants': return handleReplacePlants_(body);
       case 'appendSales': return handleAppendSales_(body);
@@ -153,6 +156,136 @@ function withDocumentLock_(fn) {
     return fn();
   } finally {
     lock.releaseLock();
+  }
+}
+
+function handlePlantListSync_(body) {
+  return withDocumentLock_(function () {
+    var denied = requireDeviceAuthorization_(body);
+    if (denied) return denied;
+
+    var hasSales = !!(body && body.sales);
+    var hasCulls = !!(body && body.culls);
+    var hasLabels = !!(body && body.printLabels);
+    var hasRepots = !!(body && body.repots);
+    var hasAnyQueue = hasSales || hasCulls || hasLabels || hasRepots;
+    var cached = getCachedPlantListFingerprint_();
+
+    if (!hasAnyQueue && plantListFingerprintMatches(body && body.plantListFingerprint, cached)) {
+      return json_({
+        ok: true,
+        unchanged: true,
+        plantListFingerprint: String(cached).trim(),
+      });
+    }
+
+    var state = {
+      cachedFingerprint: cached,
+      plantsValues: sheetValues_('Plants'),
+    };
+    if (hasSales) state.salesValues = sheetValues_('Sales');
+    if (hasCulls) state.cullsValues = sheetValues_('Culls');
+    if (hasLabels) state.printLabelsValues = sheetValues_('PrintQueue');
+    if (hasRepots) state.repotsValues = sheetValues_('Repots');
+
+    var plan = planPlantListSync(body, state);
+    applyPlantListSyncWrites_(plan.writes);
+    applyPlantListSyncStock_(plan.stockUpdates);
+    if (plan.cacheFingerprint) {
+      setCachedPlantListFingerprint_(plan.cacheFingerprint);
+    }
+
+    var prefix = body.devicePrefix;
+    stampPlantListSyncQueues_(plan.response, prefix);
+    if (plan.stampPlantList) {
+      var n = plan.response.count || 0;
+      recordSync_('Plant list to device', 'Sheet → device', n + ' plants', prefix);
+    }
+    return json_(plan.response);
+  });
+}
+
+function sheetValues_(name) {
+  var sheet = SpreadsheetApp.getActive().getSheetByName(name);
+  if (!sheet || sheet.getLastRow() < 1) return [];
+  return sheet.getDataRange().getValues();
+}
+
+function applyPlantListSyncWrites_(writes) {
+  var specs = [
+    { key: 'sales', sheetName: 'Sales', keyColumn: 'receipt' },
+    { key: 'culls', sheetName: 'Culls', keyColumn: 'cull_id' },
+    { key: 'printLabels', sheetName: 'PrintQueue', keyColumn: 'queue_id' },
+    { key: 'repots', sheetName: 'Repots', keyColumn: 'repot_id' },
+  ];
+  for (var i = 0; i < specs.length; i++) {
+    var spec = specs[i];
+    var w = writes && writes[spec.key];
+    if (!w || !w.rowsToAppend || !w.rowsToAppend.length) continue;
+    var sheet = getOrCreateExportSheet_(spec.sheetName, w.header);
+    var keyCol = salesColIndex(w.header, spec.keyColumn);
+    if (keyCol < 0) keyCol = 0;
+    var accCol = salesColIndex(w.header, 'accession');
+    var lastRow = sheet.getLastRow();
+    var startRow = lastRow + 1;
+    forceTextColumn_(sheet, startRow, w.rowsToAppend.length, keyCol);
+    forceTextColumn_(sheet, startRow, w.rowsToAppend.length, accCol);
+    sheet.getRange(startRow, 1, w.rowsToAppend.length, w.header.length).setValues(w.rowsToAppend);
+    var statusCol = salesColIndex(sheetHeaderRow_(sheet), 'sync_status');
+    stampPending_(sheet, startRow, w.rowsToAppend.length, statusCol);
+  }
+}
+
+function applyPlantListSyncStock_(stockUpdates) {
+  if (!stockUpdates || !stockUpdates.length) return;
+  var plantsSheet = SpreadsheetApp.getActive().getSheetByName('Plants');
+  if (!plantsSheet || plantsSheet.getLastRow() < 2) return;
+  var header = plantsSheet.getRange(1, 1, 1, plantsSheet.getLastColumn()).getValues()[0];
+  var iPots = headerColIndex(header, 'potsinnursery');
+  var iTubes = headerColIndex(header, 'tubesinnursery');
+  var iMisc = headerColIndex(header, 'miscinnursery');
+  if (iPots < 0 || iTubes < 0 || iMisc < 0) return;
+
+  try {
+    for (var s = 0; s < stockUpdates.length; s++) {
+      var item = stockUpdates[s];
+      var updates = item.updates || [];
+      if (!updates.length) continue;
+      writePredictedStockColumn_(plantsSheet, updates, iPots, 'pots');
+      writePredictedStockColumn_(plantsSheet, updates, iTubes, 'tubes');
+      writePredictedStockColumn_(plantsSheet, updates, iMisc, 'misc');
+      if (item.kind === 'repots') {
+        var iStock = headerColIndex(header, 'stockinnursery');
+        var iPotsFs = headerColIndex(header, 'potsforsale');
+        var iTubesFs = headerColIndex(header, 'tubesforsale');
+        var iMiscFs = headerColIndex(header, 'miscforsale');
+        if (iStock >= 0) writePredictedStockColumn_(plantsSheet, updates, iStock, 'stock');
+        if (iPotsFs >= 0) writePredictedStockColumn_(plantsSheet, updates, iPotsFs, 'potsForSale');
+        if (iTubesFs >= 0) writePredictedStockColumn_(plantsSheet, updates, iTubesFs, 'tubesForSale');
+        if (iMiscFs >= 0) writePredictedStockColumn_(plantsSheet, updates, iMiscFs, 'miscForSale');
+      }
+    }
+  } catch (e) {
+    console.error('applyPlantListSyncStock_ failed:', e);
+  }
+}
+
+function stampPlantListSyncQueues_(response, devicePrefix) {
+  var specs = [
+    { key: 'sales', event: 'Sales from device' },
+    { key: 'culls', event: 'Culls from device' },
+    { key: 'printLabels', event: 'Print labels from device' },
+    { key: 'repots', event: 'Repots from device' },
+  ];
+  for (var i = 0; i < specs.length; i++) {
+    var result = response && response[specs[i].key];
+    if (!result || result.error) continue;
+    recordSync_(
+      specs[i].event,
+      'device → Sheet',
+      'appended ' + result.appended + ', skipped ' + result.skipped,
+      devicePrefix,
+    );
   }
 }
 

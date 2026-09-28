@@ -158,8 +158,14 @@ Manual prod deploy (emergency): `npm run deploy:prod` with local `.clasp.prod.js
 
 ## What the endpoint does
 
-- `POST {secret, action:"getPlants"}` → `{ok, plants:[{accession,name,group,light}], count, updatedAt}`
+- `POST {secret, action:"plantListSync", devicePrefix, deviceSecret, plantListFingerprint?, sales?, culls?, printLabels?, repots?}`
+  → `{ok, sales?, culls?, printLabels?, repots?, unchanged, plantListFingerprint, plants?, count?}`
+  - One round trip: optional queue appends (rows only, no `header`) then plant-list import.
+  - Nested queue result is `{ appended, skipped }` or `{ error }`. `ok: false` only before any write.
+- `POST {secret, action:"getPlants", devicePrefix, deviceSecret}` → `{ok, plants:[...], count, updatedAt}`
+  (compat for old apps)
 - `POST {secret, action:"appendSales", header:[...], rows:[[...]]}` → `{ok, appended, skipped}`
+  (compat for old apps)
   - Appends to `Sales`; **skips any row whose receipt # already exists** (no double counting), so a
     re-sent batch is harmless.
 

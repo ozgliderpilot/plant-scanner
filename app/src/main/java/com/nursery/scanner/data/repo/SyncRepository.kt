@@ -3,11 +3,11 @@ package com.nursery.scanner.data.repo
 import com.nursery.core.CloudSync
 import com.nursery.core.CullExport
 import com.nursery.core.CullStatus
-import com.nursery.core.DeviceConfig
 import com.nursery.core.Export
 import com.nursery.core.LabelPrintExport
 import com.nursery.core.LabelPrintStatus
 import com.nursery.core.PlantListImport
+import com.nursery.core.PlantListSync
 import com.nursery.core.ReceiptStatus
 import com.nursery.core.RepotExport
 import com.nursery.core.Retention
@@ -64,7 +64,7 @@ interface CloudSyncActions {
 
 /**
  * The single place "talk to the cloud" happens. History ↻, Plants ↻, and the background ticker
- * all call [syncCloud]: export the sync queue, then import the plant list. Exported rows flip to
+ * all call [syncCloud]: one `plantListSync` POST (sync queue + plant list). Exported rows flip to
  * EXPORTED only on HTTP success — nothing lost, no double counting.
  */
 class SyncRepository(
@@ -116,25 +116,73 @@ class SyncRepository(
 
         transient.update { it.copy(busy = true, error = null) }
 
-        val exportStep = exportStep(config)
-        val localCount = plants.count.first()
-        val storedFingerprint = settings.plantListFingerprint.first()
-        val importStep = plants.updateFromCloud(
-            config = config,
-            forceFullPull = forceFullPull,
-            localPlantCount = localCount,
-            storedFingerprint = storedFingerprint,
-        ).fold(
-            onSuccess = { outcome ->
-                if (outcome is PlantListImport.Outcome.Apply) {
-                    settings.setPlantListFingerprint(outcome.fingerprintToStore)
-                }
-                CloudSync.ImportStep.Ok
-            },
-            onFailure = { e -> CloudSync.ImportStep.Err(e.message ?: "Update failed") },
-        )
-        val outcome = CloudSync.combine(exportStep, importStep)
+        val salesPending = receiptDao.receiptsByStatus(ReceiptStatus.SAVED.name).map { it.toCore() }
+        val cullsPending = cullDao.cullsByStatus(CullStatus.PENDING.name).map { it.toCore() }
+        val labelsPending = labelPrintDao.requestsByStatus(LabelPrintStatus.PENDING.name).map { it.toCore() }
+        val repotsPending = repotDao.repotsByStatus(RepotStatus.PENDING.name).map { it.toCore() }
 
+        val request = PlantListSync.buildRequest(
+            salesRows = Export.buildRows(salesPending, zone).map { Export.rowAsStrings(it) },
+            cullRows = CullExport.buildRows(cullsPending, zone).map { CullExport.rowAsStrings(it) },
+            printLabelRows = LabelPrintExport.buildRows(labelsPending, zone).map { LabelPrintExport.rowAsStrings(it) },
+            repotRows = RepotExport.buildRows(repotsPending, zone).map { RepotExport.rowAsStrings(it) },
+            plantListFingerprint = PlantListImport.fingerprintForRequest(
+                forceFullPull = forceFullPull,
+                localPlantCount = plants.count.first(),
+                storedFingerprint = settings.plantListFingerprint.first(),
+            ),
+        )
+
+        val decision = sheets.plantListSync(config, request).fold(
+            onSuccess = { response ->
+                PlantListSync.interpret(
+                    sent = request,
+                    response = response,
+                    pendingSalesCount = salesPending.size,
+                    pendingCullsCount = cullsPending.size,
+                    pendingLabelsCount = labelsPending.size,
+                    pendingRepotsCount = repotsPending.size,
+                )
+            },
+            onFailure = { e ->
+                PlantListSync.interpret(
+                    sent = request,
+                    response = PlantListSync.Response(ok = false, error = e.message ?: "Export failed"),
+                    pendingSalesCount = salesPending.size,
+                    pendingCullsCount = cullsPending.size,
+                    pendingLabelsCount = labelsPending.size,
+                    pendingRepotsCount = repotsPending.size,
+                )
+            },
+        )
+
+        if (decision.markSalesExported) {
+            receiptDao.markExported(salesPending.map { r -> r.localId }, ReceiptStatus.EXPORTED.name)
+        }
+        if (decision.markCullsExported) {
+            cullDao.markExported(cullsPending.map { c -> c.localId }, CullStatus.EXPORTED.name)
+        }
+        if (decision.markLabelsExported) {
+            labelPrintDao.markExported(
+                labelsPending.map { r -> r.localId },
+                LabelPrintStatus.EXPORTED.name,
+            )
+        }
+        if (decision.markRepotsExported) {
+            repotDao.markExported(repotsPending.map { r -> r.localId }, RepotStatus.EXPORTED.name)
+        }
+
+        when (val import = decision.import) {
+            is PlantListImport.Outcome.Apply -> {
+                plants.applyImport(import)
+                settings.setPlantListFingerprint(import.fingerprintToStore)
+            }
+            else -> Unit
+        }
+
+        if (decision.export is CloudSync.ExportStep.Ok) purgeRetained()
+
+        val outcome = decision.outcome
         if (outcome.advanceExportTimestamp) settings.setLastSynced(now())
         if (outcome.advancePlantListTimestamp) settings.setLastPlantListUpdate(now())
 
@@ -150,130 +198,6 @@ class SyncRepository(
             )
             else -> SyncResult.Error(err, partialError = outcome.partialError)
         }
-    }
-
-    /**
-     * Push pending sales, culls, print labels, then repots; then retention GC.
-     * Queues are independent on partial failure.
-     */
-    private suspend fun exportStep(config: DeviceConfig): CloudSync.ExportStep {
-        val salesPending = receiptDao.receiptsByStatus(ReceiptStatus.SAVED.name).map { it.toCore() }
-        val cullsPending = cullDao.cullsByStatus(CullStatus.PENDING.name).map { it.toCore() }
-        val labelsPending = labelPrintDao.requestsByStatus(LabelPrintStatus.PENDING.name).map { it.toCore() }
-        val repotsPending = repotDao.repotsByStatus(RepotStatus.PENDING.name).map { it.toCore() }
-        if (salesPending.isEmpty() && cullsPending.isEmpty() && labelsPending.isEmpty() &&
-            repotsPending.isEmpty()
-        ) {
-            purgeRetained()
-            return CloudSync.ExportStep.Ok(
-                salesCount = 0,
-                cullCount = 0,
-                labelCount = 0,
-                repotCount = 0,
-            )
-        }
-
-        var salesExported = 0
-        var cullsExported = 0
-        var labelsExported = 0
-        var repotsExported = 0
-
-        if (salesPending.isNotEmpty()) {
-            val rows = Export.buildRows(salesPending, zone).map { Export.rowAsStrings(it) }
-            val result = sheets.appendSales(config, Export.HEADER, rows)
-            result.fold(
-                onSuccess = {
-                    receiptDao.markExported(salesPending.map { r -> r.localId }, ReceiptStatus.EXPORTED.name)
-                    salesExported = salesPending.size
-                },
-                onFailure = { e ->
-                    return CloudSync.ExportStep.Err(e.message ?: "Export failed")
-                },
-            )
-        }
-
-        if (cullsPending.isNotEmpty()) {
-            val rows = CullExport.buildRows(cullsPending, zone).map { CullExport.rowAsStrings(it) }
-            val result = sheets.appendCulls(config, CullExport.HEADER, rows)
-            result.fold(
-                onSuccess = {
-                    cullDao.markExported(cullsPending.map { c -> c.localId }, CullStatus.EXPORTED.name)
-                    cullsExported = cullsPending.size
-                },
-                onFailure = { e ->
-                    purgeRetained()
-                    if (salesExported > 0) {
-                        return CloudSync.ExportStep.Ok(
-                            salesCount = salesExported,
-                            cullCount = 0,
-                            labelCount = 0,
-                            repotCount = 0,
-                            partialError = "Cull export failed",
-                        )
-                    }
-                    return CloudSync.ExportStep.Err(e.message ?: "Export failed")
-                },
-            )
-        }
-
-        if (labelsPending.isNotEmpty()) {
-            val rows = LabelPrintExport.buildRows(labelsPending, zone).map { LabelPrintExport.rowAsStrings(it) }
-            val result = sheets.appendPrintLabels(config, LabelPrintExport.HEADER, rows)
-            result.fold(
-                onSuccess = {
-                    labelPrintDao.markExported(
-                        labelsPending.map { r -> r.localId },
-                        LabelPrintStatus.EXPORTED.name,
-                    )
-                    labelsExported = labelsPending.size
-                },
-                onFailure = { e ->
-                    purgeRetained()
-                    if (salesExported > 0 || cullsExported > 0) {
-                        return CloudSync.ExportStep.Ok(
-                            salesCount = salesExported,
-                            cullCount = cullsExported,
-                            labelCount = 0,
-                            repotCount = 0,
-                            partialError = "Print label export failed",
-                        )
-                    }
-                    return CloudSync.ExportStep.Err(e.message ?: "Export failed")
-                },
-            )
-        }
-
-        if (repotsPending.isNotEmpty()) {
-            val rows = RepotExport.buildRows(repotsPending, zone).map { RepotExport.rowAsStrings(it) }
-            val result = sheets.appendRepots(config, RepotExport.HEADER, rows)
-            result.fold(
-                onSuccess = {
-                    repotDao.markExported(repotsPending.map { r -> r.localId }, RepotStatus.EXPORTED.name)
-                    repotsExported = repotsPending.size
-                },
-                onFailure = { e ->
-                    purgeRetained()
-                    if (salesExported > 0 || cullsExported > 0 || labelsExported > 0) {
-                        return CloudSync.ExportStep.Ok(
-                            salesCount = salesExported,
-                            cullCount = cullsExported,
-                            labelCount = labelsExported,
-                            repotCount = 0,
-                            partialError = "Repot export failed",
-                        )
-                    }
-                    return CloudSync.ExportStep.Err(e.message ?: "Export failed")
-                },
-            )
-        }
-
-        purgeRetained()
-        return CloudSync.ExportStep.Ok(
-            salesCount = salesExported,
-            cullCount = cullsExported,
-            labelCount = labelsExported,
-            repotCount = repotsExported,
-        )
     }
 
     private suspend fun purgeRetained() {

@@ -108,8 +108,8 @@ See ADR-0006.
 _Avoid_: outbox table, sync flag (as a separate concept)
 
 **Cloud sync**:
-The single device↔Sheets round trip: export the sync queue, then import the plant list. See
-ADR-0007 and ADR-0008.
+The single device↔Sheets round trip: export the sync queue, then import the plant list. One
+`plantListSync` POST (ADR-0018). See also ADR-0007 and ADR-0008.
 _Avoid_: export now, update plant list (as separate one-way actions), full sync (ambiguous)
 
 **Full mirror**:
@@ -119,9 +119,9 @@ See ADR-0005.
 _Avoid_: incremental sync, upsert, plant delta
 
 **Plant-list fingerprint**:
-Opaque string identifying the current plant list as returned by `getPlants` (parsed plant objects).
-The server computes and caches it; the device only stores and echoes it on conditional import so an
-unchanged list skips download and local replace. See ADR-0016.
+Opaque string identifying the current plant list as returned by `plantListSync` / `getPlants`
+(parsed plant objects). The server computes and caches it; the device only stores and echoes it on
+conditional import so an unchanged list skips download and local replace. See ADR-0016 and ADR-0018.
 _Avoid_: consistent hashing, etag, LastHash (Access push change-detection — different path)
 
 **Export header**:
