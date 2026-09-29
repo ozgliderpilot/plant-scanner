@@ -39,12 +39,14 @@ echo "Running backend logic tests..."
 npm test
 
 DESC="${ENV} $(git -C "$ROOT/.." rev-parse --short HEAD 2>/dev/null || echo local)-$(date -u +%Y%m%d%H%M%S)"
+# clasp 3.4 stores a relative --project dirname as ".", then rejects rootDir ".".
+PROJECT_PATH="$(node -e "process.stdout.write(require('path').resolve(process.argv[1]))" "$PROJECT_FILE")"
 echo "Pushing to Apps Script (${ENV})..."
-npx clasp push --force --project "$PROJECT_FILE"
+npx clasp push --force --project "$PROJECT_PATH"
 
 echo "Redeploying Web App (${ENV}, deployment ${DEPLOYMENT_ID})..."
 npx clasp deploy \
-  --project "$PROJECT_FILE" \
+  --project "$PROJECT_PATH" \
   --deploymentId "$DEPLOYMENT_ID" \
   --description "$DESC"
 

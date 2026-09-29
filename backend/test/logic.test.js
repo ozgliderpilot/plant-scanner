@@ -881,6 +881,30 @@ test('selectPendingPrintLabels selects only Pending rows, shaped {queue_id,date,
   ]);
 });
 
+test('selectPendingPrintLabels formats a spreadsheet date cell as the confirm-time local datetime', () => {
+  // getValues() returns a Date for a date/time cell. Local fields are the sheet wall clock.
+  const confirm = new Date(2026, 6, 1, 9, 5, 3);
+  const values = [
+    PRINT_LABELS_SHEET_HEADER,
+    ['07-1-1', confirm, '31011', 'Acacia', 2, 'Pending'],
+  ];
+  assert.deepStrictEqual(selectPendingPrintLabels(values), [
+    { queue_id: '07-1-1', date: '2026-07-01T09:05:03', accession: '31011', name: 'Acacia', copies: 2 },
+  ]);
+});
+
+test('selectPendingPrintLabels leaves a blank or unparseable date for Access to fall back', () => {
+  const values = [
+    PRINT_LABELS_SHEET_HEADER,
+    ['07-1-1', '', '31011', 'Acacia', 1, 'Pending'],
+    ['07-1-2', 'not-a-date', '8250', 'Banksia', 1, 'Pending'],
+  ];
+  assert.deepStrictEqual(selectPendingPrintLabels(values), [
+    { queue_id: '07-1-1', date: '', accession: '31011', name: 'Acacia', copies: 1 },
+    { queue_id: '07-1-2', date: 'not-a-date', accession: '8250', name: 'Banksia', copies: 1 },
+  ]);
+});
+
 test('resolvePrintLabelMarks maps each queue_id key to its values row index and status', () => {
   const values = [
     PRINT_LABELS_SHEET_HEADER,

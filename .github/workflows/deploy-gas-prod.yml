@@ -42,8 +42,10 @@ jobs:
       - name: Push and redeploy prod Web App
         run: |
           DESC="prod-ci-${GITHUB_SHA::7}-$(date -u +%Y%m%d%H%M%S)"
-          npx clasp push --force --project .clasp.prod.json
+          # clasp 3.4 stores a relative --project dirname as ".", then rejects rootDir ".".
+          PROJECT="$(node -e "process.stdout.write(require('path').resolve('.clasp.prod.json'))")"
+          npx clasp push --force --project "$PROJECT"
           npx clasp deploy \
-            --project .clasp.prod.json \
+            --project "$PROJECT" \
             --deploymentId "${{ secrets.GAS_PROD_DEPLOYMENT_ID }}" \
             --description "$DESC"
