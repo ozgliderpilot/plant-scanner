@@ -126,6 +126,33 @@ function rowStr(row, idx) {
   return idx >= 0 ? String(row[idx]).trim() : '';
 }
 
+/**
+ * PrintQueue `date` in the form Access parses: ISO local datetime, no offset.
+ * Text cells stay as exported (`2026-07-01T12:00` or with seconds). A date/time cell arrives from
+ * getValues as a Date; String(date) is a locale form Access rejects, so DateQueued would become
+ * the apply-time clock. Format that Date from its local calendar fields — the sheet wall clock —
+ * and do not shift it to UTC.
+ */
+function confirmDateText(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return formatLocalDateTime_(value);
+  }
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
+}
+
+function formatLocalDateTime_(date) {
+  function pad(n) {
+    return (n < 10 ? '0' : '') + n;
+  }
+  return date.getFullYear() + '-' +
+    pad(date.getMonth() + 1) + '-' +
+    pad(date.getDate()) + 'T' +
+    pad(date.getHours()) + ':' +
+    pad(date.getMinutes()) + ':' +
+    pad(date.getSeconds());
+}
+
 function rowNum(row, idx) {
   if (idx < 0) return 0;
   var n = Number(row[idx]);
@@ -641,6 +668,8 @@ function resolveCullMarks(values, keys) {
  * "PrintQueue" sheet values (row 0 = header). Returns every row whose `sync_status` is exactly
  * "Pending" (trimmed, case-insensitive), shaped as:
  * `{queue_id, date, accession, name, copies}` for Access PrintQueue insert + Batches print tracking.
+ * `date` is the confirm-time local datetime Access can parse, whether the cell is still ISO text
+ * or a spreadsheet date/time (see confirmDateText).
  *
  * Columns are resolved by header name. A header-only or empty sheet, or one with no `sync_status`
  * column, yields [].
@@ -662,7 +691,7 @@ function selectPendingPrintLabels(values) {
     if (String(row[iStatus]).trim().toLowerCase() !== 'pending') continue;
     out.push({
       queue_id: rowStr(row, iQueueId),
-      date: rowStr(row, iDate),
+      date: iDate >= 0 ? confirmDateText(row[iDate]) : '',
       accession: rowStr(row, iAcc),
       name: rowStr(row, iName),
       copies: rowNum(row, iCopies),
